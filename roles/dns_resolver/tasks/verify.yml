@@ -139,6 +139,7 @@
     state: started
     connect_timeout: 2
     timeout: 3
+  check_mode: false
 
 - name: Read post-run kubelet state
   ansible.builtin.command:

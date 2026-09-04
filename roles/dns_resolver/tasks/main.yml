@@ -178,6 +178,7 @@
     state: started
     connect_timeout: 2
     timeout: 3
+  check_mode: false
 
 - name: Create protected CR rollback state directory
   ansible.builtin.file:
