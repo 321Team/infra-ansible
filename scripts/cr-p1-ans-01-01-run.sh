@@ -88,8 +88,12 @@ case "${action}" in
       cd "${evidence_root}"
       find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
         | sort -z | xargs -0 sha256sum > SHA256SUMS
+      sha256sum --check SHA256SUMS \
+        > "${timestamp}_integrity_check.txt"
+      find . -maxdepth 1 -type f ! -name SHA256SUMS -print0 \
+        | sort -z | xargs -0 sha256sum > SHA256SUMS
       sha256sum --check SHA256SUMS
-    ) | tee "${evidence_root}/${timestamp}_integrity_check.txt"
+    )
     ;;
   *)
     echo "usage: $0 {precheck|control-plane|workers|verify|rollback HOST|finalize}" >&2

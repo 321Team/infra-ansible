@@ -42,15 +42,31 @@
         cr_dns_original_state: >-
           {{ cr_dns_original_state_file.content | b64decode | from_json }}
 
+    - name: Read active connection on the preserved interface
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - GENERAL.CONNECTION
+          - device
+          - show
+          - "{{ cr_dns_original_state.interface }}"
+      register: cr_dns_rollback_active_connection
+      changed_when: false
+      check_mode: false
+
     - name: Validate preserved state ownership
       ansible.builtin.assert:
         that:
           - cr_dns_original_state.change_id == cr_dns_change_id
           - cr_dns_original_state.inventory_hostname == inventory_hostname
           - cr_dns_original_state.interface == ansible_default_ipv4.interface
+          - >-
+            cr_dns_rollback_active_connection.stdout | trim
+            == cr_dns_original_state.connection
         fail_msg: >-
           Preserved resolver state does not belong to this change, host, or
-          current interface.
+          current interface or active NetworkManager connection.
 
   tasks:
     - name: Restore original NetworkManager resolver values
