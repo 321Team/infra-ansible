@@ -9,6 +9,7 @@
 - Inventory와 그룹 변수 관리
 - SSH known-hosts 및 서비스 계정 authorized_keys 경로 관리
 - Kubernetes API Load Balancer Stage A 연결 검증
+- `CR-P1-ANS-01-01` Kubernetes 전체 Node DNS Resolver 전환
 
 ## 저장소 구조
 
@@ -16,13 +17,17 @@
 |---|---|
 | `ansible.cfg` | 저장소 공통 Ansible 설정 |
 | `inventory/hosts.yml` | 관리 대상 호스트와 그룹 |
-| `inventory/group_vars/all.yml` | 공통 변수와 SSH 옵션 |
+| `inventory/group_vars/all.yml` | 공통 변수, SSH 옵션 및 승인된 Resolver 목표값 |
 | `playbooks/precheck.yml` | 구축 전 사전 점검 |
 | `playbooks/site.yml` | 공통 구성 진입점 |
 | `playbooks/harden_svc_ansible_key.yml` | 서비스 계정 authorized_keys 관리 |
 | `playbooks/p1-lb-01-stage-a-nodes.yml` | API LB Stage A 노드 연결 검증 |
+| `playbooks/cr-p1-ans-01-01-*.yml` | DNS Resolver 사전점검·Batch 적용·검증·Rollback |
 | `roles/common/` | 공통 운영체제 설정 |
 | `roles/k8s_prereq/` | Kubernetes 사전 요구사항 설정 |
+| `roles/dns_resolver/` | NetworkManager 기반 Resolver 상태·검증·자동 실패복구 |
+| `scripts/cr-p1-ans-01-01-run.sh` | 승인 Gate와 Evidence 수집 실행기 |
+| `docs/runbooks/CR-P1-ANS-01-01.md` | CR 실행 및 증적 Runbook |
 
 ## 검증 기준 환경
 
@@ -50,6 +55,12 @@ ansible-inventory -i inventory/hosts.yml --graph
 ansible-playbook -i inventory/hosts.yml --syntax-check playbooks/precheck.yml
 ansible-playbook -i inventory/hosts.yml --syntax-check playbooks/site.yml
 ansible-playbook -i inventory/hosts.yml --check --diff playbooks/site.yml
+```
+
+`CR-P1-ANS-01-01`은 다음 Runbook을 먼저 검토합니다.
+
+```bash
+less docs/runbooks/CR-P1-ANS-01-01.md
 ```
 
 Check Mode를 지원하지 않는 모듈은 별도 검토하며, 실제 적용은 승인된 변경 범위와 대상 호스트를 다시 확인한 뒤 수행합니다.

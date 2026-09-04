@@ -24,6 +24,18 @@ bootstrap_host_records:
     fqdn: k8s-worker03.fds.internal
     hostname: k8s-worker03
 
+cr_dns_change_id: CR-P1-ANS-01-01
+cr_dns_servers:
+  - 10.1.93.52
+  - 10.1.93.53
+cr_dns_search_domains:
+  - fds.internal
+cr_dns_internal_name: k8s-api.fds.internal
+cr_dns_short_name: k8s-api
+cr_dns_expected_address: 10.1.93.109
+cr_dns_external_name: github.com
+cr_dns_state_dir: /var/lib/fds-change/CR-P1-ANS-01-01
+
 ansible_ssh_common_args: >-
   -o StrictHostKeyChecking=yes
   -o UserKnownHostsFile=%d/.ssh/known_hosts

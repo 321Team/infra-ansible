@@ -1,0 +1,152 @@
+---
+- name: CR-P1-ANS-01-01 rollback one failed node
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Require an explicit rollback target
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_host is defined
+        fail_msg: Provide cr_dns_rollback_host with exactly one k8s_nodes host.
+
+    - name: Validate the rollback target exists in inventory
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_host in groups['k8s_nodes']
+        fail_msg: >-
+          {{ cr_dns_rollback_host }} is not a member of k8s_nodes.
+
+    - name: End non-target hosts without changing them
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != cr_dns_rollback_host
+
+    - name: Validate rollback approval token
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_approved | default('') == cr_dns_change_id
+        fail_msg: >-
+          Set cr_dns_rollback_approved={{ cr_dns_change_id }} for the selected
+          rollback host.
+
+    - name: Read preserved original resolver state
+      ansible.builtin.slurp:
+        src: "{{ cr_dns_state_dir }}/original-resolver.json"
+      register: cr_dns_original_state_file
+
+    - name: Decode preserved original resolver state
+      ansible.builtin.set_fact:
+        cr_dns_original_state: >-
+          {{ cr_dns_original_state_file.content | b64decode | from_json }}
+
+    - name: Validate preserved state ownership
+      ansible.builtin.assert:
+        that:
+          - cr_dns_original_state.change_id == cr_dns_change_id
+          - cr_dns_original_state.inventory_hostname == inventory_hostname
+          - cr_dns_original_state.interface == ansible_default_ipv4.interface
+        fail_msg: >-
+          Preserved resolver state does not belong to this change, host, or
+          current interface.
+
+  tasks:
+    - name: Restore original NetworkManager resolver values
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ cr_dns_original_state.connection }}"
+          - ipv4.dns
+          - "{{ cr_dns_original_state.ipv4_dns }}"
+          - ipv4.dns-search
+          - "{{ cr_dns_original_state.ipv4_dns_search }}"
+          - ipv4.ignore-auto-dns
+          - "{{ cr_dns_original_state.ipv4_ignore_auto_dns }}"
+      changed_when: true
+
+    - name: Reapply restored NetworkManager connection
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - reapply
+          - "{{ cr_dns_original_state.interface }}"
+      changed_when: true
+
+    - name: Read restored NetworkManager IPv4 DNS servers
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.dns
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_dns
+      changed_when: false
+
+    - name: Read restored NetworkManager IPv4 search domains
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.dns-search
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_search
+      changed_when: false
+
+    - name: Read restored automatic DNS setting
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.ignore-auto-dns
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_ignore_auto
+      changed_when: false
+
+    - name: Verify restored NetworkManager resolver state
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_dns.stdout | trim == cr_dns_original_state.ipv4_dns
+          - >-
+            cr_dns_rollback_search.stdout | trim
+            == cr_dns_original_state.ipv4_dns_search
+          - >-
+            cr_dns_rollback_ignore_auto.stdout | trim
+            == cr_dns_original_state.ipv4_ignore_auto_dns
+        fail_msg: >-
+          Resolver rollback state does not match the preserved original values.
+
+    - name: Verify external name resolution after rollback
+      ansible.builtin.command:
+        argv:
+          - getent
+          - ahostsv4
+          - "{{ cr_dns_external_name }}"
+      changed_when: false
+
+    - name: Verify Kubernetes API listener after rollback
+      ansible.builtin.wait_for:
+        host: "{{ cr_dns_expected_address }}"
+        port: 6443
+        state: started
+        connect_timeout: 2
+        timeout: 3
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ cr_dns_change_id }}"
+          host: "{{ inventory_hostname }}"
+          resolver_state: RESTORED
+          external_resolution: PASS
+          api_listener: PASS

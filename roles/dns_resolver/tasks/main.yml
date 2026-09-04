@@ -1,0 +1,483 @@
+---
+- name: Validate CR DNS execution phase and variables
+  ansible.builtin.assert:
+    that:
+      - cr_dns_phase in ['precheck', 'apply', 'verify']
+      - cr_dns_servers | length == 2
+      - cr_dns_servers | unique | length == 2
+      - cr_dns_search_domains | length > 0
+      - cr_dns_expected_address | length > 0
+    fail_msg: >-
+      Invalid {{ cr_dns_change_id }} DNS resolver inputs or phase.
+
+- name: Require explicit approval token for resolver changes
+  ansible.builtin.assert:
+    that:
+      - cr_dns_change_approved | default('') == cr_dns_change_id
+    fail_msg: >-
+      Set cr_dns_change_approved={{ cr_dns_change_id }} only for an approved
+      apply run.
+  when: cr_dns_phase == 'apply'
+
+- name: Verify the default IPv4 interface is available
+  ansible.builtin.assert:
+    that:
+      - ansible_default_ipv4.interface is defined
+      - ansible_default_ipv4.interface | length > 0
+    fail_msg: >-
+      No default IPv4 interface was detected on {{ inventory_hostname }}.
+
+- name: Read active NetworkManager connection for the default interface
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - GENERAL.CONNECTION
+      - device
+      - show
+      - "{{ ansible_default_ipv4.interface }}"
+  register: cr_dns_active_connection
+  changed_when: false
+  check_mode: false
+
+- name: Validate the active NetworkManager connection
+  ansible.builtin.assert:
+    that:
+      - cr_dns_active_connection.rc == 0
+      - cr_dns_active_connection.stdout | trim | length > 0
+      - cr_dns_active_connection.stdout | trim != '--'
+    fail_msg: >-
+      An active NetworkManager connection was not found for
+      {{ ansible_default_ipv4.interface }} on {{ inventory_hostname }}.
+
+- name: Read current NetworkManager IPv4 DNS servers
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_dns
+  changed_when: false
+  check_mode: false
+
+- name: Read current NetworkManager IPv4 search domains
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns-search
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_search
+  changed_when: false
+  check_mode: false
+
+- name: Read current NetworkManager automatic DNS setting
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.ignore-auto-dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_ignore_auto
+  changed_when: false
+  check_mode: false
+
+- name: Normalize current resolver state
+  ansible.builtin.set_fact:
+    cr_dns_current_servers: >-
+      {{ (cr_dns_connection_dns.stdout | trim | replace(',', ' ')).split() }}
+    cr_dns_current_search_domains: >-
+      {{ (cr_dns_connection_search.stdout | trim | replace(',', ' ')).split() }}
+    cr_dns_current_ignore_auto: >-
+      {{ cr_dns_connection_ignore_auto.stdout | trim | lower }}
+
+- name: Determine resolver drift
+  ansible.builtin.set_fact:
+    cr_dns_needs_change: >-
+      {{
+        cr_dns_current_servers != cr_dns_servers
+        or cr_dns_current_search_domains != cr_dns_search_domains
+        or cr_dns_current_ignore_auto != 'yes'
+      }}
+
+- name: Read current resolver file
+  ansible.builtin.slurp:
+    src: /etc/resolv.conf
+  register: cr_dns_resolv_conf_before
+
+- name: Read pre-change kubelet state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - kubelet.service
+  register: cr_dns_kubelet_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Read pre-change containerd state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - containerd.service
+  register: cr_dns_containerd_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Verify direct query through each approved DNS server
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +time=2
+      - +tries=1
+      - +short
+      - "@{{ item }}"
+      - "{{ cr_dns_internal_name }}"
+      - A
+  loop: "{{ cr_dns_servers }}"
+  register: cr_dns_direct_queries_before
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    cr_dns_direct_queries_before.rc != 0
+    or cr_dns_expected_address not in cr_dns_direct_queries_before.stdout_lines
+
+- name: Verify external name resolution before change
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ cr_dns_external_name }}"
+  register: cr_dns_external_before
+  changed_when: false
+  check_mode: false
+
+- name: Verify Kubernetes API listener before change
+  ansible.builtin.wait_for:
+    host: "{{ cr_dns_expected_address }}"
+    port: 6443
+    state: started
+    connect_timeout: 2
+    timeout: 3
+
+- name: Create protected CR rollback state directory
+  ansible.builtin.file:
+    path: "{{ cr_dns_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - cr_dns_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Preserve original resolver state once
+  ansible.builtin.copy:
+    dest: "{{ cr_dns_state_dir }}/original-resolver.json"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+    content: >-
+      {{
+        {
+          'change_id': cr_dns_change_id,
+          'captured_at': ansible_date_time.iso8601,
+          'inventory_hostname': inventory_hostname,
+          'interface': ansible_default_ipv4.interface,
+          'connection': cr_dns_active_connection.stdout | trim,
+          'ipv4_dns': cr_dns_connection_dns.stdout | trim,
+          'ipv4_dns_search': cr_dns_connection_search.stdout | trim,
+          'ipv4_ignore_auto_dns': cr_dns_connection_ignore_auto.stdout | trim
+        } | to_nice_json
+      }}
+  when:
+    - cr_dns_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Apply approved resolver state with automatic failure rollback
+  when:
+    - cr_dns_phase == 'apply'
+    - cr_dns_needs_change | bool
+    - not ansible_check_mode
+  block:
+    - name: Configure NetworkManager resolver state
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ cr_dns_active_connection.stdout | trim }}"
+          - ipv4.dns
+          - "{{ cr_dns_servers | join(',') }}"
+          - ipv4.dns-search
+          - "{{ cr_dns_search_domains | join(',') }}"
+          - ipv4.ignore-auto-dns
+          - "yes"
+      register: cr_dns_modify
+      changed_when: true
+
+    - name: Reapply NetworkManager connection without down and up
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - reapply
+          - "{{ ansible_default_ipv4.interface }}"
+      changed_when: true
+
+  rescue:
+    - name: Restore pre-change NetworkManager resolver values
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ cr_dns_active_connection.stdout | trim }}"
+          - ipv4.dns
+          - "{{ cr_dns_connection_dns.stdout | trim }}"
+          - ipv4.dns-search
+          - "{{ cr_dns_connection_search.stdout | trim }}"
+          - ipv4.ignore-auto-dns
+          - "{{ cr_dns_connection_ignore_auto.stdout | trim }}"
+      changed_when: true
+
+    - name: Reapply restored NetworkManager resolver values
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - reapply
+          - "{{ ansible_default_ipv4.interface }}"
+      changed_when: true
+
+    - name: Stop the batch after automatic rollback
+      ansible.builtin.fail:
+        msg: >-
+          Resolver apply failed on {{ inventory_hostname }}. Original values
+          were restored and the serial batch was stopped.
+
+- name: Report resolver drift during check mode
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      phase: "{{ cr_dns_phase }}"
+      connection: "{{ cr_dns_active_connection.stdout | trim }}"
+      current_dns: "{{ cr_dns_current_servers }}"
+      desired_dns: "{{ cr_dns_servers }}"
+      current_search: "{{ cr_dns_current_search_domains }}"
+      desired_search: "{{ cr_dns_search_domains }}"
+      current_ignore_auto_dns: "{{ cr_dns_current_ignore_auto }}"
+      drift: "{{ cr_dns_needs_change }}"
+
+- name: Read post-run NetworkManager IPv4 DNS servers
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_dns_after
+  changed_when: false
+  check_mode: false
+
+- name: Read post-run NetworkManager IPv4 search domains
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns-search
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_search_after
+  changed_when: false
+  check_mode: false
+
+- name: Read post-run NetworkManager automatic DNS setting
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.ignore-auto-dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_ignore_auto_after
+  changed_when: false
+  check_mode: false
+
+- name: Read post-run resolver file
+  ansible.builtin.slurp:
+    src: /etc/resolv.conf
+  register: cr_dns_resolv_conf_after
+
+- name: Verify persistent resolver target state
+  ansible.builtin.assert:
+    that:
+      - >-
+        (cr_dns_connection_dns_after.stdout | trim | replace(',', ' ')).split()
+        == cr_dns_servers
+      - >-
+        (cr_dns_connection_search_after.stdout | trim | replace(',', ' ')).split()
+        == cr_dns_search_domains
+      - cr_dns_connection_ignore_auto_after.stdout | trim | lower == 'yes'
+      - >-
+        (cr_dns_resolv_conf_after.content | b64decode).find(
+          'nameserver ' ~ cr_dns_servers[0]) >= 0
+      - >-
+        (cr_dns_resolv_conf_after.content | b64decode).find(
+          'nameserver ' ~ cr_dns_servers[1]) >= 0
+      - >-
+        (cr_dns_resolv_conf_after.content | b64decode).find(
+          'nameserver ' ~ cr_dns_servers[0])
+        < (cr_dns_resolv_conf_after.content | b64decode).find(
+          'nameserver ' ~ cr_dns_servers[1])
+      - >-
+        ('search ' ~ cr_dns_search_domains | join(' '))
+        in (cr_dns_resolv_conf_after.content | b64decode)
+    fail_msg: >-
+      Persistent or live resolver state does not match {{ cr_dns_change_id }}
+      on {{ inventory_hostname }}.
+  when:
+    - cr_dns_phase in ['apply', 'verify']
+    - not ansible_check_mode
+
+- name: Verify internal FQDN resolution through the active resolver
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ cr_dns_internal_name }}"
+  register: cr_dns_internal_after
+  changed_when: false
+  check_mode: false
+  failed_when: cr_dns_expected_address not in cr_dns_internal_after.stdout
+  when:
+    - cr_dns_phase in ['apply', 'verify']
+    - not ansible_check_mode
+
+- name: Verify internal short-name resolution through the search domain
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ cr_dns_short_name }}"
+  register: cr_dns_short_after
+  changed_when: false
+  check_mode: false
+  failed_when: cr_dns_expected_address not in cr_dns_short_after.stdout
+  when:
+    - cr_dns_phase in ['apply', 'verify']
+    - not ansible_check_mode
+
+- name: Verify direct query through each approved DNS server after run
+  ansible.builtin.command:
+    argv:
+      - dig
+      - +time=2
+      - +tries=1
+      - +short
+      - "@{{ item }}"
+      - "{{ cr_dns_internal_name }}"
+      - A
+  loop: "{{ cr_dns_servers }}"
+  register: cr_dns_direct_queries_after
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    cr_dns_direct_queries_after.rc != 0
+    or cr_dns_expected_address not in cr_dns_direct_queries_after.stdout_lines
+
+- name: Verify external name resolution after run
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ cr_dns_external_name }}"
+  register: cr_dns_external_after
+  changed_when: false
+  check_mode: false
+
+- name: Verify Kubernetes API listener after run
+  ansible.builtin.wait_for:
+    host: "{{ cr_dns_expected_address }}"
+    port: 6443
+    state: started
+    connect_timeout: 2
+    timeout: 3
+
+- name: Read post-run kubelet state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - kubelet.service
+  register: cr_dns_kubelet_after
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Read post-run containerd state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - containerd.service
+  register: cr_dns_containerd_after
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Verify node service state did not regress
+  ansible.builtin.assert:
+    that:
+      - cr_dns_kubelet_after.stdout == cr_dns_kubelet_before.stdout
+      - cr_dns_containerd_after.stdout == cr_dns_containerd_before.stdout
+    fail_msg: >-
+      kubelet or containerd state changed during {{ cr_dns_change_id }} on
+      {{ inventory_hostname }}. Missing services remain valid only when both
+      pre-run and post-run states are identical.
+
+- name: Print CR DNS node verdict
+  ansible.builtin.debug:
+    msg:
+      change_id: "{{ cr_dns_change_id }}"
+      host: "{{ inventory_hostname }}"
+      phase: "{{ cr_dns_phase }}"
+      interface: "{{ ansible_default_ipv4.interface }}"
+      connection: "{{ cr_dns_active_connection.stdout | trim }}"
+      dns: >-
+        {{ (cr_dns_connection_dns_after.stdout | trim | replace(',', ' ')).split() }}
+      search: >-
+        {{ (cr_dns_connection_search_after.stdout | trim | replace(',', ' ')).split() }}
+      ignore_auto_dns: >-
+        {{ cr_dns_connection_ignore_auto_after.stdout | trim | lower }}
+      direct_queries: "2/2 PASS"
+      external_resolution: PASS
+      api_listener: PASS
+      service_regression: NONE

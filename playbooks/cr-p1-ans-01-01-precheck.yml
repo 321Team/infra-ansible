@@ -1,0 +1,12 @@
+---
+- name: CR-P1-ANS-01-01 resolver precheck on all Kubernetes nodes
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    cr_dns_phase: precheck
+
+  roles:
+    - role: dns_resolver
