@@ -1,0 +1,54 @@
+---
+- name: Test DNS resolver Boolean normalization
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    truthy_nmcli_values:
+      - "yes"
+      - "true"
+      - "1"
+    current_dns:
+      - "10.1.93.52"
+      - "10.1.93.53"
+    current_search:
+      - "fds.internal"
+
+  tasks:
+    - name: Normalize an nmcli yes value to Boolean true
+      ansible.builtin.set_fact:
+        normalized_ignore_auto_dns: >-
+          {{ ('yes' | trim | lower) in truthy_nmcli_values }}
+
+    - name: Verify normalized value and no-drift comparison
+      ansible.builtin.assert:
+        that:
+          - normalized_ignore_auto_dns | type_debug == 'bool'
+          - normalized_ignore_auto_dns | bool
+          - >-
+            not (
+              current_dns != current_dns
+              or current_search != current_search
+              or not (normalized_ignore_auto_dns | bool)
+            )
+
+    - name: Verify accepted and rejected NetworkManager values
+      ansible.builtin.assert:
+        that:
+          - >-
+            ((item.value | trim | lower) in truthy_nmcli_values)
+            == item.expected
+      loop:
+        - value: "yes"
+          expected: true
+        - value: "true"
+          expected: true
+        - value: "1"
+          expected: true
+        - value: "no"
+          expected: false
+        - value: "false"
+          expected: false
+        - value: "0"
+          expected: false

@@ -50,6 +50,16 @@ commit SHA, no direct operational push to `main`, and ticket evidence.
 | Support review by 이하영 | PENDING |
 | Final approval by 이권욱 | PENDING |
 
+## Precheck execution history
+
+| Date | Event | Result |
+|---|---|---|
+| 2026-09-04 | Initial six-node Precheck | FAIL — dns02 `10.1.93.53` timeout on 6/6 nodes; `changed=0` |
+| 2026-09-04 | Root cause confirmation | dns02 VM was powered off |
+| 2026-09-04 | dns02 restart and repeated Precheck | Functional checks PASS — direct DNS 12/12, external resolution 6/6, API Listener 6/6, service regression none, `changed=0` |
+| 2026-09-04 | Pre-apply log review | False-positive drift detected for `ipv4.ignore-auto-dns=yes` because Ansible normalized `yes` to Boolean `true` |
+| 2026-09-04 | Automation correction | Boolean-safe drift and post-state comparisons added; corrected-commit Precheck rerun required before Control Plane apply |
+
 This record does not mark the infrastructure change as complete. Completion
 requires every Acceptance Criterion in the approved CR document and the
 reviewer/approver record.

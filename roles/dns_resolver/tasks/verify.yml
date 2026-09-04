@@ -52,7 +52,9 @@
       - >-
         (cr_dns_connection_search_after.stdout | trim | replace(',', ' ')).split()
         == cr_dns_search_domains
-      - cr_dns_connection_ignore_auto_after.stdout | trim | lower == 'yes'
+      - >-
+        (cr_dns_connection_ignore_auto_after.stdout | trim | lower)
+        in ['yes', 'true', '1']
       - >-
         (cr_dns_resolv_conf_after.content | b64decode).find(
           'nameserver ' ~ cr_dns_servers[0]) >= 0

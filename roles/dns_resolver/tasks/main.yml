@@ -96,7 +96,10 @@
     cr_dns_current_search_domains: >-
       {{ (cr_dns_connection_search.stdout | trim | replace(',', ' ')).split() }}
     cr_dns_current_ignore_auto: >-
-      {{ cr_dns_connection_ignore_auto.stdout | trim | lower }}
+      {{
+        (cr_dns_connection_ignore_auto.stdout | trim | lower)
+        in ['yes', 'true', '1']
+      }}
 
 - name: Determine resolver drift
   ansible.builtin.set_fact:
@@ -104,7 +107,7 @@
       {{
         cr_dns_current_servers != cr_dns_servers
         or cr_dns_current_search_domains != cr_dns_search_domains
-        or cr_dns_current_ignore_auto != 'yes'
+        or not (cr_dns_current_ignore_auto | bool)
       }}
 
 - name: Read current resolver file

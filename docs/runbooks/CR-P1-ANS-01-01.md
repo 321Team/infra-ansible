@@ -13,7 +13,13 @@
 ```bash
 cd /home/server01_ansible/p1-ans-01
 git fetch origin
-git switch cr-p1-ans-01-01-dns-resolver
+if git show-ref --verify --quiet \
+  refs/heads/cr-p1-ans-01-01-dns-resolver; then
+  git switch cr-p1-ans-01-01-dns-resolver
+else
+  git switch --track origin/cr-p1-ans-01-01-dns-resolver
+fi
+git merge --ff-only origin/cr-p1-ans-01-01-dns-resolver
 git status --short
 git log -1 --format='%H %s'
 git merge-base --is-ancestor \
