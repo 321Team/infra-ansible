@@ -1,0 +1,4 @@
+/.vscode/
+/stage-a-output/
+/docs/evidence/
+*.retry

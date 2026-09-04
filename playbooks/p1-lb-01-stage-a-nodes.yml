@@ -1,0 +1,85 @@
+---
+- name: P1-LB-01 Stage A - Kubernetes node positive tests
+  hosts: k8s_nodes
+  gather_facts: false
+  any_errors_fatal: false
+  vars:
+    stage_a_lb_ip: "10.1.93.109"
+    stage_a_lb_port: 6443
+
+  tasks:
+    - name: Record test timestamp
+      ansible.builtin.command: date --iso-8601=seconds
+      register: stage_a_timestamp
+      changed_when: false
+
+    - name: Record static hostname
+      ansible.builtin.command: hostnamectl --static
+      register: stage_a_hostname
+      changed_when: false
+
+    - name: Record route and selected source IP to API LB
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - get
+          - "{{ stage_a_lb_ip }}"
+      register: stage_a_route
+      changed_when: false
+
+    - name: Test TCP handshake from each node to API LB Listener
+      ansible.builtin.wait_for:
+        host: "{{ stage_a_lb_ip }}"
+        port: "{{ stage_a_lb_port }}"
+        state: started
+        connect_timeout: 2
+        timeout: 3
+      register: stage_a_wait
+      ignore_errors: true
+
+    - name: Preserve per-host verdict for the evidence report
+      ansible.builtin.set_fact:
+        stage_a_positive_failed: "{{ stage_a_wait.failed | default(false) | bool }}"
+        stage_a_positive_message: "{{ stage_a_wait.msg | default('TCP handshake accepted') }}"
+
+- name: P1-LB-01 Stage A - Build consolidated node evidence
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    stage_a_output_dir: "{{ lookup('env', 'STAGE_A_OUTPUT_DIR') | default(playbook_dir + '/stage-a-output', true) }}"
+
+  tasks:
+    - name: Create local evidence output directory
+      ansible.builtin.file:
+        path: "{{ stage_a_output_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Write consolidated positive-test evidence
+      ansible.builtin.copy:
+        dest: "{{ stage_a_output_dir }}/16_positive_test_nodes.txt"
+        mode: "0640"
+        content: |
+          test=P1-LB-01 Stage A Kubernetes node positive tests
+          destination=10.1.93.109:6443/tcp
+          execution=TCP tests executed on each remote k8s_nodes host
+          {% for target in groups['k8s_nodes'] | sort %}
+
+          inventory_host={{ target }}
+          timestamp={{ hostvars[target].stage_a_timestamp.stdout | default('UNAVAILABLE') }}
+          hostname={{ hostvars[target].stage_a_hostname.stdout | default('UNAVAILABLE') }}
+          route={{ hostvars[target].stage_a_route.stdout | default('UNAVAILABLE') }}
+          failed={{ hostvars[target].stage_a_positive_failed | default(true) }}
+          message={{ hostvars[target].stage_a_positive_message | default('UNAVAILABLE') }}
+          verdict={{ 'FAIL' if (hostvars[target].stage_a_positive_failed | default(true) | bool) else 'PASS' }}
+          {% endfor %}
+
+    - name: Assert that every Kubernetes node reached the Listener
+      ansible.builtin.assert:
+        that:
+          - not (hostvars[item].stage_a_positive_failed | default(true) | bool)
+        fail_msg: "Stage A positive test failed on {{ item }}. Review the report before proceeding."
+        success_msg: "Stage A positive test passed on {{ item }}."
+      loop: "{{ groups['k8s_nodes'] | sort }}"

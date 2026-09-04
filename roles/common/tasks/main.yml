@@ -1,0 +1,61 @@
+---
+- name: Verify hostname and operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_hostname == expected_hostname
+      - ansible_distribution == "CentOS"
+      - ansible_distribution_major_version == "10"
+    fail_msg: >-
+      Baseline mismatch:
+      inventory={{ inventory_hostname }},
+      expected={{ expected_hostname }},
+      actual={{ ansible_hostname }},
+      os={{ ansible_distribution }}
+      {{ ansible_distribution_major_version }}
+
+- name: Install required common packages
+  ansible.builtin.dnf:
+    name:
+      - python3
+      - sudo
+      - chrony
+    state: present
+
+- name: Enable and start chronyd
+  ansible.builtin.service:
+    name: chronyd
+    enabled: true
+    state: started
+
+- name: Set Asia Seoul timezone
+  ansible.builtin.file:
+    src: /usr/share/zoneinfo/Asia/Seoul
+    dest: /etc/localtime
+    state: link
+    force: true
+
+- name: Configure bootstrap host mappings
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} P1-ANS-01 ANSIBLE MANAGED HOSTS"
+    insertafter: EOF
+    backup: true
+    block: |
+      {% for host in bootstrap_host_records %}
+      {{ host.ip }} {{ host.fqdn }} {{ host.hostname }}
+      {% endfor %}
+
+- name: Read SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: common_selinux_mode
+  changed_when: false
+  check_mode: false
+
+- name: Verify SELinux remains enforcing
+  ansible.builtin.assert:
+    that:
+      - (common_selinux_mode.stdout | trim) == "Enforcing"
+    fail_msg: >-
+      SELinux must remain Enforcing on {{ inventory_hostname }}

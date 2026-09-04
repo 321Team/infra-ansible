@@ -1,0 +1,15 @@
+---
+- name: Apply P1 Ansible operating system baseline
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  serial: 1
+
+  roles:
+    - role: common
+      tags:
+        - common
+
+    - role: k8s_prereq
+      tags:
+        - k8s_prereq

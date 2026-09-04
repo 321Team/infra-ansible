@@ -1,0 +1,30 @@
+---
+bootstrap_host_records:
+  - ip: 10.1.93.102
+    fqdn: k8s-control01.fds.internal
+    hostname: k8s-control01
+
+  - ip: 10.1.93.103
+    fqdn: k8s-control02.fds.internal
+    hostname: k8s-control02
+
+  - ip: 10.1.93.104
+    fqdn: k8s-control03.fds.internal
+    hostname: k8s-control03
+
+  - ip: 10.1.93.105
+    fqdn: k8s-worker01.fds.internal
+    hostname: k8s-worker01
+
+  - ip: 10.1.93.107
+    fqdn: k8s-worker02.fds.internal
+    hostname: k8s-worker02
+
+  - ip: 10.1.93.108
+    fqdn: k8s-worker03.fds.internal
+    hostname: k8s-worker03
+
+ansible_ssh_common_args: >-
+  -o StrictHostKeyChecking=yes
+  -o UserKnownHostsFile=%d/.ssh/known_hosts
+  -o IdentitiesOnly=yes

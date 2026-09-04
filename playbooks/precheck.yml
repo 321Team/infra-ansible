@@ -1,0 +1,172 @@
+---
+- name: P1-ANS-01 Kubernetes node prerequisite precheck
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Verify inventory hostname and operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname == expected_hostname
+          - ansible_distribution == "CentOS"
+          - ansible_distribution_major_version == "10"
+        fail_msg: >-
+          Host or OS mismatch:
+          inventory={{ inventory_hostname }},
+          expected={{ expected_hostname }},
+          actual={{ ansible_hostname }},
+          distribution={{ ansible_distribution }}
+          {{ ansible_distribution_major_version }}
+        success_msg: >-
+          Host and OS verified:
+          {{ inventory_hostname }} / CentOS Stream 10
+
+    - name: Read effective user
+      ansible.builtin.command:
+        argv:
+          - id
+          - -un
+      register: effective_user
+      changed_when: false
+
+    - name: Read SELinux mode
+      ansible.builtin.command:
+        argv:
+          - getenforce
+      register: selinux_mode
+      changed_when: false
+
+    - name: Read timezone
+      ansible.builtin.command:
+        argv:
+          - timedatectl
+          - show
+          - -p
+          - Timezone
+          - --value
+      register: timezone_result
+      changed_when: false
+
+    - name: Read NTP synchronization state
+      ansible.builtin.command:
+        argv:
+          - timedatectl
+          - show
+          - -p
+          - NTPSynchronized
+          - --value
+      register: ntp_result
+      changed_when: false
+
+    - name: Read chronyd service state
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - chronyd
+      register: chronyd_result
+      changed_when: false
+      failed_when: false
+
+    - name: Read active swap
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - --show
+          - --noheadings
+      register: swap_result
+      changed_when: false
+
+    - name: Check overlay kernel module
+      ansible.builtin.stat:
+        path: /sys/module/overlay
+      register: overlay_module
+
+    - name: Check br_netfilter kernel module
+      ansible.builtin.stat:
+        path: /sys/module/br_netfilter
+      register: br_netfilter_module
+
+    - name: Read Kubernetes prerequisite sysctl values
+      ansible.builtin.command:
+        argv:
+          - sysctl
+          - -n
+          - "{{ item }}"
+      loop:
+        - net.bridge.bridge-nf-call-iptables
+        - net.bridge.bridge-nf-call-ip6tables
+        - net.ipv4.ip_forward
+      register: k8s_sysctl
+      changed_when: false
+
+    - name: Read management return route
+      ansible.builtin.command:
+        argv:
+          - ip
+          - route
+          - get
+          - 10.250.10.10
+      register: management_return_route
+      changed_when: false
+
+    - name: Verify operating system prerequisite state
+      ansible.builtin.assert:
+        that:
+          - (effective_user.stdout | trim) == "root"
+          - (selinux_mode.stdout | trim) == "Enforcing"
+          - (timezone_result.stdout | trim) == "Asia/Seoul"
+          - (ntp_result.stdout | trim) == "yes"
+          - (chronyd_result.stdout | trim) == "active"
+          - (swap_result.stdout | trim) == ""
+          - overlay_module.stat.exists
+          - br_netfilter_module.stat.exists
+          - "'via 10.1.93.58' in management_return_route.stdout"
+        fail_msg: >-
+          Prerequisite failure on {{ inventory_hostname }}:
+          user={{ effective_user.stdout | trim }},
+          SELinux={{ selinux_mode.stdout | trim }},
+          timezone={{ timezone_result.stdout | trim }},
+          NTP={{ ntp_result.stdout | trim }},
+          chronyd={{ chronyd_result.stdout | trim }},
+          swap={{ swap_result.stdout | trim }},
+          route={{ management_return_route.stdout | trim }}
+        success_msg: >-
+          OS prerequisite verified on {{ inventory_hostname }}
+
+    - name: Verify Kubernetes sysctl values
+      ansible.builtin.assert:
+        that:
+          - (item.stdout | trim) == "1"
+        fail_msg: >-
+          Invalid sysctl on {{ inventory_hostname }}:
+          {{ item.item }}={{ item.stdout | trim }}
+        success_msg: >-
+          Sysctl verified on {{ inventory_hostname }}:
+          {{ item.item }}=1
+      loop: "{{ k8s_sysctl.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Print precheck summary
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          address: "{{ ansible_host }}"
+          hostname: "{{ ansible_hostname }}"
+          os: >-
+            {{ ansible_distribution }}
+            {{ ansible_distribution_major_version }}
+          effective_user: "{{ effective_user.stdout | trim }}"
+          selinux: "{{ selinux_mode.stdout | trim }}"
+          timezone: "{{ timezone_result.stdout | trim }}"
+          ntp_synchronized: "{{ ntp_result.stdout | trim }}"
+          chronyd: "{{ chronyd_result.stdout | trim }}"
+          swap: >-
+            {{ 'disabled'
+               if (swap_result.stdout | trim) == ''
+               else swap_result.stdout | trim }}
+          overlay: "{{ overlay_module.stat.exists }}"
+          br_netfilter: "{{ br_netfilter_module.stat.exists }}"
+          management_route: "{{ management_return_route.stdout | trim }}"

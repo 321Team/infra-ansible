@@ -1,0 +1,67 @@
+---
+- name: Harden P1 Ansible managed SSH key
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+
+  vars:
+    svc_ansible_authorized_keys:
+      /home/svc_ansible/.ssh/authorized_keys
+
+    svc_ansible_key_comment:
+      P1-ANS-01 svc_ansible
+
+    svc_ansible_key_options:
+      'from="10.250.10.10",restrict'
+
+  tasks:
+    - name: Count P1 managed SSH keys
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -cE
+          - '^(from="10\.250\.10\.10",restrict )?ssh-ed25519[[:space:]]+[^[:space:]]+[[:space:]]+P1-ANS-01 svc_ansible$'
+          - "{{ svc_ansible_authorized_keys }}"
+      register: p1_managed_key_count
+      changed_when: false
+      check_mode: false
+      failed_when:
+        - p1_managed_key_count.rc not in [0, 1]
+        - or (p1_managed_key_count.stdout | int) != 1
+
+    - name: Preserve original authorized keys
+      ansible.builtin.copy:
+        src: "{{ svc_ansible_authorized_keys }}"
+        dest: >-
+          {{ svc_ansible_authorized_keys }}.pre-p1-restrict
+        remote_src: true
+        owner: svc_ansible
+        group: svc_ansible
+        mode: "0600"
+        force: false
+
+    - name: Restrict P1 managed SSH key
+      ansible.builtin.replace:
+        path: "{{ svc_ansible_authorized_keys }}"
+        regexp: >-
+          ^(ssh-ed25519[ \t]+\S+[ \t]+P1-ANS-01 svc_ansible)$
+        replace: >-
+          {{ svc_ansible_key_options }} \1
+        backup: true
+        owner: svc_ansible
+        group: svc_ansible
+        mode: "0600"
+
+    - name: Verify restricted P1 managed SSH key
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -cE
+          - '^from="10\.250\.10\.10",restrict ssh-ed25519[[:space:]]+[^[:space:]]+[[:space:]]+P1-ANS-01 svc_ansible$'
+          - "{{ svc_ansible_authorized_keys }}"
+      register: p1_restricted_key_count
+      changed_when: false
+      failed_when:
+        - p1_restricted_key_count.rc != 0
+        - or (p1_restricted_key_count.stdout | int) != 1

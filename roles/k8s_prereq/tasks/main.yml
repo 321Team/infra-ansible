@@ -1,0 +1,114 @@
+---
+- name: Disable active swap
+  ansible.builtin.command:
+    argv:
+      - swapoff
+      - -a
+  when: (ansible_swaptotal_mb | int) > 0
+  changed_when: true
+
+- name: Disable persistent swap entries
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(?!\s*#)(\s*)(\S+\s+\S+\s+swap\s+\S+.*)$'
+    replace: '# P1-ANS-01 disabled swap: \1\2'
+    backup: true
+
+- name: Configure persistent Kubernetes kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      overlay
+      br_netfilter
+
+- name: Check current overlay module
+  ansible.builtin.stat:
+    path: /sys/module/overlay
+  register: current_overlay_module
+
+- name: Load overlay module when missing
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - overlay
+  when: not current_overlay_module.stat.exists
+  changed_when: true
+
+- name: Check current br_netfilter module
+  ansible.builtin.stat:
+    path: /sys/module/br_netfilter
+  register: current_br_netfilter_module
+
+- name: Load br_netfilter module when missing
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - br_netfilter
+  when: not current_br_netfilter_module.stat.exists
+  changed_when: true
+
+- name: Configure persistent Kubernetes sysctl
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+  notify: Reload Kubernetes sysctl
+
+- name: Apply notified sysctl handler
+  ansible.builtin.meta: flush_handlers
+
+- name: Read live Kubernetes sysctl values
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -n
+      - "{{ item.key }}"
+  loop:
+    - key: net.bridge.bridge-nf-call-iptables
+      value: "1"
+    - key: net.bridge.bridge-nf-call-ip6tables
+      value: "1"
+    - key: net.ipv4.ip_forward
+      value: "1"
+  register: live_k8s_sysctl
+  changed_when: false
+  check_mode: false
+
+- name: Correct drifted live sysctl values
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -w
+      - "{{ item.item.key }}={{ item.item.value }}"
+  loop: "{{ live_k8s_sysctl.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: (item.stdout | trim) != item.item.value
+  changed_when: true
+
+- name: Verify swap remains disabled
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --show
+      - --noheadings
+  register: final_swap_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert final swap state
+  ansible.builtin.assert:
+    that:
+      - (final_swap_state.stdout | trim) == ""
+    fail_msg: >-
+      Swap remains active on {{ inventory_hostname }}
