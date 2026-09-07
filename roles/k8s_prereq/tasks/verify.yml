@@ -1,0 +1,83 @@
+---
+- name: Verify swap remains disabled
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --show
+      - --noheadings
+  register: k8s_prereq_swap_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert swap state
+  ansible.builtin.assert:
+    that:
+      - (k8s_prereq_swap_state.stdout | trim) == ""
+    fail_msg: >-
+      Swap remains active on {{ inventory_hostname }}
+    success_msg: >-
+      Swap verified disabled on {{ inventory_hostname }}
+
+- name: Check overlay kernel module
+  ansible.builtin.stat:
+    path: /sys/module/overlay
+  register: k8s_prereq_overlay_module
+
+- name: Check br_netfilter kernel module
+  ansible.builtin.stat:
+    path: /sys/module/br_netfilter
+  register: k8s_prereq_br_netfilter_module
+
+- name: Assert required kernel modules are loaded
+  ansible.builtin.assert:
+    that:
+      - k8s_prereq_overlay_module.stat.exists
+      - k8s_prereq_br_netfilter_module.stat.exists
+    fail_msg: >-
+      Required kernel module missing on {{ inventory_hostname }}:
+      overlay={{ k8s_prereq_overlay_module.stat.exists }},
+      br_netfilter={{ k8s_prereq_br_netfilter_module.stat.exists }}
+    success_msg: >-
+      Required kernel modules verified on {{ inventory_hostname }}
+
+- name: Read live Kubernetes sysctl values
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -n
+      - "{{ item }}"
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.ipv4.ip_forward
+  register: k8s_prereq_live_sysctl
+  changed_when: false
+  check_mode: false
+
+- name: Assert Kubernetes sysctl values
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | trim) == "1"
+    fail_msg: >-
+      Invalid sysctl on {{ inventory_hostname }}:
+      {{ item.item }}={{ item.stdout | trim }}
+    success_msg: >-
+      Sysctl verified on {{ inventory_hostname }}: {{ item.item }}=1
+  loop: "{{ k8s_prereq_live_sysctl.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Print k8s_prereq verdict
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      swap: disabled
+      overlay: "{{ k8s_prereq_overlay_module.stat.exists }}"
+      br_netfilter: "{{ k8s_prereq_br_netfilter_module.stat.exists }}"
+      sysctl: >-
+        {{
+          k8s_prereq_live_sysctl.results
+          | map(attribute='item')
+          | zip(k8s_prereq_live_sysctl.results | map(attribute='stdout'))
+          | list
+        }}

@@ -1,0 +1,102 @@
+---
+# This file must run after every host in play_hosts has already executed
+# main.yml (or at least gathered facts), so that hostvars contains each
+# node's product_uuid, MAC address, and hostname before the uniqueness
+# checks below compare them.
+
+- name: Read product_uuid on every node
+  ansible.builtin.slurp:
+    src: /sys/class/dmi/id/product_uuid
+  register: k8s_gate0_product_uuid_raw
+
+- name: Normalize this node's product_uuid
+  ansible.builtin.set_fact:
+    k8s_gate0_product_uuid: >-
+      {{ (k8s_gate0_product_uuid_raw.content | b64decode | trim) }}
+
+- name: Collect identity facts for uniqueness comparison
+  ansible.builtin.set_fact:
+    k8s_gate0_identity:
+      hostname: "{{ ansible_hostname }}"
+      mac: "{{ ansible_default_ipv4.macaddress | default('') }}"
+      product_uuid: "{{ k8s_gate0_product_uuid }}"
+
+- name: Assert identity uniqueness across all Gate 0 nodes
+  ansible.builtin.assert:
+    that:
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'hostname'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'mac'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'product_uuid'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+    fail_msg: >-
+      Duplicate hostname, MAC address, or product_uuid detected among
+      {{ play_hosts }}. Each of the 6 nodes must be unique per kubeadm
+      preflight requirements before Gate 0 can pass.
+    success_msg: >-
+      Identity uniqueness verified across all {{ play_hosts | length }}
+      Gate 0 nodes.
+  run_once: true
+
+- name: Verify mutual ping reachability between all nodes
+  ansible.builtin.command:
+    argv:
+      - ping
+      - -c
+      - "2"
+      - -W
+      - "2"
+      - "{{ hostvars[item].ansible_host }}"
+  loop: "{{ play_hosts }}"
+  when: item != inventory_hostname
+  register: k8s_gate0_ping_results
+  changed_when: false
+  check_mode: false
+  failed_when: k8s_gate0_ping_results.rc != 0
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ item }}"
+
+- name: Verify each node resolves every other node via /etc/hosts or DNS
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ hostvars[item].expected_hostname }}"
+  loop: "{{ play_hosts }}"
+  when: item != inventory_hostname
+  register: k8s_gate0_resolution_results
+  changed_when: false
+  check_mode: false
+  failed_when: k8s_gate0_resolution_results.rc != 0
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ hostvars[item].expected_hostname }}"
+
+# NTP synchronization is already verified for every k8s_nodes host by
+# playbooks/precheck.yml (P1-ANS-01). It is intentionally not re-checked
+# here to avoid maintaining the same assertion in two places.
+
+- name: Report Gate 0 cross-node verdict
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      product_uuid: "{{ k8s_gate0_product_uuid }}"
+      mac: "{{ k8s_gate0_identity.mac }}"
+      identity_unique: PASS
+      ping_reachability: >-
+        {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
+      hostname_resolution: >-
+        {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
+  run_once: false

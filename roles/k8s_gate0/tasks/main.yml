@@ -1,0 +1,154 @@
+---
+- name: Assert minimum RAM for kubeadm
+  ansible.builtin.assert:
+    that:
+      - (ansible_memtotal_mb | int) >= 2048
+    fail_msg: >-
+      Insufficient RAM on {{ inventory_hostname }}:
+      {{ ansible_memtotal_mb }}MB (require >= 2048MB)
+    success_msg: >-
+      RAM verified on {{ inventory_hostname }}: {{ ansible_memtotal_mb }}MB
+
+- name: Assert minimum vCPU for control plane nodes
+  ansible.builtin.assert:
+    that:
+      - (ansible_processor_vcpus | int) >= 2
+    fail_msg: >-
+      Insufficient vCPU on {{ inventory_hostname }}:
+      {{ ansible_processor_vcpus }} (require >= 2 for control-plane)
+    success_msg: >-
+      vCPU verified on {{ inventory_hostname }}: {{ ansible_processor_vcpus }}
+  when: inventory_hostname in groups['k8s_control_plane']
+
+- name: Read SELinux mode
+  ansible.builtin.command:
+    argv:
+      - getenforce
+  register: k8s_gate0_selinux_mode
+  changed_when: false
+  check_mode: false
+
+- name: Assert SELinux remains Enforcing
+  ansible.builtin.assert:
+    that:
+      - (k8s_gate0_selinux_mode.stdout | trim) == "Enforcing"
+    fail_msg: >-
+      SELinux is not Enforcing on {{ inventory_hostname }}:
+      {{ k8s_gate0_selinux_mode.stdout | trim }}
+    success_msg: >-
+      SELinux verified Enforcing on {{ inventory_hostname }}
+
+# R5 (권욱님 리뷰): is-enabled/is-active만으로는 masked 상태를 확실히
+# 구분할 수 없고, cockpit.service가 누락되어 있었다. UnitFileState/
+# ActiveState를 socket과 service 각각 개별 조회해 mask 여부까지 판정한다.
+# 유닛을 한 번에 묶어 조회하면 systemctl show 출력에서 유닛 간 경계를
+# 안정적으로 구분하기 어려우므로 유닛별로 따로 호출한다.
+- name: Read Cockpit unit state (socket and service, individually)
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - "{{ item }}"
+      - -p
+      - LoadState
+      - -p
+      - UnitFileState
+      - -p
+      - ActiveState
+  loop:
+    - cockpit.socket
+    - cockpit.service
+  register: k8s_gate0_cockpit_unit_state
+  changed_when: false
+  check_mode: false
+
+- name: Extract Cockpit unit fields per unit
+  ansible.builtin.set_fact:
+    k8s_gate0_cockpit_units: >-
+      {{
+        k8s_gate0_cockpit_units | default({}) | combine({
+          item.item: {
+            'load_state': (item.stdout | regex_search('LoadState=(.*)', '\1') | first),
+            'unit_file_state': (item.stdout | regex_search('UnitFileState=(.*)', '\1') | first),
+            'active_state': (item.stdout | regex_search('ActiveState=(.*)', '\1') | first)
+          }
+        })
+      }}
+  loop: "{{ k8s_gate0_cockpit_unit_state.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+
+# R5: not-installed units report LoadState=not-found and must be recorded
+# separately rather than folded into the disable/mask verdict.
+- name: Record Cockpit unit dispositions
+  ansible.builtin.set_fact:
+    k8s_gate0_cockpit_dispositions: >-
+      {{
+        k8s_gate0_cockpit_dispositions | default({}) | combine({
+          kv.key: (
+            'NOT_INSTALLED'
+            if kv.value.load_state == 'not-found'
+            else (
+              'MASKED_INACTIVE'
+              if (kv.value.unit_file_state == 'masked' and kv.value.active_state == 'inactive')
+              else 'DISABLE_OR_MASK_REQUIRED'
+            )
+          )
+        })
+      }}
+  loop: "{{ k8s_gate0_cockpit_units | dict2items }}"
+  loop_control:
+    loop_var: kv
+    label: "{{ kv.key }}"
+
+# R5: `ss -tulpn` full-output substring match on "9090" can false-positive
+# on unrelated fields and can miss formatting variance. Filter by the exact
+# TCP listening port instead.
+- name: Read listening sockets on TCP port 9090 only
+  ansible.builtin.command:
+    argv:
+      - ss
+      - -H
+      - -ltn
+      - sport = :9090
+  register: k8s_gate0_ss_output
+  changed_when: false
+  check_mode: false
+
+- name: Determine Cockpit 9090 listener presence
+  ansible.builtin.set_fact:
+    k8s_gate0_port_9090_listening: >-
+      {{ (k8s_gate0_ss_output.stdout | trim | length) > 0 }}
+
+- name: Record overall Cockpit disposition for this node
+  ansible.builtin.set_fact:
+    k8s_gate0_cockpit_disposition: >-
+      {{
+        'DISABLE_REQUIRED'
+        if (
+          (k8s_gate0_cockpit_dispositions.values() | list
+           | select('equalto', 'DISABLE_OR_MASK_REQUIRED') | list | length) > 0
+          or (k8s_gate0_port_9090_listening | bool)
+        )
+        else 'ALREADY_DISABLED'
+      }}
+
+- name: Read node network interface count
+  ansible.builtin.set_fact:
+    k8s_gate0_interface_count: >-
+      {{ ansible_interfaces | reject('equalto', 'lo') | list | length }}
+
+- name: Report Gate 0 node-local verdict
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      ram_mb: "{{ ansible_memtotal_mb }}"
+      vcpu: "{{ ansible_processor_vcpus }}"
+      selinux: "{{ k8s_gate0_selinux_mode.stdout | trim }}"
+      cockpit_units: "{{ k8s_gate0_cockpit_units }}"
+      cockpit_dispositions: "{{ k8s_gate0_cockpit_dispositions }}"
+      port_9090_listening: "{{ k8s_gate0_port_9090_listening }}"
+      cockpit_disposition: "{{ k8s_gate0_cockpit_disposition }}"
+      interface_count: >-
+        {{ k8s_gate0_interface_count }} (informational only, not a failure
+        condition per P1-K8S-01 Gate 0 policy)
