@@ -96,5 +96,22 @@
   when: (item.stdout | trim) != item.item.value
   changed_when: true
 
+- name: Verify swap remains disabled
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --show
+      - --noheadings
+  register: final_swap_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert final swap state
+  ansible.builtin.assert:
+    that:
+      - (final_swap_state.stdout | trim) == ""
+    fail_msg: >-
+      Swap remains active on {{ inventory_hostname }}
+
 - name: Run k8s_prereq verification tasks
   ansible.builtin.include_tasks: verify.yml

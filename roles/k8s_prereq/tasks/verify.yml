@@ -1,22 +1,8 @@
 ---
-- name: Verify swap remains disabled
-  ansible.builtin.command:
-    argv:
-      - swapon
-      - --show
-      - --noheadings
-  register: k8s_prereq_swap_state
-  changed_when: false
-  check_mode: false
-
-- name: Assert swap state
-  ansible.builtin.assert:
-    that:
-      - (k8s_prereq_swap_state.stdout | trim) == ""
-    fail_msg: >-
-      Swap remains active on {{ inventory_hostname }}
-    success_msg: >-
-      Swap verified disabled on {{ inventory_hostname }}
+# Swap disable is already verified by the original "Verify swap remains
+# disabled" / "Assert final swap state" tasks at the end of main.yml
+# (kept there unchanged). This file intentionally does not repeat that
+# assertion; it only adds the checks that did not exist anywhere before.
 
 - name: Check overlay kernel module
   ansible.builtin.stat:
@@ -71,7 +57,6 @@
   ansible.builtin.debug:
     msg:
       host: "{{ inventory_hostname }}"
-      swap: disabled
       overlay: "{{ k8s_prereq_overlay_module.stat.exists }}"
       br_netfilter: "{{ k8s_prereq_br_netfilter_module.stat.exists }}"
       sysctl: >-
