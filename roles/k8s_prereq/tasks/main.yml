@@ -1,172 +1,125 @@
 ---
-- name: Assert minimum RAM for kubeadm
-  ansible.builtin.assert:
-    that:
-      - (ansible_memtotal_mb | int) >= 2048
-    fail_msg: >-
-      Insufficient RAM on {{ inventory_hostname }}:
-      {{ ansible_memtotal_mb }}MB (require >= 2048MB)
-    success_msg: >-
-      RAM verified on {{ inventory_hostname }}: {{ ansible_memtotal_mb }}MB
-
-- name: Assert minimum vCPU for control plane nodes
-  ansible.builtin.assert:
-    that:
-      - (ansible_processor_vcpus | int) >= 2
-    fail_msg: >-
-      Insufficient vCPU on {{ inventory_hostname }}:
-      {{ ansible_processor_vcpus }} (require >= 2 for control-plane)
-    success_msg: >-
-      vCPU verified on {{ inventory_hostname }}: {{ ansible_processor_vcpus }}
-  when: inventory_hostname in groups['k8s_control_plane']
-
-- name: Read SELinux mode
+- name: Disable active swap
   ansible.builtin.command:
     argv:
-      - getenforce
-  register: k8s_gate0_selinux_mode
-  changed_when: false
-  check_mode: false
+      - swapoff
+      - -a
+  when: (ansible_swaptotal_mb | int) > 0
+  changed_when: true
 
-- name: Assert SELinux remains Enforcing
-  ansible.builtin.assert:
-    that:
-      - (k8s_gate0_selinux_mode.stdout | trim) == "Enforcing"
-    fail_msg: >-
-      SELinux is not Enforcing on {{ inventory_hostname }}:
-      {{ k8s_gate0_selinux_mode.stdout | trim }}
-    success_msg: >-
-      SELinux verified Enforcing on {{ inventory_hostname }}
+- name: Disable persistent swap entries
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(?!\s*#)(\s*)(\S+\s+\S+\s+swap\s+\S+.*)$'
+    replace: '# P1-ANS-01 disabled swap: \1\2'
+    backup: true
 
-# R5 (권욱님 리뷰): is-enabled/is-active만으로는 masked 상태를 확실히
-# 구분할 수 없고, cockpit.service가 누락되어 있었다. UnitFileState/
-# ActiveState를 socket과 service 각각 개별 조회해 mask 여부까지 판정한다.
-# 유닛을 한 번에 묶어 조회하면 systemctl show 출력에서 유닛 간 경계를
-# 안정적으로 구분하기 어려우므로 유닛별로 따로 호출한다.
-- name: Read Cockpit unit state (socket and service, individually)
+- name: Configure persistent Kubernetes kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      overlay
+      br_netfilter
+
+- name: Check current overlay module
+  ansible.builtin.stat:
+    path: /sys/module/overlay
+  register: current_overlay_module
+
+- name: Load overlay module when missing
   ansible.builtin.command:
     argv:
-      - systemctl
-      - show
-      - "{{ item }}"
-      - -p
-      - LoadState
-      - -p
-      - UnitFileState
-      - -p
-      - ActiveState
+      - modprobe
+      - overlay
+  when: not current_overlay_module.stat.exists
+  changed_when: true
+
+- name: Check current br_netfilter module
+  ansible.builtin.stat:
+    path: /sys/module/br_netfilter
+  register: current_br_netfilter_module
+
+- name: Load br_netfilter module when missing
+  ansible.builtin.command:
+    argv:
+      - modprobe
+      - br_netfilter
+  when: not current_br_netfilter_module.stat.exists
+  changed_when: true
+
+- name: Configure persistent Kubernetes sysctl
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+  notify: Reload Kubernetes sysctl
+
+- name: Apply notified sysctl handler
+  ansible.builtin.meta: flush_handlers
+
+- name: Read live Kubernetes sysctl values
+  ansible.builtin.command:
+    argv:
+      - sysctl
+      - -n
+      - "{{ item.key }}"
   loop:
-    - cockpit.socket
-    - cockpit.service
-  register: k8s_gate0_cockpit_unit_state
+    - key: net.bridge.bridge-nf-call-iptables
+      value: "1"
+    - key: net.bridge.bridge-nf-call-ip6tables
+      value: "1"
+    - key: net.ipv4.ip_forward
+      value: "1"
+  register: live_k8s_sysctl
   changed_when: false
   check_mode: false
 
-- name: Extract Cockpit unit fields per unit
-  ansible.builtin.set_fact:
-    k8s_gate0_cockpit_units: >-
-      {{
-        k8s_gate0_cockpit_units | default({}) | combine({
-          item.item: {
-            'load_state': (item.stdout | regex_search('LoadState=(.*)', '\1') | first),
-            'unit_file_state': (item.stdout | regex_search('UnitFileState=(.*)', '\1') | first),
-            'active_state': (item.stdout | regex_search('ActiveState=(.*)', '\1') | first)
-          }
-        })
-      }}
-  loop: "{{ k8s_gate0_cockpit_unit_state.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-
-# R5: not-installed units report LoadState=not-found and must be recorded
-# separately rather than folded into the disable/mask verdict.
-- name: Record Cockpit unit dispositions
-  ansible.builtin.set_fact:
-    k8s_gate0_cockpit_dispositions: >-
-      {{
-        k8s_gate0_cockpit_dispositions | default({}) | combine({
-          kv.key: (
-            'NOT_INSTALLED'
-            if kv.value.load_state == 'not-found'
-            else (
-              'MASKED_INACTIVE'
-              if (kv.value.unit_file_state == 'masked' and kv.value.active_state == 'inactive')
-              else 'DISABLE_OR_MASK_REQUIRED'
-            )
-          )
-        })
-      }}
-  loop: "{{ k8s_gate0_cockpit_units | dict2items }}"
-  loop_control:
-    loop_var: kv
-    label: "{{ kv.key }}"
-
-# R5: `ss -tulpn` full-output substring match on "9090" can false-positive
-# on unrelated fields and can miss formatting variance. Filter by the exact
-# TCP listening port instead.
-- name: Read listening sockets on TCP port 9090 only
+- name: Correct drifted live sysctl values
   ansible.builtin.command:
     argv:
-      - ss
-      - -H
-      - -ltn
-      - sport = :9090
-  register: k8s_gate0_ss_output
+      - sysctl
+      - -w
+      - "{{ item.item.key }}={{ item.item.value }}"
+  loop: "{{ live_k8s_sysctl.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: (item.stdout | trim) != item.item.value
+  changed_when: true
+
+- name: Verify swap remains disabled
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --show
+      - --noheadings
+  register: final_swap_state
   changed_when: false
   check_mode: false
 
-- name: Determine Cockpit 9090 listener presence
-  ansible.builtin.set_fact:
-    k8s_gate0_port_9090_listening: >-
-      {{ (k8s_gate0_ss_output.stdout | trim | length) > 0 }}
-
-- name: Record overall Cockpit disposition for this node
-  ansible.builtin.set_fact:
-    k8s_gate0_cockpit_disposition: >-
-      {{
-        'DISABLE_REQUIRED'
-        if (
-          (k8s_gate0_cockpit_dispositions.values() | list
-           | select('equalto', 'DISABLE_OR_MASK_REQUIRED') | list | length) > 0
-          or (k8s_gate0_port_9090_listening | bool)
-        )
-        else 'ALREADY_DISABLED'
-      }}
-
-# F01 (권욱님 코드 리뷰): disposition 계산까지만 하고 assert가 없어서
-# Cockpit이 활성 상태이거나 9090을 청취해도 Gate 0가 그대로 통과했다.
-# 각 unit이 NOT_INSTALLED 또는 MASKED_INACTIVE인지, 그리고 9090을
-# 청취하지 않는지를 명시적으로 실패 조건화한다.
-- name: Assert Cockpit is fully disabled and not listening on 9090
+- name: Assert final swap state
   ansible.builtin.assert:
     that:
-      - k8s_gate0_cockpit_disposition == 'ALREADY_DISABLED'
+      - (final_swap_state.stdout | trim) == ""
     fail_msg: >-
-      Cockpit is not fully disabled on {{ inventory_hostname }}:
-      unit_dispositions={{ k8s_gate0_cockpit_dispositions }},
-      port_9090_listening={{ k8s_gate0_port_9090_listening }}.
-      Gate 0 cannot pass until cockpit.socket/cockpit.service are
-      masked and inactive (or not installed) and TCP 9090 is not
-      listening.
-    success_msg: >-
-      Cockpit verified fully disabled on {{ inventory_hostname }}
+      Swap remains active on {{ inventory_hostname }}
 
-- name: Read node network interface count
-  ansible.builtin.set_fact:
-    k8s_gate0_interface_count: >-
-      {{ ansible_interfaces | reject('equalto', 'lo') | list | length }}
-
-- name: Report Gate 0 node-local verdict
-  ansible.builtin.debug:
-    msg:
-      host: "{{ inventory_hostname }}"
-      ram_mb: "{{ ansible_memtotal_mb }}"
-      vcpu: "{{ ansible_processor_vcpus }}"
-      selinux: "{{ k8s_gate0_selinux_mode.stdout | trim }}"
-      cockpit_units: "{{ k8s_gate0_cockpit_units }}"
-      cockpit_dispositions: "{{ k8s_gate0_cockpit_dispositions }}"
-      port_9090_listening: "{{ k8s_gate0_port_9090_listening }}"
-      cockpit_disposition: "{{ k8s_gate0_cockpit_disposition }}"
-      interface_count: >-
-        {{ k8s_gate0_interface_count }} (informational only, not a failure
-        condition per P1-K8S-01 Gate 0 policy)
+- name: Run k8s_prereq verification tasks
+  ansible.builtin.include_tasks: verify.yml
+  vars:
+    # F06: this include runs right after the sysctl-apply tasks above,
+    # in the same play as main.yml's own configuration tasks. In
+    # --check mode those apply tasks do not actually run, so a sysctl
+    # value of 0 here is an expected, not-yet-applied state rather than
+    # drift. Gate 0's separate include_role call to verify.yml does not
+    # set this variable, so it always asserts the live value.
+    k8s_prereq_verify_is_post_apply: true
