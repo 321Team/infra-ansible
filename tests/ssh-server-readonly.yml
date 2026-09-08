@@ -1,0 +1,94 @@
+---
+- name: Verify SSH guards on the six real Kubernetes nodes
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+
+  vars:
+    expected_ssh_nodes:
+      k8s-control01: 10.1.93.102
+      k8s-control02: 10.1.93.103
+      k8s-control03: 10.1.93.104
+      k8s-worker01: 10.1.93.105
+      k8s-worker02: 10.1.93.107
+      k8s-worker03: 10.1.93.108
+
+  pre_tasks:
+    - name: Require the full expected inventory and successful fact gathering
+      ansible.builtin.assert:
+        that:
+          - (ansible_play_hosts_all | sort) == (expected_ssh_nodes.keys() | list | sort)
+          - (ansible_play_hosts | sort) == (expected_ssh_nodes.keys() | list | sort)
+          - ansible_host == expected_ssh_nodes[inventory_hostname]
+          - ansible_user == 'svc_ansible'
+          - ansible_facts['hostname'] == expected_hostname
+          - ansible_facts['distribution'] == 'CentOS'
+          - ansible_facts['distribution_major_version'] == '10'
+          - ssh_guards_file is defined
+          - svc_ansible_authorized_keys == '/home/svc_ansible/.ssh/authorized_keys'
+
+  tasks:
+    - name: Verify Python module execution over SSH
+      ansible.builtin.ping:
+
+    - name: Read effective privileged user
+      ansible.builtin.command:
+        argv: [id, -un]
+      register: ssh_effective_user
+      changed_when: false
+
+    - name: Require working sudo
+      ansible.builtin.assert:
+        that:
+          - (ssh_effective_user.stdout | trim) == 'root'
+
+    - name: Read authorized keys metadata and checksum before verification
+      ansible.builtin.stat:
+        path: "{{ svc_ansible_authorized_keys }}"
+        follow: false
+        get_checksum: true
+        checksum_algorithm: sha256
+        get_mime: false
+      register: ssh_keys_before
+
+    - name: Verify protected authorized keys file
+      ansible.builtin.assert:
+        that:
+          - ssh_keys_before.stat.exists
+          - ssh_keys_before.stat.isreg
+          - not ssh_keys_before.stat.islnk
+          - ssh_keys_before.stat.pw_name == 'svc_ansible'
+          - ssh_keys_before.stat.gr_name == 'svc_ansible'
+          - ssh_keys_before.stat.mode == '0600'
+
+    - name: Execute the two guards copied from the corrected source
+      ansible.builtin.include_tasks: "{{ ssh_guards_file }}"
+
+    - name: Read authorized keys metadata and checksum after verification
+      ansible.builtin.stat:
+        path: "{{ svc_ansible_authorized_keys }}"
+        follow: false
+        get_checksum: true
+        checksum_algorithm: sha256
+        get_mime: false
+      register: ssh_keys_after
+
+    - name: Verify authorized keys remained unchanged
+      ansible.builtin.assert:
+        that:
+          - ssh_keys_after.stat.checksum == ssh_keys_before.stat.checksum
+          - ssh_keys_after.stat.mode == ssh_keys_before.stat.mode
+          - ssh_keys_after.stat.uid == ssh_keys_before.stat.uid
+          - ssh_keys_after.stat.gid == ssh_keys_before.stat.gid
+          - ssh_keys_after.stat.mtime == ssh_keys_before.stat.mtime
+
+    - name: Record per-node verification result without key material
+      ansible.builtin.debug:
+        msg:
+          verdict: SSH_READONLY_PASS
+          host: "{{ inventory_hostname }}"
+          python_version: "{{ ansible_facts['python_version'] }}"
+          effective_user: "{{ ssh_effective_user.stdout | trim }}"
+          managed_key_count: "{{ p1_managed_key_count.stdout | int }}"
+          restricted_key_count: "{{ p1_restricted_key_count.stdout | int }}"
+          authorized_keys_unchanged: true
