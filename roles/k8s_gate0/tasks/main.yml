@@ -133,6 +133,24 @@
         else 'ALREADY_DISABLED'
       }}
 
+# F01 (권욱님 코드 리뷰): disposition 계산까지만 하고 assert가 없어서
+# Cockpit이 활성 상태이거나 9090을 청취해도 Gate 0가 그대로 통과했다.
+# 각 unit이 NOT_INSTALLED 또는 MASKED_INACTIVE인지, 그리고 9090을
+# 청취하지 않는지를 명시적으로 실패 조건화한다.
+- name: Assert Cockpit is fully disabled and not listening on 9090
+  ansible.builtin.assert:
+    that:
+      - k8s_gate0_cockpit_disposition == 'ALREADY_DISABLED'
+    fail_msg: >-
+      Cockpit is not fully disabled on {{ inventory_hostname }}:
+      unit_dispositions={{ k8s_gate0_cockpit_dispositions }},
+      port_9090_listening={{ k8s_gate0_port_9090_listening }}.
+      Gate 0 cannot pass until cockpit.socket/cockpit.service are
+      masked and inactive (or not installed) and TCP 9090 is not
+      listening.
+    success_msg: >-
+      Cockpit verified fully disabled on {{ inventory_hostname }}
+
 - name: Read node network interface count
   ansible.builtin.set_fact:
     k8s_gate0_interface_count: >-

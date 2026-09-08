@@ -1,8 +1,29 @@
 ---
-# Swap disable is already verified by the original "Verify swap remains
-# disabled" / "Assert final swap state" tasks at the end of main.yml
-# (kept there unchanged). This file intentionally does not repeat that
-# assertion; it only adds the checks that did not exist anywhere before.
+# F02 (권욱님 코드 리뷰): Gate 0 진입점은 이 파일(verify.yml)만 호출하고
+# main.yml 전체는 부르지 않는다 (main.yml 전체를 부르면 설정 태스크까지
+# 재실행되어 사전점검 중 상태를 변경하게 된다). 그런데 main.yml 끝의
+# swap 확인은 main.yml 안에만 있어서, Gate 0 경로에서는 P1-ANS-01 이후
+# swap이 다시 켜진 drift를 감지하지 못했다. main.yml의 원본 태스크는
+# 그대로 두고, 동일한 읽기 전용 swap 조회·판정을 여기에도 추가해
+# main.yml 경로(설정+검증)와 Gate 0 경로(검증만) 양쪽에서 재사용한다.
+- name: Verify swap remains disabled
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --show
+      - --noheadings
+  register: k8s_prereq_swap_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert swap state
+  ansible.builtin.assert:
+    that:
+      - (k8s_prereq_swap_state.stdout | trim) == ""
+    fail_msg: >-
+      Swap remains active on {{ inventory_hostname }}
+    success_msg: >-
+      Swap verified disabled on {{ inventory_hostname }}
 
 - name: Check overlay kernel module
   ansible.builtin.stat:
@@ -40,6 +61,15 @@
   changed_when: false
   check_mode: false
 
+# F06 (권욱님 코드 리뷰): 처음엔 "check mode면 무조건 스킵"으로 짰으나,
+# 이는 리뷰가 지적한 두 번째 요건("읽기 전용 Gate 0의 --check는 실제
+# 현재 상태를 계속 검증해야 하므로 verification 전체를 일괄 skip하는
+# 방식은 적절하지 않다")을 어기게 된다. 구분해야 하는 것은
+# "check mode냐 아니냐"가 아니라 "설정 role(main.yml)의 dry-run
+# 사후조건으로 불렸느냐, 아니면 Gate 0의 독립적인 현재 상태 검증으로
+# 불렸느냐"이다. main.yml이 이 파일을 include_tasks할 때만
+# k8s_prereq_verify_is_post_apply=true를 넘기고, Gate 0가
+# include_role로 부를 때는 이 변수가 없어(기본 false) 항상 판정한다.
 - name: Assert Kubernetes sysctl values
   ansible.builtin.assert:
     that:
@@ -52,11 +82,29 @@
   loop: "{{ k8s_prereq_live_sysctl.results }}"
   loop_control:
     label: "{{ item.item }}"
+  when: >-
+    not (k8s_prereq_verify_is_post_apply | default(false) | bool
+         and ansible_check_mode)
+
+- name: Report sysctl assertion was skipped for dry-run apply
+  ansible.builtin.debug:
+    msg: >-
+      site.yml --check dry run on {{ inventory_hostname }}: sysctl
+      values were read but not asserted here, since main.yml's own
+      sysctl-apply tasks have not actually run in check mode and a
+      value of 0 is expected in that situation. This skip applies
+      only when verify.yml is reached via main.yml's post-apply
+      include (k8s_prereq_verify_is_post_apply=true); Gate 0's
+      independent call to verify.yml always asserts this value.
+  when: >-
+    k8s_prereq_verify_is_post_apply | default(false) | bool
+    and ansible_check_mode
 
 - name: Print k8s_prereq verdict
   ansible.builtin.debug:
     msg:
       host: "{{ inventory_hostname }}"
+      swap: "{{ k8s_prereq_swap_state.stdout | trim == '' }}"
       overlay: "{{ k8s_prereq_overlay_module.stat.exists }}"
       br_netfilter: "{{ k8s_prereq_br_netfilter_module.stat.exists }}"
       sysctl: >-
@@ -65,4 +113,9 @@
           | map(attribute='item')
           | zip(k8s_prereq_live_sysctl.results | map(attribute='stdout'))
           | list
+        }}
+      sysctl_asserted: >-
+        {{
+          not (k8s_prereq_verify_is_post_apply | default(false) | bool
+               and ansible_check_mode)
         }}

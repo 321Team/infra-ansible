@@ -42,6 +42,17 @@ case "${action}" in
       echo "- Generated: ${timestamp}"
       echo "- Repository: 321Team/infra-ansible"
       echo "- Commit: ${head_sha}"
+      echo "- Working directory: $(pwd)"
+      echo
+      echo "## Environment (per code review request)"
+      echo '```text'
+      ansible --version
+      echo '```'
+      echo
+      echo "### ansible-config dump --only-changed"
+      echo '```text'
+      (cd "${repo_root}" && ansible-config dump --only-changed)
+      echo '```'
       echo
       echo "## Files"
       find "${evidence_root}" -maxdepth 1 -type f \

@@ -4,6 +4,40 @@
 # node's product_uuid, MAC address, and hostname before the uniqueness
 # checks below compare them.
 
+# F05 (권욱님 코드 리뷰): 아래의 모든 비교는 play_hosts를 기준으로
+# 하므로, --limit으로 일부 노드만 지정해 실행해도 그 축소된 범위
+# 안에서 "유일성 통과", "통신 성공"이 나와 마치 전체 Gate가 통과한
+# 것처럼 보였다 (예: --limit k8s-control01 실행 시 1/1 PASS와 함께
+# Gate 1 진행 안내까지 출력됨). play_hosts 자체를 바꾸는 방식으로는
+# --limit 문제를 해결할 수 없으므로, 실행 대상 집합을 inventory에
+# 정의된 승인 6대 전체(groups['k8s_nodes'])와 명시적으로 비교해
+# 부분 실행 여부를 별도로 판정한다.
+- name: Determine whether this run covers all approved Gate 0 nodes
+  ansible.builtin.set_fact:
+    k8s_gate0_execution_scope: >-
+      {{
+        'FULL'
+        if (play_hosts | sort) == (groups['k8s_nodes'] | sort)
+        else 'PARTIAL'
+      }}
+  run_once: true
+
+- name: Assert this run covers all 6 approved Gate 0 nodes
+  ansible.builtin.assert:
+    that:
+      - k8s_gate0_execution_scope == 'FULL'
+    fail_msg: >-
+      Gate 0 cross-node verification ran against a PARTIAL node set:
+      {{ play_hosts | sort }} (approved full set is
+      {{ groups['k8s_nodes'] | sort }}). Cross-node uniqueness and
+      reachability checks are only meaningful across all 6 approved
+      nodes; re-run without --limit before declaring Gate 0 PASSED
+      or proceeding to Gate 1.
+    success_msg: >-
+      Gate 0 cross-node verification covers the full approved node
+      set ({{ play_hosts | length }}/{{ groups['k8s_nodes'] | length }}).
+  run_once: true
+
 - name: Read product_uuid on every node
   ansible.builtin.slurp:
     src: /sys/class/dmi/id/product_uuid
@@ -84,14 +118,63 @@
   loop_control:
     label: "{{ inventory_hostname }} -> {{ hostvars[item].expected_hostname }}"
 
-# NTP synchronization is already verified for every k8s_nodes host by
-# playbooks/precheck.yml (P1-ANS-01). It is intentionally not re-checked
-# here to avoid maintaining the same assertion in two places.
+# F04 (권욱님 코드 리뷰): 위 태스크는 getent의 종료 코드만 확인해서,
+# 이름이 "해석되긴 하지만 엉뚱한 IP를 가리키는" 경우를 잡지 못했다.
+# (앞선 ping은 inventory의 ansible_host로 직접 접속하므로 이름 해석
+# 오류 자체는 검증하지 않는다.) 해석된 IP를 추출해 해당 노드의
+# 승인 IP(inventory의 ansible_host)와 정확히 일치하는지 확인한다.
+- name: Assert resolved IP matches the approved inventory address
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stdout | regex_findall('(?m)^(\S+)') | unique | list)
+        == [hostvars[item.item].ansible_host]
+    fail_msg: >-
+      Hostname resolution mismatch on {{ inventory_hostname }} for
+      {{ hostvars[item.item].expected_hostname }}: resolved
+      {{ item.stdout | regex_findall('(?m)^(\S+)') | unique | list }}
+      but approved inventory address is
+      {{ hostvars[item.item].ansible_host }}.
+    success_msg: >-
+      Resolution verified on {{ inventory_hostname }} for
+      {{ hostvars[item.item].expected_hostname }} ->
+      {{ hostvars[item.item].ansible_host }}
+  loop: "{{ k8s_gate0_resolution_results.results }}"
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ hostvars[item.item].expected_hostname }}"
+
+# F03 (권욱님 코드 리뷰): "precheck.yml이 이미 검사한다"는 주석만 있고
+# 이 실행 경로(Gate 0 진입점)는 precheck.yml을 호출하지도, 그 결과를
+# 요구하지도 않아서 NTP가 실제로는 전혀 조회되지 않았다. 과거 실행
+# 여부에 의존하지 않고, Gate 0 자신이 현재 상태를 읽기 전용으로
+# 조회·판정한다.
+- name: Read NTP synchronization state
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - show
+      - -p
+      - NTPSynchronized
+      - --value
+  register: k8s_gate0_ntp_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert NTP synchronization
+  ansible.builtin.assert:
+    that:
+      - (k8s_gate0_ntp_state.stdout | trim) == "yes"
+    fail_msg: >-
+      NTP is not synchronized on {{ inventory_hostname }}:
+      NTPSynchronized={{ k8s_gate0_ntp_state.stdout | trim }}
+    success_msg: >-
+      NTP synchronization verified on {{ inventory_hostname }}
 
 - name: Report Gate 0 cross-node verdict
   ansible.builtin.debug:
     msg:
       host: "{{ inventory_hostname }}"
+      execution_scope: "{{ k8s_gate0_execution_scope }}"
       product_uuid: "{{ k8s_gate0_product_uuid }}"
       mac: "{{ k8s_gate0_identity.mac }}"
       identity_unique: PASS
@@ -99,4 +182,5 @@
         {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
       hostname_resolution: >-
         {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
+      ntp_synchronized: "{{ k8s_gate0_ntp_state.stdout | trim }}"
   run_once: false
