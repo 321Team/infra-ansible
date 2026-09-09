@@ -108,6 +108,15 @@ case "${action}" in
       # 실패 로그를 인덱스에서 아예 누락시켰다. *.txt 로그를 기준으로
       # 순회하고 대응하는 .meta 존재 여부를 개별 확인해, 실행 정보가
       # 없는 로그도 명시적으로 드러낸다.
+      #
+      # F07 재재검토 (권욱님 코드 리뷰): source는 새 스코프를 만들지
+      # 않으므로, 루프 반복 사이에 이전 .meta에서 설정된
+      # head_sha/ansible_exit_code/tee_exit_code/exit_code 변수가
+      # 그대로 남아 있었다. 구형 .meta처럼 일부 필드가 없는 파일을
+      # source하면 그 필드는 갱신되지 않고 직전 반복의 값을 그대로
+      # 재사용해 잘못된 값이 출력됐다. 매 반복 시작 시 이 변수들을
+      # 명시적으로 UNKNOWN으로 초기화한 뒤 source하여, 없는 필드는
+      # 반드시 UNKNOWN으로 표시되게 한다.
       echo "## Runs (HEAD/exit code as recorded at run/check time, not finalize time)"
       for log_file_path in "${evidence_root}"/*.txt; do
         [ -e "${log_file_path}" ] || continue
@@ -116,13 +125,20 @@ case "${action}" in
         echo
         echo "- Log: \`${log_name}\`"
         if [ -e "${meta_file}" ]; then
+          head_sha="UNKNOWN"
+          exit_code="UNKNOWN"
+          ansible_exit_code="UNKNOWN"
+          tee_exit_code="UNKNOWN"
           # shellcheck disable=SC1090
           source "${meta_file}"
           echo "  - Run HEAD: \`${head_sha}\`"
           echo "  - Ansible exit code: ${ansible_exit_code}"
           echo "  - tee exit code: ${tee_exit_code}"
           echo "  - Final exit code: ${exit_code}"
-          if [ "${head_sha}" != "${finalize_head_sha}" ]; then
+          if [ "${ansible_exit_code}" = "UNKNOWN" ] || [ "${tee_exit_code}" = "UNKNOWN" ]; then
+            echo "  - ⚠ INCOMPLETE METADATA: this .meta predates per-command exit code tracking (ansible/tee breakdown unavailable)"
+          fi
+          if [ "${head_sha}" != "UNKNOWN" ] && [ "${head_sha}" != "${finalize_head_sha}" ]; then
             echo "  - ⚠ WARNING: run HEAD differs from finalize HEAD (${finalize_head_sha})"
           fi
         else
