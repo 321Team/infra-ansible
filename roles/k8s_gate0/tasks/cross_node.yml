@@ -123,6 +123,12 @@
 # (앞선 ping은 inventory의 ansible_host로 직접 접속하므로 이름 해석
 # 오류 자체는 검증하지 않는다.) 해석된 IP를 추출해 해당 노드의
 # 승인 IP(inventory의 ansible_host)와 정확히 일치하는지 확인한다.
+#
+# F04 재검토 (권욱님 코드 리뷰): item != inventory_hostname 조건으로
+# 건너뛴 자기 자신 항목도 results 목록에는 skipped=true로 남아 있고
+# stdout은 생성되지 않는다. 이 항목까지 무조건 반복하며 item.stdout을
+# 참조하면 undefined 에러로 다른 5대의 정상 결과까지 판정에 도달하지
+# 못하므로, skipped 항목은 assert 대상에서 제외한다.
 - name: Assert resolved IP matches the approved inventory address
   ansible.builtin.assert:
     that:
@@ -140,6 +146,7 @@
       {{ hostvars[item.item].expected_hostname }} ->
       {{ hostvars[item.item].ansible_host }}
   loop: "{{ k8s_gate0_resolution_results.results }}"
+  when: not (item.skipped | default(false))
   loop_control:
     label: "{{ inventory_hostname }} -> {{ hostvars[item.item].expected_hostname }}"
 
@@ -170,6 +177,32 @@
     success_msg: >-
       NTP synchronization verified on {{ inventory_hostname }}
 
+# F03 재검토 (권욱님 코드 리뷰): NTPSynchronized=yes는 커널이 보고하는
+# 동기화 상태일 뿐, 실제 동기화를 수행하는 chronyd 데몬이 살아있다는
+# 것을 보장하지 않는다. 기존 precheck.yml이 NTP와 chronyd를 각각
+# 검사했던 것과 동일하게, chronyd 서비스의 현재 가동 상태를 별도로
+# 읽기 전용 조회·판정한다.
+- name: Read chronyd service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - chronyd
+  register: k8s_gate0_chronyd_state
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Assert chronyd service is active
+  ansible.builtin.assert:
+    that:
+      - (k8s_gate0_chronyd_state.stdout | trim) == "active"
+    fail_msg: >-
+      chronyd is not active on {{ inventory_hostname }}:
+      state={{ k8s_gate0_chronyd_state.stdout | trim }}
+    success_msg: >-
+      chronyd verified active on {{ inventory_hostname }}
+
 - name: Report Gate 0 cross-node verdict
   ansible.builtin.debug:
     msg:
@@ -183,4 +216,5 @@
       hostname_resolution: >-
         {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
       ntp_synchronized: "{{ k8s_gate0_ntp_state.stdout | trim }}"
+      chronyd_active: "{{ k8s_gate0_chronyd_state.stdout | trim }}"
   run_once: false

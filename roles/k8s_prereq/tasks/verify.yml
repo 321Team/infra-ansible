@@ -35,6 +35,14 @@
     path: /sys/module/br_netfilter
   register: k8s_prereq_br_netfilter_module
 
+# F06 재검토 (권욱님 코드 리뷰): sysctl assert와 동일한 사유로, 이
+# 모듈 assert에도 호출 의도 구분이 필요하다. 설정 role(main.yml)이
+# dry-run(--check) 사후조건으로 이 파일을 부를 때는 main.yml의
+# modprobe overlay/br_netfilter 태스크 자체가 check mode에서 실행되지
+# 않으므로, 아직 모듈이 로드되지 않은 상태를 실패로 취급하면 정상적인
+# dry-run까지 막게 된다. sysctl과 동일하게 main.yml의 post-apply
+# include에서만(k8s_prereq_verify_is_post_apply=true) 그리고
+# check mode일 때만 건너뛰고, Gate 0의 독립 호출은 항상 판정한다.
 - name: Assert required kernel modules are loaded
   ansible.builtin.assert:
     that:
@@ -46,6 +54,24 @@
       br_netfilter={{ k8s_prereq_br_netfilter_module.stat.exists }}
     success_msg: >-
       Required kernel modules verified on {{ inventory_hostname }}
+  when: >-
+    not (k8s_prereq_verify_is_post_apply | default(false) | bool
+         and ansible_check_mode)
+
+- name: Report kernel module assertion was skipped for dry-run apply
+  ansible.builtin.debug:
+    msg: >-
+      site.yml --check dry run on {{ inventory_hostname }}: kernel
+      module presence was checked but not asserted here, since
+      main.yml's own modprobe tasks have not actually run in check
+      mode and the module may not yet be loaded in that situation.
+      This skip applies only when verify.yml is reached via
+      main.yml's post-apply include
+      (k8s_prereq_verify_is_post_apply=true); Gate 0's independent
+      call to verify.yml always asserts this.
+  when: >-
+    k8s_prereq_verify_is_post_apply | default(false) | bool
+    and ansible_check_mode
 
 - name: Read live Kubernetes sysctl values
   ansible.builtin.command:
@@ -107,6 +133,11 @@
       swap: "{{ k8s_prereq_swap_state.stdout | trim == '' }}"
       overlay: "{{ k8s_prereq_overlay_module.stat.exists }}"
       br_netfilter: "{{ k8s_prereq_br_netfilter_module.stat.exists }}"
+      module_asserted: >-
+        {{
+          not (k8s_prereq_verify_is_post_apply | default(false) | bool
+               and ansible_check_mode)
+        }}
       sysctl: >-
         {{
           k8s_prereq_live_sysctl.results
