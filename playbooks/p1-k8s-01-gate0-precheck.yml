@@ -1,0 +1,57 @@
+---
+- name: P1-K8S-01 Gate 0 preflight verification on all Kubernetes nodes
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Verify inventory hostname and operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname == expected_hostname
+          - ansible_distribution == "CentOS"
+          - ansible_distribution_major_version == "10"
+        fail_msg: >-
+          Host or OS mismatch:
+          inventory={{ inventory_hostname }},
+          expected={{ expected_hostname }},
+          actual={{ ansible_hostname }},
+          distribution={{ ansible_distribution }}
+          {{ ansible_distribution_major_version }}
+        success_msg: >-
+          Host and OS verified: {{ inventory_hostname }} / CentOS Stream 10
+
+    # Reused from P1-ANS-01: swap, kernel modules, and Kubernetes sysctl
+    # were already brought to the required state by roles/k8s_prereq/tasks
+    # main.yml during site.yml. Gate 0 only re-verifies that state has not
+    # drifted; it does not re-apply configuration.
+    - name: Re-verify P1-ANS-01 baseline state (swap, kernel modules, sysctl)
+      ansible.builtin.include_role:
+        name: k8s_prereq
+        tasks_from: verify.yml
+
+    - name: Run Gate 0 node-local checks (RAM, vCPU, SELinux, Cockpit/9090)
+      ansible.builtin.include_role:
+        name: k8s_gate0
+        tasks_from: main.yml
+
+- name: P1-K8S-01 Gate 0 cross-node identity and reachability verification
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Run Gate 0 cross-node checks (uniqueness, ping, resolution, NTP)
+      ansible.builtin.include_role:
+        name: k8s_gate0
+        tasks_from: cross_node.yml
+
+    - name: Print Gate 0 overall result
+      ansible.builtin.debug:
+        msg: >-
+          P1-K8S-01 Gate 0 PASSED on {{ inventory_hostname }}. Proceed to
+          Gate 1 (containerd/kubelet install) only after all nodes in this
+          play report PASSED.
+      run_once: false

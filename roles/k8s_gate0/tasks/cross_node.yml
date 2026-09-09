@@ -1,0 +1,220 @@
+---
+# This file must run after every host in play_hosts has already executed
+# main.yml (or at least gathered facts), so that hostvars contains each
+# node's product_uuid, MAC address, and hostname before the uniqueness
+# checks below compare them.
+
+# F05 (권욱님 코드 리뷰): 아래의 모든 비교는 play_hosts를 기준으로
+# 하므로, --limit으로 일부 노드만 지정해 실행해도 그 축소된 범위
+# 안에서 "유일성 통과", "통신 성공"이 나와 마치 전체 Gate가 통과한
+# 것처럼 보였다 (예: --limit k8s-control01 실행 시 1/1 PASS와 함께
+# Gate 1 진행 안내까지 출력됨). play_hosts 자체를 바꾸는 방식으로는
+# --limit 문제를 해결할 수 없으므로, 실행 대상 집합을 inventory에
+# 정의된 승인 6대 전체(groups['k8s_nodes'])와 명시적으로 비교해
+# 부분 실행 여부를 별도로 판정한다.
+- name: Determine whether this run covers all approved Gate 0 nodes
+  ansible.builtin.set_fact:
+    k8s_gate0_execution_scope: >-
+      {{
+        'FULL'
+        if (play_hosts | sort) == (groups['k8s_nodes'] | sort)
+        else 'PARTIAL'
+      }}
+  run_once: true
+
+- name: Assert this run covers all 6 approved Gate 0 nodes
+  ansible.builtin.assert:
+    that:
+      - k8s_gate0_execution_scope == 'FULL'
+    fail_msg: >-
+      Gate 0 cross-node verification ran against a PARTIAL node set:
+      {{ play_hosts | sort }} (approved full set is
+      {{ groups['k8s_nodes'] | sort }}). Cross-node uniqueness and
+      reachability checks are only meaningful across all 6 approved
+      nodes; re-run without --limit before declaring Gate 0 PASSED
+      or proceeding to Gate 1.
+    success_msg: >-
+      Gate 0 cross-node verification covers the full approved node
+      set ({{ play_hosts | length }}/{{ groups['k8s_nodes'] | length }}).
+  run_once: true
+
+- name: Read product_uuid on every node
+  ansible.builtin.slurp:
+    src: /sys/class/dmi/id/product_uuid
+  register: k8s_gate0_product_uuid_raw
+
+- name: Normalize this node's product_uuid
+  ansible.builtin.set_fact:
+    k8s_gate0_product_uuid: >-
+      {{ (k8s_gate0_product_uuid_raw.content | b64decode | trim) }}
+
+- name: Collect identity facts for uniqueness comparison
+  ansible.builtin.set_fact:
+    k8s_gate0_identity:
+      hostname: "{{ ansible_hostname }}"
+      mac: "{{ ansible_default_ipv4.macaddress | default('') }}"
+      product_uuid: "{{ k8s_gate0_product_uuid }}"
+
+- name: Assert identity uniqueness across all Gate 0 nodes
+  ansible.builtin.assert:
+    that:
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'hostname'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'mac'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+      - >-
+        (play_hosts
+         | map('extract', hostvars, ['k8s_gate0_identity', 'product_uuid'])
+         | list
+         | unique
+         | length) == (play_hosts | length)
+    fail_msg: >-
+      Duplicate hostname, MAC address, or product_uuid detected among
+      {{ play_hosts }}. Each of the 6 nodes must be unique per kubeadm
+      preflight requirements before Gate 0 can pass.
+    success_msg: >-
+      Identity uniqueness verified across all {{ play_hosts | length }}
+      Gate 0 nodes.
+  run_once: true
+
+- name: Verify mutual ping reachability between all nodes
+  ansible.builtin.command:
+    argv:
+      - ping
+      - -c
+      - "2"
+      - -W
+      - "2"
+      - "{{ hostvars[item].ansible_host }}"
+  loop: "{{ play_hosts }}"
+  when: item != inventory_hostname
+  register: k8s_gate0_ping_results
+  changed_when: false
+  check_mode: false
+  failed_when: k8s_gate0_ping_results.rc != 0
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ item }}"
+
+- name: Verify each node resolves every other node via /etc/hosts or DNS
+  ansible.builtin.command:
+    argv:
+      - getent
+      - ahostsv4
+      - "{{ hostvars[item].expected_hostname }}"
+  loop: "{{ play_hosts }}"
+  when: item != inventory_hostname
+  register: k8s_gate0_resolution_results
+  changed_when: false
+  check_mode: false
+  failed_when: k8s_gate0_resolution_results.rc != 0
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ hostvars[item].expected_hostname }}"
+
+# F04 (권욱님 코드 리뷰): 위 태스크는 getent의 종료 코드만 확인해서,
+# 이름이 "해석되긴 하지만 엉뚱한 IP를 가리키는" 경우를 잡지 못했다.
+# (앞선 ping은 inventory의 ansible_host로 직접 접속하므로 이름 해석
+# 오류 자체는 검증하지 않는다.) 해석된 IP를 추출해 해당 노드의
+# 승인 IP(inventory의 ansible_host)와 정확히 일치하는지 확인한다.
+#
+# F04 재검토 (권욱님 코드 리뷰): item != inventory_hostname 조건으로
+# 건너뛴 자기 자신 항목도 results 목록에는 skipped=true로 남아 있고
+# stdout은 생성되지 않는다. 이 항목까지 무조건 반복하며 item.stdout을
+# 참조하면 undefined 에러로 다른 5대의 정상 결과까지 판정에 도달하지
+# 못하므로, skipped 항목은 assert 대상에서 제외한다.
+- name: Assert resolved IP matches the approved inventory address
+  ansible.builtin.assert:
+    that:
+      - >-
+        (item.stdout | regex_findall('(?m)^(\S+)') | unique | list)
+        == [hostvars[item.item].ansible_host]
+    fail_msg: >-
+      Hostname resolution mismatch on {{ inventory_hostname }} for
+      {{ hostvars[item.item].expected_hostname }}: resolved
+      {{ item.stdout | regex_findall('(?m)^(\S+)') | unique | list }}
+      but approved inventory address is
+      {{ hostvars[item.item].ansible_host }}.
+    success_msg: >-
+      Resolution verified on {{ inventory_hostname }} for
+      {{ hostvars[item.item].expected_hostname }} ->
+      {{ hostvars[item.item].ansible_host }}
+  loop: "{{ k8s_gate0_resolution_results.results }}"
+  when: not (item.skipped | default(false))
+  loop_control:
+    label: "{{ inventory_hostname }} -> {{ hostvars[item.item].expected_hostname }}"
+
+# F03 (권욱님 코드 리뷰): "precheck.yml이 이미 검사한다"는 주석만 있고
+# 이 실행 경로(Gate 0 진입점)는 precheck.yml을 호출하지도, 그 결과를
+# 요구하지도 않아서 NTP가 실제로는 전혀 조회되지 않았다. 과거 실행
+# 여부에 의존하지 않고, Gate 0 자신이 현재 상태를 읽기 전용으로
+# 조회·판정한다.
+- name: Read NTP synchronization state
+  ansible.builtin.command:
+    argv:
+      - timedatectl
+      - show
+      - -p
+      - NTPSynchronized
+      - --value
+  register: k8s_gate0_ntp_state
+  changed_when: false
+  check_mode: false
+
+- name: Assert NTP synchronization
+  ansible.builtin.assert:
+    that:
+      - (k8s_gate0_ntp_state.stdout | trim) == "yes"
+    fail_msg: >-
+      NTP is not synchronized on {{ inventory_hostname }}:
+      NTPSynchronized={{ k8s_gate0_ntp_state.stdout | trim }}
+    success_msg: >-
+      NTP synchronization verified on {{ inventory_hostname }}
+
+# F03 재검토 (권욱님 코드 리뷰): NTPSynchronized=yes는 커널이 보고하는
+# 동기화 상태일 뿐, 실제 동기화를 수행하는 chronyd 데몬이 살아있다는
+# 것을 보장하지 않는다. 기존 precheck.yml이 NTP와 chronyd를 각각
+# 검사했던 것과 동일하게, chronyd 서비스의 현재 가동 상태를 별도로
+# 읽기 전용 조회·판정한다.
+- name: Read chronyd service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - chronyd
+  register: k8s_gate0_chronyd_state
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Assert chronyd service is active
+  ansible.builtin.assert:
+    that:
+      - (k8s_gate0_chronyd_state.stdout | trim) == "active"
+    fail_msg: >-
+      chronyd is not active on {{ inventory_hostname }}:
+      state={{ k8s_gate0_chronyd_state.stdout | trim }}
+    success_msg: >-
+      chronyd verified active on {{ inventory_hostname }}
+
+- name: Report Gate 0 cross-node verdict
+  ansible.builtin.debug:
+    msg:
+      host: "{{ inventory_hostname }}"
+      execution_scope: "{{ k8s_gate0_execution_scope }}"
+      product_uuid: "{{ k8s_gate0_product_uuid }}"
+      mac: "{{ k8s_gate0_identity.mac }}"
+      identity_unique: PASS
+      ping_reachability: >-
+        {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
+      hostname_resolution: >-
+        {{ play_hosts | length - 1 }}/{{ play_hosts | length - 1 }} PASS
+      ntp_synchronized: "{{ k8s_gate0_ntp_state.stdout | trim }}"
+      chronyd_active: "{{ k8s_gate0_chronyd_state.stdout | trim }}"
+  run_once: false

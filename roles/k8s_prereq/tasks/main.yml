@@ -112,3 +112,14 @@
       - (final_swap_state.stdout | trim) == ""
     fail_msg: >-
       Swap remains active on {{ inventory_hostname }}
+
+- name: Run k8s_prereq verification tasks
+  ansible.builtin.include_tasks: verify.yml
+  vars:
+    # F06: this include runs right after the sysctl-apply tasks above,
+    # in the same play as main.yml's own configuration tasks. In
+    # --check mode those apply tasks do not actually run, so a sysctl
+    # value of 0 here is an expected, not-yet-applied state rather than
+    # drift. Gate 0's separate include_role call to verify.yml does not
+    # set this variable, so it always asserts the live value.
+    k8s_prereq_verify_is_post_apply: true
