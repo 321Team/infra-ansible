@@ -10,6 +10,7 @@
 - SSH known-hosts 및 서비스 계정 authorized_keys 경로 관리
 - Kubernetes API Load Balancer Stage A 연결 검증
 - `CR-P1-ANS-01-01` Kubernetes 전체 Node DNS Resolver 전환
+- `CR-P1-MON-01-01` Alertmanager egress용 Squid 프록시 서버 구성 (대상 노드 미정, `inventory/hosts.yml`의 `egress_proxy` 그룹에 확정 후 반영)
 
 ## 저장소 구조
 
@@ -23,11 +24,15 @@
 | `playbooks/harden_svc_ansible_key.yml` | 서비스 계정 authorized_keys 관리 |
 | `playbooks/p1-lb-01-stage-a-nodes.yml` | API LB Stage A 노드 연결 검증 |
 | `playbooks/cr-p1-ans-01-01-*.yml` | DNS Resolver 사전점검·Batch 적용·검증·Rollback |
+| `playbooks/cr-p1-mon-01-01-*.yml` | Egress 프록시 사전점검·적용·검증·Rollback |
 | `roles/common/` | 공통 운영체제 설정 |
 | `roles/k8s_prereq/` | Kubernetes 사전 요구사항 설정 |
 | `roles/dns_resolver/` | NetworkManager 기반 Resolver 상태·검증·자동 실패복구 |
+| `roles/egress_proxy/` | Squid 기반 discord.com allowlist 프록시 구성·검증·Rollback |
 | `scripts/cr-p1-ans-01-01-run.sh` | 승인 Gate와 Evidence 수집 실행기 |
+| `scripts/cr-p1-mon-01-01-run.sh` | CR-P1-MON-01-01 승인 Gate와 Evidence 수집 실행기 |
 | `docs/runbooks/CR-P1-ANS-01-01.md` | CR 실행 및 증적 Runbook |
+| `docs/runbooks/CR-P1-MON-01-01.md` | CR-P1-MON-01-01 실행 및 증적 Runbook |
 
 ## 검증 기준 환경
 

@@ -1,0 +1,3 @@
+---
+cr_mon_proxy_port: 3128
+cr_mon_denied_probe_domain: example.com

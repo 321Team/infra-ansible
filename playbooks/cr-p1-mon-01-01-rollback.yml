@@ -1,0 +1,89 @@
+---
+- name: CR-P1-MON-01-01 rollback egress proxy configuration
+  hosts: egress_proxy
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Validate rollback approval token
+      ansible.builtin.assert:
+        that:
+          - cr_mon_rollback_approved | default('') == cr_mon_change_id
+        fail_msg: >-
+          Set cr_mon_rollback_approved={{ cr_mon_change_id }} for an approved
+          rollback run.
+
+    - name: Read preserved original squid presence state
+      ansible.builtin.slurp:
+        src: "{{ cr_mon_state_dir }}/original-state.json"
+      register: cr_mon_original_state_file
+
+    - name: Decode preserved original squid presence state
+      ansible.builtin.set_fact:
+        cr_mon_original_state: >-
+          {{ cr_mon_original_state_file.content | b64decode | from_json }}
+
+    - name: Validate preserved state ownership
+      ansible.builtin.assert:
+        that:
+          - cr_mon_original_state.change_id == cr_mon_change_id
+          - cr_mon_original_state.inventory_hostname == inventory_hostname
+        fail_msg: >-
+          Preserved egress proxy state does not belong to this change or host.
+
+  tasks:
+    - name: Stop and disable squid when it was not present before this change
+      ansible.builtin.service:
+        name: squid
+        state: stopped
+        enabled: false
+      when: not cr_mon_original_state.squid_preinstalled
+
+    - name: Restore original squid configuration when it existed before this change
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ cr_mon_state_dir }}/original-squid.conf"
+        dest: /etc/squid/squid.conf
+        owner: root
+        group: root
+        mode: "0644"
+      when:
+        - cr_mon_original_state.squid_preinstalled
+        - cr_mon_original_state.squid_conf_preexisted
+
+    - name: Restart squid with the restored configuration
+      ansible.builtin.service:
+        name: squid
+        state: restarted
+      when:
+        - cr_mon_original_state.squid_preinstalled
+        - cr_mon_original_state.squid_conf_preexisted
+
+    - name: Remove the discord.com allowlist firewalld rules
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --remove-rich-rule=rule family="ipv4" source
+            address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+            protocol="tcp" accept
+      loop: "{{ cr_mon_proxy_allowed_clients }}"
+      failed_when: false
+      changed_when: true
+
+    - name: Reload firewalld after rollback
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --reload
+      changed_when: true
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ cr_mon_change_id }}"
+          host: "{{ inventory_hostname }}"
+          squid_preinstalled: "{{ cr_mon_original_state.squid_preinstalled }}"
+          proxy_state: ROLLED_BACK

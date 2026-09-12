@@ -1,0 +1,28 @@
+## Managed by infra-ansible — {{ cr_mon_change_id }}
+## Do not edit by hand; the next apply run overwrites this file.
+## Scope: forward proxy for Alertmanager egress. Only the domains listed in
+## cr_mon_allowed_domains may be reached through this proxy.
+
+acl localnet src {% for client in cr_mon_proxy_allowed_clients %}{{ client }} {% endfor %}
+
+acl SSL_ports port 443
+acl Safe_ports port 443
+acl CONNECT method CONNECT
+
+acl allowed_egress_domains dstdomain {% for domain in cr_mon_allowed_domains %}.{{ domain }} {{ domain }} {% endfor %}
+
+
+http_access deny !Safe_ports
+http_access deny CONNECT !SSL_ports
+http_access allow localnet CONNECT allowed_egress_domains
+http_access allow localnet allowed_egress_domains
+http_access deny all
+
+http_port {{ cr_mon_proxy_port }}
+
+dns_v4_first on
+via off
+forwarded_for delete
+
+cache deny all
+access_log /var/log/squid/access.log squid
