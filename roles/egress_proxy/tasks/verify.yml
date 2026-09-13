@@ -12,13 +12,15 @@
   changed_when: false
   check_mode: false
 
-- name: Assert squid is active
+- name: Assert squid is loaded and active
   ansible.builtin.assert:
     that:
-      - "'active' in cr_mon_squid_service_after.stdout"
+      - cr_mon_squid_service_after.stdout_lines[0] == 'loaded'
+      - cr_mon_squid_service_after.stdout_lines[1] == 'active'
     fail_msg: >-
-      squid.service is not active on {{ inventory_hostname }} after
-      {{ cr_mon_change_id }}.
+      squid.service is not loaded+active on {{ inventory_hostname }} after
+      {{ cr_mon_change_id }} (LoadState={{ cr_mon_squid_service_after.stdout_lines[0] }},
+      ActiveState={{ cr_mon_squid_service_after.stdout_lines[1] }}).
 
 - name: Read post-run kubelet state
   ansible.builtin.command:
@@ -34,7 +36,7 @@
   check_mode: false
   failed_when: false
 
-- name: Assert kubelet state did not regress
+- name: Assert kubelet state did not regress within this run
   ansible.builtin.assert:
     that:
       - cr_mon_kubelet_after.stdout == cr_mon_kubelet_before.stdout
@@ -43,43 +45,85 @@
       {{ inventory_hostname }}. This role must not affect cluster membership
       of a node that still runs as a Kubernetes worker or control-plane node.
 
+- name: Read persisted pre-apply baseline state for a standalone verify run
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_persisted_state_file
+  when: cr_mon_phase == 'verify'
+  failed_when: false
+  check_mode: false
+
+- name: Assert kubelet state did not regress against the persisted apply baseline
+  ansible.builtin.assert:
+    that:
+      - >-
+        (cr_mon_kubelet_after.stdout_lines[1] | default('unknown')) ==
+        ((cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before
+        | default('unknown'))
+    fail_msg: >-
+      kubelet ActiveState on {{ inventory_hostname }} differs from the state
+      recorded before the original {{ cr_mon_change_id }} apply run. A
+      same-run before/after comparison alone cannot detect this because a
+      standalone verify invocation has no pre-change state of its own.
+  when:
+    - cr_mon_phase == 'verify'
+    - cr_mon_persisted_state_file is defined
+    - cr_mon_persisted_state_file.content is defined
+
 - name: Verify an allowed destination is reachable through the proxy
-  ansible.builtin.uri:
-    url: "https://{{ cr_mon_allowed_domains[0] }}"
-    proxy_host: 127.0.0.1
-    proxy_port: "{{ cr_mon_proxy_port }}"
-    validate_certs: true
-    status_code:
-      - 200
-      - 301
-      - 302
-      - 308
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --max-time
+      - "5"
+      - --proxy
+      - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --silent
+      - --show-error
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - "https://{{ cr_mon_allowed_domains[0] }}"
   register: cr_mon_allowed_probe
   changed_when: false
   check_mode: false
+  failed_when: >-
+    cr_mon_allowed_probe.rc != 0
+    or cr_mon_allowed_probe.stdout not in ['200', '301', '302', '308']
 
-- name: Verify a non-allowed destination is denied by the proxy
-  ansible.builtin.uri:
-    url: "https://{{ cr_mon_denied_probe_domain }}"
-    proxy_host: 127.0.0.1
-    proxy_port: "{{ cr_mon_proxy_port }}"
-    validate_certs: true
-    status_code:
-      - 403
+- name: Verify a non-allowed destination is denied at the proxy's CONNECT layer
+  ansible.builtin.command:
+    argv:
+      - curl
+      - --max-time
+      - "5"
+      - --proxy
+      - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --silent
+      - --show-error
+      - --verbose
+      - --output
+      - /dev/null
+      - "https://{{ cr_mon_denied_probe_domain }}"
   register: cr_mon_denied_probe
   changed_when: false
   check_mode: false
   failed_when: false
 
-- name: Assert the non-allowed destination was actually denied
+- name: Assert the non-allowed destination was denied at the CONNECT layer
   ansible.builtin.assert:
     that:
-      - cr_mon_denied_probe.status | default(0) == 403
+      - "'CONNECT' in cr_mon_denied_probe.stderr"
+      - >-
+        'HTTP/1.1 403' in cr_mon_denied_probe.stderr
+        or 'HTTP/1.0 403' in cr_mon_denied_probe.stderr
     fail_msg: >-
       {{ cr_mon_change_id }} allowlist did not deny
-      {{ cr_mon_denied_probe_domain }} through the proxy on
-      {{ inventory_hostname }}. Squid must reject any destination outside
-      cr_mon_allowed_domains.
+      {{ cr_mon_denied_probe_domain }} at the proxy CONNECT layer on
+      {{ inventory_hostname }}. A DNS/TLS/network failure is not equivalent
+      to an explicit proxy denial and must not be accepted as a pass.
+      curl stderr: {{ cr_mon_denied_probe.stderr }}
 
 - name: Print CR-P1-MON-01-01 node verdict
   ansible.builtin.debug:
@@ -87,7 +131,8 @@
       change_id: "{{ cr_mon_change_id }}"
       host: "{{ inventory_hostname }}"
       phase: "{{ cr_mon_phase }}"
-      squid_state: "{{ cr_mon_squid_service_after.stdout }}"
-      allowed_domain_probe: "{{ cr_mon_allowed_probe.status }}"
-      denied_domain_probe: "{{ cr_mon_denied_probe.status | default('n/a') }}"
+      squid_load_state: "{{ cr_mon_squid_service_after.stdout_lines[0] }}"
+      squid_active_state: "{{ cr_mon_squid_service_after.stdout_lines[1] }}"
+      allowed_domain_probe_status: "{{ cr_mon_allowed_probe.stdout }}"
+      denied_domain_probe: DENIED_AT_CONNECT
       kubelet_regression: NONE

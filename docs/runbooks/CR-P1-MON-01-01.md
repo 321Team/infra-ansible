@@ -5,8 +5,13 @@
 - Run only on `ansible01` as `server01_ansible`.
 - Use the reviewed CR branch commit, not an unreviewed working tree.
 - The target host in `inventory/hosts.yml` (`egress_proxy` group) must be
-  filled in and reviewed before running `apply`. Running against an empty
-  group is a safe no-op; it is not a substitute for choosing the node.
+  filled in and reviewed before running `apply`. `precheck` against an empty
+  group is a safe no-op; `apply`, `verify`, and `rollback` instead fail
+  loudly (`NOT RUN`) against an empty group so an empty-group exit code 0 is
+  never mistaken for real evidence.
+- Every phase, including `precheck`, first confirms `firewalld` is actually
+  running on the target before touching squid — the run fails immediately if
+  it is not, rather than after squid has already been installed/configured.
 - Do not change Alertmanager's `podSelector`, Secret management, or the
   `monitoring-api` NetworkPolicy in this runbook — that is
   [Issue B (fds-project-baseline#75)](https://github.com/321Team/fds-project-baseline/issues/75).
@@ -77,10 +82,12 @@ Required result:
 scripts/cr-p1-mon-01-01-run.sh verify
 ```
 
-Required result: squid active, an HTTPS request to `discord.com` through the
-proxy succeeds, an HTTPS request to `cr_mon_denied_probe_domain`
-(`example.com` by default) through the proxy is denied, and kubelet state has
-not regressed.
+Required result: squid loaded+active, an HTTPS request to `discord.com`
+through the proxy succeeds, an HTTPS `CONNECT` to `cr_mon_denied_probe_domain`
+(`example.com` by default) through the proxy is denied with a `403` at the
+CONNECT layer itself (checked via `curl -v`, not the final origin response),
+and kubelet state has not regressed against the baseline captured at the
+first apply.
 
 NOTE: the exact HTTP status Squid returns for a denied `CONNECT` depends on
 the installed Squid version and default `deny_info` page. Confirm the actual
@@ -98,9 +105,13 @@ unset CR_CHANGE_APPROVED
 Uses the root-owned state captured on the first apply
 (`{{ cr_mon_state_dir }}/original-state.json` and
 `original-squid.conf`). If squid was not present before this change, it is
-stopped and disabled. If it was present, its original configuration is
-restored and restarted. The firewalld rich rules added for this change are
-removed either way.
+stopped and disabled. If it was present, its original configuration, file
+ownership/mode, and exact pre-change active/enabled state are restored
+(a squid that was originally stopped or disabled is left stopped/disabled,
+not started). Only the firewalld rich rules this change actually introduced
+are removed — rules that already existed in the baseline captured at the
+first apply are left untouched — and any pre-existing runtime-only rule the
+required `--reload` drops is re-added afterward.
 
 ## 7. Finalize evidence
 

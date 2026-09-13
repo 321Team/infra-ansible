@@ -18,6 +18,25 @@
       apply run.
   when: cr_mon_phase == 'apply'
 
+- name: Verify firewalld is active before making any changes
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --state
+  register: cr_mon_firewalld_state
+  changed_when: false
+  check_mode: false
+  failed_when: cr_mon_firewalld_state.stdout | trim != 'running'
+
+- name: Read the default firewalld zone
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --get-default-zone
+  register: cr_mon_firewalld_zone
+  changed_when: false
+  check_mode: false
+
 - name: Check whether squid is already installed
   ansible.builtin.command:
     argv:
@@ -46,6 +65,16 @@
   register: cr_mon_squid_service_before
   changed_when: false
   check_mode: false
+
+- name: Read pre-change squid enabled state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-enabled
+      - squid.service
+  register: cr_mon_squid_enabled_before
+  changed_when: false
+  check_mode: false
   failed_when: false
 
 - name: Read pre-change kubelet state
@@ -61,6 +90,32 @@
   changed_when: false
   check_mode: false
   failed_when: false
+
+- name: Normalize pre-change kubelet state for evidence
+  ansible.builtin.set_fact:
+    cr_mon_kubelet_before_load: >-
+      {{ (cr_mon_kubelet_before.stdout_lines | default([]))[0] | default('unknown') }}
+    cr_mon_kubelet_before_active: >-
+      {{ (cr_mon_kubelet_before.stdout_lines | default([]))[1] | default('unknown') }}
+
+- name: Read current permanent firewalld rich rules
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --list-rich-rules
+  register: cr_mon_firewalld_rules_before
+  changed_when: false
+  check_mode: false
+
+- name: Read current runtime-only firewalld rich rules
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --list-rich-rules
+  register: cr_mon_firewalld_runtime_rules_before
+  changed_when: false
+  check_mode: false
 
 - name: Create protected CR rollback state directory
   ansible.builtin.file:
@@ -87,7 +142,7 @@
     - not ansible_check_mode
     - cr_mon_squid_conf_before.stat.exists
 
-- name: Preserve original squid presence state once
+- name: Preserve original squid and firewalld state once
   ansible.builtin.copy:
     dest: "{{ cr_mon_state_dir }}/original-state.json"
     owner: root
@@ -102,7 +157,17 @@
           'inventory_hostname': inventory_hostname,
           'squid_preinstalled': cr_mon_squid_preinstalled.rc == 0,
           'squid_conf_preexisted': cr_mon_squid_conf_before.stat.exists,
-          'squid_service_preexisted': cr_mon_squid_service_before.stdout | default('') != 'not-found'
+          'squid_conf_owner': cr_mon_squid_conf_before.stat.pw_name | default('root'),
+          'squid_conf_group': cr_mon_squid_conf_before.stat.gr_name | default('root'),
+          'squid_conf_mode': cr_mon_squid_conf_before.stat.mode | default('0644'),
+          'squid_service_load_state': cr_mon_squid_service_before.stdout_lines[0],
+          'squid_service_active_state': cr_mon_squid_service_before.stdout_lines[1],
+          'squid_service_enabled_state': cr_mon_squid_enabled_before.stdout | trim,
+          'kubelet_load_state_before': cr_mon_kubelet_before_load,
+          'kubelet_active_state_before': cr_mon_kubelet_before_active,
+          'firewalld_default_zone': cr_mon_firewalld_zone.stdout | trim,
+          'firewalld_permanent_rules_before': cr_mon_firewalld_rules_before.stdout_lines,
+          'firewalld_runtime_rules_before': cr_mon_firewalld_runtime_rules_before.stdout_lines
         } | to_nice_json
       }}
   when:
@@ -129,16 +194,6 @@
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
-
-- name: Read current firewalld rule for the proxy port
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --permanent
-      - --list-rich-rules
-  register: cr_mon_firewalld_rules_before
-  changed_when: false
-  check_mode: false
 
 - name: Open the proxy port for approved internal clients only
   ansible.builtin.command:
@@ -167,6 +222,32 @@
     - cr_mon_firewalld_apply.changed | default(false)
   changed_when: true
 
+- name: Read runtime-only firewalld rich rules after reload
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --list-rich-rules
+  register: cr_mon_firewalld_runtime_after
+  changed_when: false
+  check_mode: false
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_firewalld_apply.changed | default(false)
+
+- name: Restore pre-existing runtime-only firewalld rules dropped by the reload
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --add-rich-rule={{ item }}
+  loop: "{{ cr_mon_firewalld_runtime_rules_before.stdout_lines }}"
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_firewalld_apply.changed | default(false)
+    - item not in cr_mon_firewalld_runtime_after.stdout_lines
+  changed_when: true
+
 - name: Enable and start squid
   ansible.builtin.service:
     name: squid
@@ -181,4 +262,6 @@
 
 - name: Run CR-P1-MON-01-01 post-run verification tasks
   ansible.builtin.include_tasks: verify.yml
-  when: cr_mon_phase in ['apply', 'verify']
+  when:
+    - cr_mon_phase in ['apply', 'verify']
+    - not ansible_check_mode

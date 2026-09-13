@@ -5,6 +5,11 @@
 
 acl localnet src {% for client in cr_mon_proxy_allowed_clients %}{{ client }} {% endfor %}
 
+## Loopback source used only by this role's own post-run verification
+## (roles/egress_proxy/tasks/verify.yml). Restricted to the same allowed
+## domains as every other client — never opened to arbitrary destinations.
+acl proxy_self_test src 127.0.0.1/32
+
 acl SSL_ports port 443
 acl Safe_ports port 443
 acl CONNECT method CONNECT
@@ -16,11 +21,12 @@ http_access deny !Safe_ports
 http_access deny CONNECT !SSL_ports
 http_access allow localnet CONNECT allowed_egress_domains
 http_access allow localnet allowed_egress_domains
+http_access allow proxy_self_test CONNECT allowed_egress_domains
+http_access allow proxy_self_test allowed_egress_domains
 http_access deny all
 
 http_port {{ cr_mon_proxy_port }}
 
-dns_v4_first on
 via off
 forwarded_for delete
 
