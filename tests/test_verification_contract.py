@@ -183,7 +183,23 @@ class ContractTests(unittest.TestCase):
             env = clean_environment(ROOT, ROOT.parent / 'output')
         self.assertNotIn('ANSIBLE_LIMIT', env)
         self.assertNotIn('FDS_VERIFICATION_OUTPUT', env)
-        self.assertEqual(env['ANSIBLE_LOG_PATH'], '')
+        self.assertNotIn('ANSIBLE_LOG_PATH', env)
+        self.assertNotIn('ANSIBLE_CALLBACKS_ENABLED', env)
+
+    def test_blank_or_inherited_settings_do_not_reach_real_child(self):
+        for inherited in ('', 'unexpected-override'):
+            with self.subTest(inherited=inherited), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / 'stage'
+                env = {**os.environ, 'ANSIBLE_LOG_PATH': inherited, 'ANSIBLE_CALLBACKS_ENABLED': inherited}
+                command = [sys.executable, '-c',
+                           'import os,json; print(json.dumps({k:v for k,v in os.environ.items() if k.startswith(("ANSIBLE_", "FDS_VERIFICATION_"))}))']
+                report = stage(command, ROOT, output, env, META)
+                child = json.loads((output / 'stdout.log').read_text())
+                self.assertNotIn('ANSIBLE_LOG_PATH', child)
+                self.assertNotIn('ANSIBLE_CALLBACKS_ENABLED', child)
+                self.assertEqual(child['ANSIBLE_STDOUT_CALLBACK'], 'fds_verification')
+                self.assertEqual(child['FDS_VERIFICATION_CONTEXT'], str(output / 'context.json'))
+                self.assertEqual(report['status'], 'REVIEW_REQUIRED')  # Python is not an Ansible callback.
 
     def test_cli_matrix_fixture_construction_and_derived_cases(self):
         spec = importlib.util.spec_from_file_location('contract_matrix', ROOT / 'tests/run-verification-contract-matrix.py')

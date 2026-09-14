@@ -142,6 +142,10 @@ def main():
             runs.append({'engine': engine, 'case': case, 'passed': bool(passed), 'status': result['status'],
                          'cli_rc': result['cli_rc'], 'origin': 'real CLI on local fixture aliases'})
             print(json.dumps(runs[-1]), flush=True)
+            if case == 'baseline' and not passed:
+                # A broken launcher is not evidence for the negative cases.
+                # Keep its logs and try the other pinned engine immediately.
+                break
             if case == 'baseline' and passed:
                 comparisons.append(result['nodes'])
                 for mutation, content in corruptions(events):

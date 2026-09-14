@@ -1,6 +1,6 @@
 # Issue #7 구조화 SSH 검증
 
-Status: 구현·로컬 시험 완료, 실제 두 엔진 CLI 시험·실제 노드 비교·독립 리뷰 대기.
+Status: 최초 서버 CLI는 실행기 설정 오류로 FAIL. 수정본의 새 두 엔진 시험·실제 노드 비교·독립 리뷰 대기.
 이 문서는 운영 설정 적용이나 엔진 전환 지시가 아니다. #6 Done 및 PR #4 Closed를 유지한다.
 
 ## 결과 수집과 판정
@@ -65,11 +65,30 @@ local connection을 쓰는 합성 별칭이며 운영 inventory·SSH 키를 사�
 - 총 26회 실제 CLI + 26개 파생 검증 = 52개 판정과 두 baseline 동일성이 모두 맞아야 MATRIX PASS다.
 - 기대 실패는 테스트 전용 명시 태그·rc=7·boolean condition=true·ignored 1개/노드가 모두 일치해야
   EXPECTED_FAILURE_CONFIRMED다. 운영 읽기 단계에서는 이 옵션을 활성화하지 않는다.
-- 엔진 부재나 callback 미로딩은 음성시험 성공으로 처리하지 않는다.
+- 엔진 부재나 callback 미로딩은 음성시험 성공으로 처리하지 않는다. baseline이 실패하면
+  해당 엔진의 나머지 사례를 건너뛰고 원본 로그를 보존한 뒤 다른 엔진을 검사한다.
 
 2026-09-14 Windows 로컬 단위시험은 25/25 PASS다. 이 중 callback 객체는 버전별 모양을 대체한
 합성 객체이며, 실제 프로세스 시험은 Python의 원본 바이트·종료·timeout을 검사한다.
-실제 Ansible CLI matrix와 실제 6대 비교는 아직 NOT RUN이다. 이전 #6 로그를 #7 PASS로 재사용하지 않는다.
+이 최초 로컬 시험 이후 서버 CLI를 실행했고 아래 FAIL을 수신했다. 실제 6대 비교는 NOT RUN이다.
+이전 #6 로그를 #7 PASS로 재사용하지 않는다.
+
+## 2026-09-14 첫 서버 FAIL 및 수정
+
+- 실행 HEAD: `49a9e585e8763d616f0044eba02d9460cbacba6e`.
+- 수신 압축본 SHA256: `d8550cdf5eca77dbb0d6eba098057009df2fea3bcba09227497751cc77fab758`.
+- 149개 파일 수신. 내부 일반 파일 147개의 해시와 두 Manifest의 기재 해시를 모두 검증했다.
+  최초 상위 Manifest는 중첩 Manifest 자체를 포함하지 않았지만 압축본 해시는 전체 바이트를 포함한다.
+- Python 3.12.14, 두 엔진의 고정 의존성 일치, 서버 단위시험 25/25 PASS, 소스 상태 전후 clean.
+- 실제 matrix는 FAIL/exit 1. 2.16.19의 13회는 CLI rc=5, 2.21.3의 13회는 rc=250이며
+  callback event 파일은 하나도 생성되지 않았다. 52개 판정 중 후속 파생 시험은 실행되지 않았다.
+- 원인: 실행기가 `ANSIBLE_LOG_PATH=''`를 전달해 2.16.19가 현재 디렉터리를 로그 파일로 열려 했다.
+  `ANSIBLE_CALLBACKS_ENABLED=''`는 2.21.3에서 빈 플러그인 이름으로 해석됐다.
+- 수정: 두 값을 빈 문자열로 지정하지 않고 자식 환경에서 제거한다. 저장소/격리 config에는
+  해당 설정이 없으며 기본 비활성 상태를 사용한다. stdout callback 이름과 필요한 경로만 명시한다.
+- 수정 후 로컬 단위시험 26/26 PASS. 실제 Python 자식 프로세스에서 두 설정이 전달되지 않는지
+  검사하며, 이것은 Ansible 성공 증적이 아니다. 수정 HEAD의 새 Linux CLI 실행이 필요하다.
+- 원본 FAIL을 PASS로 덮어쓰거나, callback 미시작을 결함 검출 성공으로 판정하지 않는다.
 
 ## 실제 서버 읽기 검증 (별도 실행)
 

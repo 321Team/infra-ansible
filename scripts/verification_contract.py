@@ -184,9 +184,13 @@ def stage(command, root, directory, env, metadata, nodes=NODES, *, timeout=600,
     directory.mkdir(parents=True, exist_ok=False)
     write_json(directory / 'context.json', metadata)
     child = env.copy()
+    # Empty strings are not "disabled": old core resolves log_path to cwd,
+    # while new core interprets an empty callback list as a blank plugin name.
+    child.pop('ANSIBLE_CALLBACKS_ENABLED', None)
+    child.pop('ANSIBLE_LOG_PATH', None)
     child.update(ANSIBLE_STDOUT_CALLBACK='fds_verification',
                  ANSIBLE_CALLBACK_PLUGINS=str(Path(root) / 'callback_plugins'),
-                 ANSIBLE_CALLBACKS_ENABLED='', FDS_VERIFICATION_CONTEXT=str(directory / 'context.json'),
+                 FDS_VERIFICATION_CONTEXT=str(directory / 'context.json'),
                  FDS_VERIFICATION_OUTPUT=str(directory / 'events.jsonl'))
     rc, timed_out, stdout, stderr = capture(command, root, child, timeout)
     (directory / 'stdout.log').write_bytes(stdout)
@@ -223,5 +227,5 @@ def clean_environment(root, output):
                PYTHONDONTWRITEBYTECODE='1', ANSIBLE_HOST_KEY_CHECKING='True',
                ANSIBLE_SSH_ARGS='-C -o ControlMaster=no -o ControlPersist=no -o ControlPath=none',
                ANSIBLE_SSH_USETTY='False', ANSIBLE_LOCAL_TEMP=str(Path(output) / 'ansible-local'),
-               ANSIBLE_LOG_PATH='', ANSIBLE_DISPLAY_ARGS_TO_STDOUT='False', ANSIBLE_DIFF_ALWAYS='False')
+               ANSIBLE_DISPLAY_ARGS_TO_STDOUT='False', ANSIBLE_DIFF_ALWAYS='False')
     return env
