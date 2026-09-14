@@ -118,8 +118,12 @@ def validate(stream, metadata, nodes, *, cli_rc, timed_out=False,
                 require(bool(command_results) and all(type(obs['rc']) is int for obs in command_results), 'Missing command rc')
             counts[host]['changed'] += int(event['changed'])
             if negative:
+                # Core sanitizes the callback payload's redundant `failed` key.
+                # The failed hook supplies the outcome; the raw flag stays an
+                # observation, not an additional proof requirement.
                 require(event['outcome'] == 'failed' and event['ignored'] and event['rc'] == 7 and
-                        event['condition'] is True and event['failed'] is True and not event.get('items'),
+                        event['condition'] is True and event['action'] == 'ansible.builtin.command' and
+                        'items' not in event,
                         'Expected failure was not proven')
                 counts[host]['negative'] += 1
             else:

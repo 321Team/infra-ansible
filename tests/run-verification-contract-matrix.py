@@ -30,6 +30,9 @@ def make_play(case, python, metadata):
         play['serial'] = 1
     elif case == 'expected_negative':
         tasks.append({**command, 'ignore_errors': True, 'failed_when': 'probe.rc == 7', 'tags': ['fds_expected_failure']})
+    elif case == 'expected_expression':
+        tasks.append({**command, 'ignore_errors': True, 'failed_when': 'undefined_contract_probe.value == 1',
+                      'tags': ['fds_expected_failure']})
     elif case == 'failure':
         tasks.append({'name': 'Unexpected failure', 'ansible.builtin.fail': {'msg': 'fixture failure'}})
     elif case == 'ignored':
@@ -102,7 +105,7 @@ def main():
     config.write_text('[defaults]\nhost_key_checking=True\nretry_files_enabled=False\n', encoding='utf-8')
     env['ANSIBLE_CONFIG'] = str(config)
     runs, comparisons = [], []
-    cases = ('baseline', 'wording', 'serial', 'expected_negative', 'failure', 'ignored', 'rescued',
+    cases = ('baseline', 'wording', 'serial', 'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
              'expression', 'hidden_rc', 'changed', 'transport_error', 'limited_nodes', 'timeout')
     for engine, python in zip(ENGINES, (args.python216.absolute(), args.python221.absolute())):
         inventory = output / (engine + '-inventory.json')
@@ -123,7 +126,8 @@ def main():
             if case == 'limited_nodes':
                 command += ['--limit', HOSTS[0]]
             result = stage(command, ROOT, output / (engine + '-' + case), env, metadata, HOSTS,
-                           timeout=2 if case == 'timeout' else 300, expected_negative=case == 'expected_negative')
+                           timeout=2 if case == 'timeout' else 300,
+                           expected_negative=case in ('expected_negative', 'expected_expression'))
             expected = ('PASS' if case in ('baseline', 'wording', 'serial') else
                         'EXPECTED_FAILURE_CONFIRMED' if case == 'expected_negative' else 'REVIEW_REQUIRED')
             stream = output / (engine + '-' + case) / 'events.jsonl'
@@ -133,7 +137,7 @@ def main():
             except (OSError, ValueError, IndexError):
                 events, identity = [], False
             passed = identity and result['status'] == expected
-            if case in ('baseline', 'wording', 'serial', 'expected_negative', 'ignored', 'rescued', 'hidden_rc', 'changed', 'limited_nodes'):
+            if case in ('baseline', 'wording', 'serial', 'expected_negative', 'expected_expression', 'ignored', 'rescued', 'hidden_rc', 'changed', 'limited_nodes'):
                 passed &= result['cli_rc'] == 0
             elif case == 'timeout':
                 passed &= result['timed_out'] is True
@@ -157,7 +161,7 @@ def main():
                                  'status': derived['status'], 'origin': 'mutated callback fixture', 'source_sha256': digest(stream)})
     same = len(comparisons) == 2 and comparisons[0] == comparisons[1]
     source_matches = source_sha(ROOT) == code
-    passed = source_matches and same and len(runs) == 52 and all(run['passed'] for run in runs)
+    passed = source_matches and same and len(runs) == 54 and all(run['passed'] for run in runs)
     write_json(output / 'MATRIX.json', {'schema_version': 1, 'code_sha': code, 'scope': 'six LOCAL aliases; no operational SSH',
                'status': 'PASS' if passed else 'FAIL', 'same_baseline_results': same, 'runs': runs})
     files = sorted(p for p in output.rglob('*') if p.is_file())
