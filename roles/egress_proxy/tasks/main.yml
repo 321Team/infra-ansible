@@ -195,7 +195,7 @@
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
 
-- name: Open the proxy port for approved internal clients only
+- name: Open the proxy port for approved internal clients only (permanent)
   ansible.builtin.command:
     argv:
       - firewall-cmd
@@ -208,44 +208,20 @@
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
     - ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept') not in cr_mon_firewalld_rules_before.stdout
-  register: cr_mon_firewalld_apply
   changed_when: true
 
-- name: Reload firewalld after rule changes
+- name: Open the proxy port for approved internal clients only (runtime, no reload)
   ansible.builtin.command:
     argv:
       - firewall-cmd
-      - --reload
+      - --add-rich-rule=rule family="ipv4" source
+        address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+        protocol="tcp" accept
+  loop: "{{ cr_mon_proxy_allowed_clients }}"
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
-    - cr_mon_firewalld_apply.changed | default(false)
-  changed_when: true
-
-- name: Read runtime-only firewalld rich rules after reload
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --list-rich-rules
-  register: cr_mon_firewalld_runtime_after
-  changed_when: false
-  check_mode: false
-  when:
-    - cr_mon_phase == 'apply'
-    - not ansible_check_mode
-    - cr_mon_firewalld_apply.changed | default(false)
-
-- name: Restore pre-existing runtime-only firewalld rules dropped by the reload
-  ansible.builtin.command:
-    argv:
-      - firewall-cmd
-      - --add-rich-rule={{ item }}
-  loop: "{{ cr_mon_firewalld_runtime_rules_before.stdout_lines }}"
-  when:
-    - cr_mon_phase == 'apply'
-    - not ansible_check_mode
-    - cr_mon_firewalld_apply.changed | default(false)
-    - item not in cr_mon_firewalld_runtime_after.stdout_lines
+    - ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept') not in cr_mon_firewalld_runtime_rules_before.stdout
   changed_when: true
 
 - name: Enable and start squid

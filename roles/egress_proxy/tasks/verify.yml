@@ -53,22 +53,34 @@
   failed_when: false
   check_mode: false
 
+- name: Fail when a standalone verify has no usable pre-apply baseline
+  ansible.builtin.assert:
+    that:
+      - cr_mon_persisted_state_file.content is defined
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).change_id == cr_mon_change_id
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).inventory_hostname == inventory_hostname
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before is defined
+    fail_msg: >-
+      No usable pre-apply baseline for {{ cr_mon_change_id }} on
+      {{ inventory_hostname }} at {{ cr_mon_state_dir }}/original-state.json
+      (missing, unreadable, or recorded for a different host/change). A
+      standalone verify run cannot judge kubelet regression without it, so
+      this is a hard failure rather than a skipped check.
+  when: cr_mon_phase == 'verify'
+
 - name: Assert kubelet state did not regress against the persisted apply baseline
   ansible.builtin.assert:
     that:
       - >-
-        (cr_mon_kubelet_after.stdout_lines[1] | default('unknown')) ==
-        ((cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before
-        | default('unknown'))
+        cr_mon_kubelet_after.stdout_lines[1] ==
+        (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before
     fail_msg: >-
-      kubelet ActiveState on {{ inventory_hostname }} differs from the state
-      recorded before the original {{ cr_mon_change_id }} apply run. A
-      same-run before/after comparison alone cannot detect this because a
+      kubelet ActiveState on {{ inventory_hostname }} ('{{ cr_mon_kubelet_after.stdout_lines[1] | default('') }}')
+      differs from the state recorded before the original {{ cr_mon_change_id }}
+      apply run ('{{ (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before }}').
+      A same-run before/after comparison alone cannot detect this because a
       standalone verify invocation has no pre-change state of its own.
-  when:
-    - cr_mon_phase == 'verify'
-    - cr_mon_persisted_state_file is defined
-    - cr_mon_persisted_state_file.content is defined
+  when: cr_mon_phase == 'verify'
 
 - name: Verify an allowed destination is reachable through the proxy
   ansible.builtin.command:
@@ -102,9 +114,10 @@
       - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
       - --silent
       - --show-error
-      - --verbose
       - --output
       - /dev/null
+      - --write-out
+      - "%{http_connect}"
       - "https://{{ cr_mon_denied_probe_domain }}"
   register: cr_mon_denied_probe
   changed_when: false
@@ -114,16 +127,19 @@
 - name: Assert the non-allowed destination was denied at the CONNECT layer
   ansible.builtin.assert:
     that:
-      - "'CONNECT' in cr_mon_denied_probe.stderr"
-      - >-
-        'HTTP/1.1 403' in cr_mon_denied_probe.stderr
-        or 'HTTP/1.0 403' in cr_mon_denied_probe.stderr
+      - cr_mon_denied_probe.stdout == '403'
     fail_msg: >-
       {{ cr_mon_change_id }} allowlist did not deny
       {{ cr_mon_denied_probe_domain }} at the proxy CONNECT layer on
-      {{ inventory_hostname }}. A DNS/TLS/network failure is not equivalent
-      to an explicit proxy denial and must not be accepted as a pass.
-      curl stderr: {{ cr_mon_denied_probe.stderr }}
+      {{ inventory_hostname }}. curl's %{http_connect} (the proxy's own
+      response code to the CONNECT request, distinct from whatever the
+      origin server returns after a tunnel is established) was
+      '{{ cr_mon_denied_probe.stdout }}' (rc={{ cr_mon_denied_probe.rc }});
+      expected 403. A value of 0 means curl never got a CONNECT response
+      from the proxy at all (proxy unreachable, or a DNS/TLS/network
+      failure), and 200 means the proxy tunnelled the connection through
+      instead of denying it — neither is equivalent to an explicit proxy
+      denial and must not be accepted as a pass.
 
 - name: Print CR-P1-MON-01-01 node verdict
   ansible.builtin.debug:

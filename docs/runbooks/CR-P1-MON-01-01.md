@@ -85,9 +85,11 @@ scripts/cr-p1-mon-01-01-run.sh verify
 Required result: squid loaded+active, an HTTPS request to `discord.com`
 through the proxy succeeds, an HTTPS `CONNECT` to `cr_mon_denied_probe_domain`
 (`example.com` by default) through the proxy is denied with a `403` at the
-CONNECT layer itself (checked via `curl -v`, not the final origin response),
-and kubelet state has not regressed against the baseline captured at the
-first apply.
+CONNECT layer itself (checked via curl's `%{http_connect}` write-out
+variable, which captures the proxy's own response to the CONNECT request
+and is distinct from `%{http_code}`, the final origin response after a
+tunnel is established), and kubelet state has not regressed against the
+baseline captured at the first apply.
 
 NOTE: the exact HTTP status Squid returns for a denied `CONNECT` depends on
 the installed Squid version and default `deny_info` page. Confirm the actual
@@ -108,10 +110,15 @@ Uses the root-owned state captured on the first apply
 stopped and disabled. If it was present, its original configuration, file
 ownership/mode, and exact pre-change active/enabled state are restored
 (a squid that was originally stopped or disabled is left stopped/disabled,
-not started). Only the firewalld rich rules this change actually introduced
-are removed — rules that already existed in the baseline captured at the
-first apply are left untouched — and any pre-existing runtime-only rule the
-required `--reload` drops is re-added afterward.
+not started); if it was originally active, the restored config is also
+explicitly `reload`ed, since re-asserting the `started` state on an
+already-running service is a no-op and would otherwise leave the old
+config live in the running process. Only the firewalld rich rules this
+change actually introduced are removed — rules that already existed in the
+baseline captured at the first apply are left untouched — and both the
+`--permanent` and the live runtime rule set are updated directly, without
+ever calling `firewall-cmd --reload`, so no other rule (ours or anyone
+else's) is transiently dropped.
 
 ## 7. Finalize evidence
 

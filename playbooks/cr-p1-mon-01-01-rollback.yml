@@ -77,9 +77,20 @@
         enabled: >-
           {{ cr_mon_original_state.squid_service_enabled_state
              in ['enabled', 'enabled-runtime', 'static'] }}
+      register: cr_mon_squid_restore_service
       when: cr_mon_original_state.squid_preinstalled
 
-    - name: Remove only the firewalld rich rules this change introduced
+    - name: Reload the restored configuration into an already-running squid
+      ansible.builtin.service:
+        name: squid
+        state: reloaded
+      when:
+        - cr_mon_original_state.squid_preinstalled
+        - cr_mon_original_state.squid_conf_preexisted
+        - cr_mon_original_state.squid_service_active_state == 'active'
+        - not cr_mon_squid_restore_service.changed
+
+    - name: Remove only the firewalld rich rules this change introduced (permanent)
       ansible.builtin.command:
         argv:
           - firewall-cmd
@@ -88,41 +99,32 @@
             address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
             protocol="tcp" accept
       loop: "{{ cr_mon_proxy_allowed_clients }}"
-      register: cr_mon_firewalld_remove
+      register: cr_mon_firewalld_remove_permanent
       when: >-
         ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept')
         not in (cr_mon_original_state.firewalld_permanent_rules_before | default([]) | join('\n'))
       failed_when: >-
-        cr_mon_firewalld_remove.rc != 0
-        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove.stderr | default(''))
-        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove.stdout | default(''))
-
-    - name: Reload firewalld after removing this change's rules
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --reload
-      when: cr_mon_firewalld_remove.changed | default(false)
+        cr_mon_firewalld_remove_permanent.rc != 0
+        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_permanent.stderr | default(''))
+        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_permanent.stdout | default(''))
       changed_when: true
 
-    - name: Read runtime-only firewalld rich rules after the rollback reload
+    - name: Remove only the firewalld rich rules this change introduced (runtime, no reload)
       ansible.builtin.command:
         argv:
           - firewall-cmd
-          - --list-rich-rules
-      register: cr_mon_firewalld_runtime_after_rollback
-      changed_when: false
-      when: cr_mon_firewalld_remove.changed | default(false)
-
-    - name: Restore pre-existing runtime-only firewalld rules dropped by the rollback reload
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --add-rich-rule={{ item }}
-      loop: "{{ cr_mon_original_state.firewalld_runtime_rules_before | default([]) }}"
-      when:
-        - cr_mon_firewalld_remove.changed | default(false)
-        - item not in cr_mon_firewalld_runtime_after_rollback.stdout_lines
+          - --remove-rich-rule=rule family="ipv4" source
+            address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+            protocol="tcp" accept
+      loop: "{{ cr_mon_proxy_allowed_clients }}"
+      register: cr_mon_firewalld_remove_runtime
+      when: >-
+        ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept')
+        not in (cr_mon_original_state.firewalld_runtime_rules_before | default([]) | join('\n'))
+      failed_when: >-
+        cr_mon_firewalld_remove_runtime.rc != 0
+        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_runtime.stderr | default(''))
+        and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_runtime.stdout | default(''))
       changed_when: true
 
     - name: Print rollback verdict
