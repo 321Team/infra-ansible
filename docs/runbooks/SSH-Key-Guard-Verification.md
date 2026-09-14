@@ -32,10 +32,12 @@ stdout 문구 파싱이나 Ansible 내부 Python API는 로컬 판정에 사용�
 배포 패키지의 `run-server-verify.sh`가 독립 2.21.3 venv를 준비하고 아래 실행기를 호출한다.
 
 ```bash
-python3 scripts/verify-ssh-main.py --python221 /absolute/venv/bin/python --output /absolute/new-results
+python3 -B scripts/verify-ssh-main.py --python216 /absolute/venv-216/bin/python --python221 /absolute/venv-221/bin/python --output /absolute/new-results
 ```
 
-시스템 Ansible은 2.16.19인지 확인하며, 별도 2.21.3과 같은 절차를 비교한다.
+명시한 2.16.19/2.21.3의 버전과 고정 의존성을 확인한 뒤 같은 절차를 비교한다.
+`--python216`을 생략하면 `/usr/bin/python3`을 사용하지만 의존성 불일치는 실패다.
+패키지를 자동 설치하거나 시스템 엔진을 교체하지 않는다. 출력은 Git checkout 밖의 새 경로여야 한다.
 기존 `/home/server01_ansible/.ssh/p1_ansible_ed25519`와 `known_hosts`를 사용한다.
 키·host key가 없거나 SSH/sudo가 실패하면 로그를 남기고 해당 엔진의 후속 단계를 중단한다.
 암호를 묻지 않으며, 기존 SSH 연결을 재사용하지 않는다.
@@ -57,9 +59,9 @@ Ansible 전송용 임시 파일과 시스템 접속 로그는 정상적으로 �
 
 결과 해석:
 
-- `PASS_READONLY_SCOPE`: 두 엔진의 모든 단계가 정상 완료됐으며 원격 단계는 6대 전체 recap까지 확인.
+- `PASS_READONLY_SCOPE`: 두 엔진의 총 16단계가 완료되고, 원격 callback JSON에서 정확한 6대·완료 표시·실패 및 변경 개수·CLI 종료 코드를 확인.
 - `REVIEW_REQUIRED`: 누락·실패·시간 초과 또는 기대한 6대 전체 결과 부족.
-- hardening check의 changed는 예상 변경이며 실제 파일 적용을 뜻하지 않는다.
+- hardening check의 changed는 노드별 0 또는 1만 허용하며 실제 파일 적용을 뜻하지 않는다. 나머지 원격 단계는 0이어야 한다.
 - 이 절차는 실제 SSH·sudo·원본 검사·main의 읽기 전용 검증이다. 설정 적용,
   적용 후 멱등성, DNS Rollback, 운영 Ansible 버전 전환 승인은 포함하지 않는다.
 - PR #3의 Gate 0 코드는 이 변경과 검증 범위에 포함하지 않는다.
@@ -97,3 +99,7 @@ python -m unittest discover -s tests -p test_ssh_guard_harness.py -v
 이 단위시험의 subprocess 대체 결과는 실제 엔진 PASS 증거가 아니다.
 실제 두 버전 로그와 결함 재주입 결과, 독립 리뷰를 확보하기 전에는 #6을 Done으로 판정하지 않는다.
 원본 실행 증적의 정식 편입은 fds-project-evidence에서 별도로 관리한다.
+
+#6은 별도 증적·승인·병합으로 완료됐다. 현재 #7 구조화 결과 변경의 스키마,
+호환성 제한과 새 검증 절차는 [구조화 검증 Runbook](Structured-SSH-Verification.md)을 따른다.
+#6의 기존 PASS가 #7 callback의 실제 엔진 PASS를 대신하지 않는다.

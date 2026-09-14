@@ -83,12 +83,19 @@
           - ssh_keys_after.stat.mtime == ssh_keys_before.stat.mtime
 
     - name: Record per-node verification result without key material
+      tags: [fds_ssh_verified]
       ansible.builtin.debug:
-        msg:
-          verdict: SSH_READONLY_PASS
-          host: "{{ inventory_hostname }}"
-          python_version: "{{ ansible_facts['python_version'] }}"
-          effective_user: "{{ ssh_effective_user.stdout | trim }}"
-          managed_key_count: "{{ p1_managed_key_count.stdout | int }}"
-          restricted_key_count: "{{ p1_restricted_key_count.stdout | int }}"
-          authorized_keys_unchanged: true
+        # One dictionary expression preserves numeric members on both engines,
+        # including 2.16 with its default non-native scalar templating.
+        msg: >-
+          {{
+            {
+              'verdict': 'SSH_READONLY_PASS',
+              'host': inventory_hostname,
+              'python_version': ansible_facts['python_version'],
+              'effective_user': ssh_effective_user.stdout | trim,
+              'managed_key_count': p1_managed_key_count.stdout | int,
+              'restricted_key_count': p1_restricted_key_count.stdout | int,
+              'authorized_keys_unchanged': true
+            }
+          }}

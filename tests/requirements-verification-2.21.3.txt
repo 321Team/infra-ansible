@@ -1,0 +1,11 @@
+# Version pins from the independently reviewed Issue #6 Linux environment.
+# Wheel hashes/offline distribution are tracked separately by Issue #8.
+ansible-core==2.21.3
+cffi==2.1.1
+cryptography==50.0.1
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+packaging==26.3
+pycparser==3.0
+PyYAML==6.0.2
+resolvelib==1.2.1
