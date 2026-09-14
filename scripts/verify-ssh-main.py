@@ -19,7 +19,7 @@ p.add_argument('--plan', action='store_true')
 args = p.parse_args()
 if args.plan:
     print(json.dumps({'engines': ['system 2.16.19', 'isolated 2.21.3'], 'remote_nodes': sorted(NODES),
-        'phases': ['14 source-guard expression fixtures', '14 localhost task fixtures',
+        'phases': ['14 public CLI source-guard fixtures', '14 exported localhost task fixtures',
                    'fresh SSH / sudo / original guards / unchanged key file',
                    'corrected hardening playbook --check', 'main precheck', 'main DNS verify'],
         'changes': 'No configuration apply; Ansible temporary transport files and normal access logs may be created.'}, indent=2))
@@ -89,10 +89,11 @@ for label, python in [('2.16.19', Path('/usr/bin/python3')), ('2.21.3', args.pyt
         rows[-1]['status'] = 'REVIEW_REQUIRED'
         continue
     generated = out/(label+'_generated')
-    step, _ = run(label+'_expressions', [python, ROOT/'tests/test-ssh-key-guards.py', '--output', out/(label+'_expressions.json'), '--export-dir', generated])
+    step, _ = run(label+'_cli_guards', [python, ROOT/'tests/test-ssh-key-guards.py', '--output', out/(label+'_cli_guards.json'), '--export-dir', generated, '--ansible-playbook', executable, '--expect-engine', label])
     if step['status'] != 'PASS':
         continue
-    step, _ = run(label+'_localhost_tasks', [executable, '-i', 'localhost,', generated/'regression.yml'])
+    step, _ = run(label+'_localhost_tasks', [executable, '-i', 'localhost,',
+        '-e', json.dumps({'ansible_python_interpreter': str(python)}), generated/'regression.yml'])
     if step['status'] != 'PASS':
         continue
     variables = json.loads((generated/'source-vars.json').read_text())
