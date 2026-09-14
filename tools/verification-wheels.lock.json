@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "target": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "python": "3.12",
+    "glibc_min": "2.28"
+  },
+  "engines": {
+    "2.16.19": {
+      "ansible-core": "2.16.19",
+      "cffi": "2.1.1",
+      "cryptography": "50.0.1",
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.3",
+      "packaging": "26.3",
+      "pycparser": "3.0",
+      "PyYAML": "6.0.2",
+      "resolvelib": "1.0.1"
+    },
+    "2.21.3": {
+      "ansible-core": "2.21.3",
+      "cffi": "2.1.1",
+      "cryptography": "50.0.1",
+      "Jinja2": "3.1.6",
+      "MarkupSafe": "3.0.3",
+      "packaging": "26.3",
+      "pycparser": "3.0",
+      "PyYAML": "6.0.2",
+      "resolvelib": "1.2.1"
+    }
+  },
+  "installer": {
+    "pip": "25.2"
+  },
+  "wheels": [
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "filename": "jinja2-3.1.6-py3-none-any.whl",
+      "size": 134899,
+      "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+      "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/Jinja2/3.1.6/json"
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "filename": "markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "size": 22947,
+      "sha256": "d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d",
+      "url": "https://files.pythonhosted.org/packages/3c/2e/8d0c2ab90a8c1d9a24f0399058ab8519a3279d1bd4289511d74e909f060e/markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "metadata_url": "https://pypi.org/pypi/MarkupSafe/3.0.3/json"
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.2",
+      "filename": "PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "size": 767542,
+      "sha256": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476",
+      "url": "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+      "metadata_url": "https://pypi.org/pypi/PyYAML/6.0.2/json"
+    },
+    {
+      "name": "ansible-core",
+      "version": "2.16.19",
+      "filename": "ansible_core-2.16.19-py3-none-any.whl",
+      "size": 2261447,
+      "sha256": "d7a32ba0f96f9c6582b7ff159a4a6f0e694662cfc4840497c88fed63bf58cd14",
+      "url": "https://files.pythonhosted.org/packages/3e/0a/fdb88b61521a1f263acf420d27bca357a38a2ac5865364016cedd41c15a5/ansible_core-2.16.19-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/ansible-core/2.16.19/json"
+    },
+    {
+      "name": "ansible-core",
+      "version": "2.21.3",
+      "filename": "ansible_core-2.21.3-py3-none-any.whl",
+      "size": 2446988,
+      "sha256": "9e7dd367f7dc5d5e9fc5ae1baf8af9c4edc09e916a73a40108a3f32e3ad93f10",
+      "url": "https://files.pythonhosted.org/packages/a3/fa/938fe0504372377af2bef42abe0d8e463fdcd011ad803eaf300e4577dd7a/ansible_core-2.21.3-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/ansible-core/2.21.3/json"
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "filename": "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "size": 221822,
+      "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+      "url": "https://files.pythonhosted.org/packages/b1/db/dceb9dd5b231e1da801793f8acc9f3c52a7e1afe40bb1aae37e02b0faad5/cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "metadata_url": "https://pypi.org/pypi/cffi/2.1.1/json"
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.1",
+      "filename": "cryptography-50.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "size": 4712478,
+      "sha256": "ff838d62ec1bfce4f9ba7fa16f4a7b554cd8d0c299e6be37502161a660c84eef",
+      "url": "https://files.pythonhosted.org/packages/57/26/e6d4fc8512a51a5f9ee7bfdbfb853bce1197087df40c9ad993ad370b846f/cryptography-50.0.1-cp311-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "metadata_url": "https://pypi.org/pypi/cryptography/50.0.1/json"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "filename": "packaging-26.3-py3-none-any.whl",
+      "size": 129956,
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+      "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/packaging/26.3/json"
+    },
+    {
+      "name": "pip",
+      "version": "25.2",
+      "filename": "pip-25.2-py3-none-any.whl",
+      "size": 1752557,
+      "sha256": "6d67a2b4e7f14d8b31b8b52648866fa717f45a1eb70e83002f4331d07e953717",
+      "url": "https://files.pythonhosted.org/packages/b7/3f/945ef7ab14dc4f9d7f40288d2df998d1837ee0888ec3659c813487572faa/pip-25.2-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/pip/25.2/json"
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "filename": "pycparser-3.0-py3-none-any.whl",
+      "size": 48172,
+      "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992",
+      "url": "https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/pycparser/3.0/json"
+    },
+    {
+      "name": "resolvelib",
+      "version": "1.0.1",
+      "filename": "resolvelib-1.0.1-py2.py3-none-any.whl",
+      "size": 17194,
+      "sha256": "d2da45d1a8dfee81bdd591647783e340ef3bcb104b54c383f70d422ef5cc7dbf",
+      "url": "https://files.pythonhosted.org/packages/d2/fc/e9ccf0521607bcd244aa0b3fbd574f71b65e9ce6a112c83af988bbbe2e23/resolvelib-1.0.1-py2.py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/resolvelib/1.0.1/json"
+    },
+    {
+      "name": "resolvelib",
+      "version": "1.2.1",
+      "filename": "resolvelib-1.2.1-py3-none-any.whl",
+      "size": 18737,
+      "sha256": "fb06b66c8da04172d9e72a21d7d06186d8919e32ae5ab5cdf5b9d920be805ac2",
+      "url": "https://files.pythonhosted.org/packages/e2/23/c941a0d0353681ca138489983c4309e0f5095dfd902e1357004f2357ddf2/resolvelib-1.2.1-py3-none-any.whl",
+      "metadata_url": "https://pypi.org/pypi/resolvelib/1.2.1/json"
+    }
+  ]
+}
