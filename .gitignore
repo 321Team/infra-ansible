@@ -2,3 +2,5 @@
 /stage-a-output/
 /docs/evidence/
 *.retry
+__pycache__/
+*.pyc
