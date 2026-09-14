@@ -1,6 +1,6 @@
 # Issue #7 구조화 SSH 검증
 
-Status: 두 번째 서버 matrix 50/52 기대결과 일치, 기대 실패 판정 2개 오류로 FAIL. 수정본의 새 두 엔진 시험·실제 노드 비교·독립 리뷰 대기.
+Status: 27cf2683의 격리 matrix 54/54 PASS. 실제 6대는 2.21.3 전체 PASS, 2.16.19 SSH 증명의 문자열 개수로 REVIEW_REQUIRED. 출력 수정본 재검증·독립 리뷰 대기.
 이 문서는 운영 설정 적용이나 엔진 전환 지시가 아니다. #6 Done 및 PR #4 Closed를 유지한다.
 
 ## 결과 수집과 판정
@@ -58,11 +58,15 @@ python3 -B -m unittest discover -s tests -p 'test_*py' -v
 두 번째 명령은 Linux의 깨끗한 Git checkout에서 실행한다. `fixture-1`~`fixture-6`은 모두
 local connection을 쓰는 합성 별칭이며 운영 inventory·SSH 키를 사용하지 않는다.
 
-- 엔진별 실제 CLI 14회: baseline, 문구/공백 변화, serial, 기대 실패, 기대 실패 태그가 있는 표현식 오류, 일반 실패,
+- 엔진별 실제 CLI 16회: baseline, 문구/공백 변화, serial, 실제 SSH 증명 생성 태스크의 정상/잘못된 개수,
+  기대 실패, 기대 실패 태그가 있는 표현식 오류, 일반 실패,
   ignored, rescued, 표현식 오류, 숨긴 rc, 예상 밖 changed, 로컬 transport 오류, 노드 제한, timeout.
 - baseline 원본에서 엔진별 13개 파생 입력: 완료/노드/표시 누락·중복·잘림·다른 코드/엔진/단계,
   JSON 중복 key와 공백 변화. 출처를 mutated callback fixture와 원본 해시로 구분한다.
-- 총 28회 실제 CLI + 26개 파생 검증 = 54개 판정과 두 baseline 동일성이 모두 맞아야 MATRIX PASS다.
+- 총 32회 실제 CLI + 26개 파생 검증 = 58개 판정과 두 baseline 동일성이 모두 맞아야 MATRIX PASS다.
+- SSH 증명 사례는 tests/ssh-server-readonly.yml의 실제 debug 태스크를 추출한다.
+  local 별칭에 합성 count/root 변수만 제공하며 운영 SSH 태스크는 실행하지 않는다.
+  정상 개수는 숫자 1이어야 하고, 잘못된 개수 2는 CLI rc=0이어도 REVIEW_REQUIRED다.
 - 기대 실패는 테스트 전용 명시 태그·command 실패 이벤트·rc=7·boolean condition=true·ignored 1개/노드가 모두 일치해야
   EXPECTED_FAILURE_CONFIRMED다. 운영 읽기 단계에서는 이 옵션을 활성화하지 않는다.
   callback payload에서 생략될 수 있는 `failed` 값은 관측값으로 보존하며 추가 성공 조건으로 요구하지 않는다.
@@ -111,6 +115,28 @@ local connection을 쓰는 합성 별칭이며 운영 inventory·SSH 키를 사�
 - 다음 새 Linux 실행은 기대 실패 태그·ignore_errors가 있는 표현식 오류 사례를 추가한 54개 판정이다.
   표현식 오류를 기대 실패로 잘못 허용하지 않는지 두 엔진에서 확인해야 한다.
 - 실제 6대 비교·독립 리뷰·증적 편입은 대기다. #7 Open / PR #15 Draft를 유지한다.
+
+## 2026-09-14 격리 PASS 및 실제 6대 결과
+
+- HEAD `27cf2683cce2331ae83266c627991dcf9d000ac7`의 격리 matrix는 54/54 PASS,
+  서버 단위시험 27/27 PASS. 증적 PR: https://github.com/321Team/fds-project-evidence/pull/11.
+- 격리 압축 SHA256: `be5c98f5455fab020dfa31c95082ae5de9f5a3c1f2839c502400d5297cf75b3e`.
+- 같은 HEAD의 실제 읽기 검증은 2026-09-14 09:09:49~09:12:08 UTC에 실행됐다.
+  압축 SHA256: `5e26f8f10968d1fd87615e5e29062eca72e1af9ea83eeaa37f8f39eff7ad8789`.
+- 115개 파일, 내부 114개 및 report 원본 참조 36개 해시 일치. 16개 중 13단계 실행,
+  12단계 PASS이고 전체는 REVIEW_REQUIRED/exit 1이다. 소스 상태 전후 clean으로 보고됐다.
+- 2.21.3은 실제 6대 SSH 읽기·hardening check·OS precheck·DNS verify를 포함해 8/8 PASS.
+  2.16.19는 앞의 4단계 PASS, SSH CLI rc=0이나 키 개수 필드가 문자열 `"1"`로 기록돼 거부됐다.
+  그 뒤 hardening check·OS precheck·DNS verify 3단계는 NOT RUN이다.
+- 두 엔진 SSH 기록 모두 6대의 키 파일 불변을 확인했고, 모든 관측 원격 단계의 changed는 0이다.
+  운영 apply나 운영 엔진 전환을 수행하지 않았다. 전체 PASS로 확대하지 않는다.
+- 원인과 수정: 2.16 기본 템플릿은 개별 scalar `{{ count | int }}`를 문자열로 출력한다.
+  msg 전체를 하나의 dictionary 표현식으로 만들어 숫자 멤버를 보존한다.
+  [2.16 템플릿 변환](https://github.com/ansible/ansible/blob/v2.16.19/lib/ansible/template/native_helpers.py)의
+  dictionary 변환 동작을 사용하며 전역 native 설정·callback·판정기의 엄격한 자료형 요구는 바꾸지 않는다.
+- 수정본 로컬 단위시험 28/28 PASS. 실제 SSH 증명 태스크를 쓰는 두 CLI 사례를 추가했다.
+  새 HEAD의 58개 격리 판정이 PASS인 경우에만 같은 HEAD로 실제 6대 읽기 검증을 이어간다.
+  이전 원본 FAIL과 PASS는 보존하며 새 결과가 오기 전에는 수정본 PASS를 주장하지 않는다.
 
 ## 실제 서버 읽기 검증 (별도 실행)
 

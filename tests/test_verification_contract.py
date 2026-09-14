@@ -170,8 +170,12 @@ class ContractTests(unittest.TestCase):
                 event['ssh_verified'] = {'host': event['host'], 'effective_user': 'root', 'managed_key_count': 1,
                                          'restricted_key_count': 1, 'authorized_keys_unchanged': True}
         self.assertEqual(self.check_events(data, require_ssh=True)['status'], 'PASS')
-        data[1]['ssh_verified']['managed_key_count'] = True
-        self.assertEqual(self.check_events(data, require_ssh=True)['status'], 'REVIEW_REQUIRED')
+        for field in ('managed_key_count', 'restricted_key_count'):
+            for wrong in ('1', '01', ' 1 ', '1\n', True, 1.0, None, 0, 2):
+                mutated = copy.deepcopy(data)
+                mutated[1]['ssh_verified'][field] = wrong
+                with self.subTest(field=field, wrong=wrong):
+                    self.assertEqual(self.check_events(mutated, require_ssh=True)['status'], 'REVIEW_REQUIRED')
 
     def test_incomplete_malformed_and_duplicate_json(self):
         raw = ''.join(json.dumps(e) + '\n' for e in baseline())
@@ -234,17 +238,44 @@ class ContractTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('contract_matrix', ROOT / 'tests/run-verification-contract-matrix.py')
         suite = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(suite)
-        for case in ('baseline', 'wording', 'serial', 'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
+        for case in ('baseline', 'wording', 'serial', 'ssh_proof', 'ssh_proof_wrong_count',
+                     'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
                      'expression', 'hidden_rc', 'changed', 'transport_error', 'limited_nodes', 'timeout'):
             plays = suite.make_play(case, Path('/fixture/python'), META)
             self.assertEqual(plays[0]['connection'], 'local')
             self.assertFalse(plays[0]['become'])
             self.assertFalse(plays[0]['gather_facts'])
             self.assertEqual(plays[-1]['tasks'][0]['tags'], ['fds_stage_complete'])
+            if case in ('ssh_proof', 'ssh_proof_wrong_count'):
+                self.assertEqual(plays[0]['tasks'][-1], suite.ssh_proof_task())
+                self.assertEqual(plays[0]['vars']['p1_managed_key_count']['stdout'],
+                                 '2\n' if case == 'ssh_proof_wrong_count' else '1\n')
         mutations = list(suite.corruptions(baseline()))
         self.assertEqual(len(mutations), 13)
         for name, raw in mutations:
-            self.assertEqual(self.check_events(raw=raw)['status'], 'PASS' if name == 'whitespace' else 'REVIEW_REQUIRED')
+                self.assertEqual(self.check_events(raw=raw)['status'], 'PASS' if name == 'whitespace' else 'REVIEW_REQUIRED')
+
+    def test_ssh_proof_fixture_extracts_current_source(self):
+        spec = importlib.util.spec_from_file_location('contract_matrix', ROOT / 'tests/run-verification-contract-matrix.py')
+        suite = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(suite)
+        original = suite.ssh_proof_task()
+        # Mutating the source must also mutate the generated fixture: it cannot
+        # silently test a separate hard-coded proof while real-node output drifts.
+        changed = copy.deepcopy(original)
+        changed['ansible.builtin.debug']['msg'] = {'host': '{{ inventory_hostname }}', 'managed_key_count': '{{ 1 | int }}'}
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'tests/ssh-server-readonly.yml'
+            source.parent.mkdir()
+            for tasks in ([changed], [], [changed, changed]):
+                source.write_text(suite.yaml.safe_dump([{'tasks': tasks}]), encoding='utf-8')
+                with patch.object(suite, 'ROOT', Path(directory)):
+                    if len(tasks) == 1:
+                        fixture = suite.make_play('ssh_proof', Path('/fixture/python'), META)
+                        self.assertEqual(fixture[0]['tasks'][-1], changed)
+                    else:
+                        with self.assertRaises(ValueError):
+                            suite.ssh_proof_task()
 
 
 class CallbackProjectionTests(unittest.TestCase):

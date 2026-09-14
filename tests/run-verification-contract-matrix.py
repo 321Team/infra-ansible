@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import sys
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -13,6 +15,16 @@ from verification_contract import (ENGINES, capture, clean_environment, completi
                                    decode, digest, runtime_command, source_sha, stage, validate, write_json)
 
 HOSTS = tuple(f'fixture-{n}' for n in range(1, 7))
+
+
+def ssh_proof_task():
+    """Exercise the exact real-node producer, without executing its SSH tasks."""
+    plays = yaml.safe_load((ROOT / 'tests/ssh-server-readonly.yml').read_text(encoding='utf-8'))
+    matches = [task for play in plays for task in play.get('tasks', [])
+               if 'fds_ssh_verified' in task.get('tags', [])]
+    if len(matches) != 1 or 'ansible.builtin.debug' not in matches[0]:
+        raise ValueError('Expected exactly one debug SSH proof producer')
+    return copy.deepcopy(matches[0])
 
 
 def make_play(case, python, metadata):
@@ -28,6 +40,12 @@ def make_play(case, python, metadata):
         tasks[0]['ansible.builtin.debug']['msg'] = 'PLAY RECAP\n  SSH_READONLY_PASS  \nnot a verdict'
     elif case == 'serial':
         play['serial'] = 1
+    elif case in ('ssh_proof', 'ssh_proof_wrong_count'):
+        play['vars'] = {'ansible_facts': {'python_version': 'fixture'},
+                        'ssh_effective_user': {'stdout': 'root\n'},
+                        'p1_managed_key_count': {'stdout': '2\n' if case == 'ssh_proof_wrong_count' else '1\n'},
+                        'p1_restricted_key_count': {'stdout': '1\n'}}
+        tasks.append(ssh_proof_task())
     elif case == 'expected_negative':
         tasks.append({**command, 'ignore_errors': True, 'failed_when': 'probe.rc == 7', 'tags': ['fds_expected_failure']})
     elif case == 'expected_expression':
@@ -105,7 +123,8 @@ def main():
     config.write_text('[defaults]\nhost_key_checking=True\nretry_files_enabled=False\n', encoding='utf-8')
     env['ANSIBLE_CONFIG'] = str(config)
     runs, comparisons = [], []
-    cases = ('baseline', 'wording', 'serial', 'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
+    cases = ('baseline', 'wording', 'serial', 'ssh_proof', 'ssh_proof_wrong_count',
+             'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
              'expression', 'hidden_rc', 'changed', 'transport_error', 'limited_nodes', 'timeout')
     for engine, python in zip(ENGINES, (args.python216.absolute(), args.python221.absolute())):
         inventory = output / (engine + '-inventory.json')
@@ -127,8 +146,9 @@ def main():
                 command += ['--limit', HOSTS[0]]
             result = stage(command, ROOT, output / (engine + '-' + case), env, metadata, HOSTS,
                            timeout=2 if case == 'timeout' else 300,
+                           require_ssh=case in ('ssh_proof', 'ssh_proof_wrong_count'),
                            expected_negative=case in ('expected_negative', 'expected_expression'))
-            expected = ('PASS' if case in ('baseline', 'wording', 'serial') else
+            expected = ('PASS' if case in ('baseline', 'wording', 'serial', 'ssh_proof') else
                         'EXPECTED_FAILURE_CONFIRMED' if case == 'expected_negative' else 'REVIEW_REQUIRED')
             stream = output / (engine + '-' + case) / 'events.jsonl'
             try:
@@ -137,7 +157,8 @@ def main():
             except (OSError, ValueError, IndexError):
                 events, identity = [], False
             passed = identity and result['status'] == expected
-            if case in ('baseline', 'wording', 'serial', 'expected_negative', 'expected_expression', 'ignored', 'rescued', 'hidden_rc', 'changed', 'limited_nodes'):
+            if case in ('baseline', 'wording', 'serial', 'ssh_proof', 'ssh_proof_wrong_count',
+                        'expected_negative', 'expected_expression', 'ignored', 'rescued', 'hidden_rc', 'changed', 'limited_nodes'):
                 passed &= result['cli_rc'] == 0
             elif case == 'timeout':
                 passed &= result['timed_out'] is True
@@ -161,7 +182,7 @@ def main():
                                  'status': derived['status'], 'origin': 'mutated callback fixture', 'source_sha256': digest(stream)})
     same = len(comparisons) == 2 and comparisons[0] == comparisons[1]
     source_matches = source_sha(ROOT) == code
-    passed = source_matches and same and len(runs) == 54 and all(run['passed'] for run in runs)
+    passed = source_matches and same and len(runs) == 58 and all(run['passed'] for run in runs)
     write_json(output / 'MATRIX.json', {'schema_version': 1, 'code_sha': code, 'scope': 'six LOCAL aliases; no operational SSH',
                'status': 'PASS' if passed else 'FAIL', 'same_baseline_results': same, 'runs': runs})
     files = sorted(p for p in output.rglob('*') if p.is_file())
