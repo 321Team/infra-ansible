@@ -19,10 +19,14 @@ def classify(case, observation):
     result = {k: case[k] for k in ('case', 'guard', 'expected_failure')}
     condition = observation.get('failed_when_result')
     failed = observation.get('failed')
-    result.update(rc=observation.get('rc'), count=observation.get('stdout', '').strip())
+    stdout = observation.get('stdout')
+    result.update(rc=observation.get('rc'), count=stdout.strip() if isinstance(stdout, str) else None)
+    # Newer engines attach exception diagnostics to ordinary failed_when=True
+    # rejections too. The public boolean condition result, failed flag, and
+    # independent grep rc/count contract distinguish those from expression errors.
     if (type(condition) is not bool or type(failed) is not bool
-            or type(result['rc']) is not int or observation.get('skipped')
-            or observation.get('unreachable') or observation.get('exception')):
+            or type(result['rc']) is not int or not isinstance(stdout, str)
+            or observation.get('skipped') or observation.get('unreachable')):
         return dict(result, outcome='ERROR', error='Missing/invalid CLI observation or expression/module error')
     result['observed_failure'] = condition
     result['outcome'] = 'PASS' if (

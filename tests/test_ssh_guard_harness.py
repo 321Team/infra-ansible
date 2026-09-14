@@ -112,6 +112,32 @@ class HarnessTests(unittest.TestCase):
                            'failed_when_result': value}
             self.assertEqual(runner.classify(case, observation)['outcome'], 'ERROR')
 
+    def test_engine221_expected_rejection_with_exception_diagnostics(self):
+        # Observed in the submitted 2.21.3 CLI evidence (commit 3fdcc6b):
+        # exception is present for failed_when=True with grep rc 0, 1, and 2.
+        for case in cases():
+            if not case['expected_failure']:
+                continue
+            observation = {'rc': case['expected_rc'], 'stdout': case['expected_count'],
+                           'failed': True, 'failed_when_result': True,
+                           'exception': '(traceback unavailable)',
+                           'failed_when_suppressed_exception': '(traceback unavailable)'}
+            self.assertEqual(runner.classify(case, observation)['outcome'], 'PASS')
+            observation['failed_when_result'] = "Error while evaluating conditional: 'undefined_ssh_guard_probe' is undefined"
+            self.assertEqual(runner.classify(case, observation)['outcome'], 'ERROR')
+
+    def test_exception_diagnostics_do_not_hide_missing_or_wrong_grep_results(self):
+        case = next(cases())
+        observation = {'rc': 1, 'stdout': '0', 'failed': True,
+                       'failed_when_result': True, 'exception': '(traceback unavailable)'}
+        for value in (None, 0, [], {}):
+            self.assertEqual(runner.classify(case, dict(observation, stdout=value))['outcome'], 'ERROR')
+        missing = dict(observation)
+        missing.pop('stdout')
+        self.assertEqual(runner.classify(case, missing)['outcome'], 'ERROR')
+        self.assertEqual(runner.classify(case, dict(observation, rc=127))['outcome'], 'FAIL')
+        self.assertEqual(runner.classify(case, dict(observation, stdout='2'))['outcome'], 'FAIL')
+
     def test_transport_and_missing_results_fail_closed(self):
         case = next(cases())
         for observation in ({}, {'unreachable': True}, {'skipped': True},

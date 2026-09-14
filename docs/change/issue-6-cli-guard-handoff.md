@@ -4,6 +4,33 @@
 P1-ANS-01 Done, PR #4 Merged/Closed 및 기존 승인 범위를 유지한다.
 운영 apply·운영 엔진 전환·실제 서버 SSH 검증은 수행하지 않았다.
 
+현재 상태: 제출된 Linux 시험은 기존 판정기 결함으로 전체 FAIL.
+아래 2026-09-14 서버 증적 분석에 따라 수정했으며, 수정 HEAD의 새 CLI
+실행과 독립 리뷰를 기다린다. Draft / #6 Open 유지.
+
+## 2026-09-14 서버 증적 분석 및 수정
+
+- 제출 압축본 SHA-256:
+  `3a068a18e95dc8d2a10899435926c8450e94eb8357569d223d427823307e3d5b`.
+- 압축본 해시 일치, 내부 399개 파일 해시 전부 일치(총 400개 파일).
+- 실행 코드 SHA: `3fdcc6badf6e5cd2294f2e229451589197e86821`;
+  SOURCE_STATUS 비어 있음. Linux / Python 3.12.14 / 두 고정 엔진 확인.
+- 제출된 원본 MATRIX는 exit 1 / FAIL / baseline 동일성 false.
+- 2.16.19: baseline 14/14 PASS, 6개 결함 변형 검출 성공.
+- 2.21.3: baseline CLI 자체 exit 0이나 Python 판정은 PASS 4 / ERROR 10.
+- 원인: 2.21.3은 정상적인 failed_when=True 거부에도 exception 진단 필드를
+  포함한다. 이를 무조건 ERROR로 취급한 판정기 결함이었다.
+- 수정: exception 필드 존재로 판정하지 않고 boolean failed_when_result,
+  boolean failed, 실제 정수 rc 및 문자열 stdout의 독립 기대값으로 판정.
+  비문자열·누락 stdout도 ERROR로 처리한다. 식 평가 오류는 여전히
+  failed_when_result가 boolean이 아니므로 ERROR다.
+- 로컬 회귀시험 10/10 PASS. 수정 판정기로 기존 CLI 관찰 196개를 재판정하여
+  두 baseline 각 14/14 및 동일 결과, 12개 결함 변형의 기대 검출을 확인.
+  모든 export 원본 guard/변수, 합성 fixture, grep 명령·경로와 localhost recap도 대조.
+- **기존 로그 재판정은 수정 HEAD의 새 CLI 실행이 아니다.** 원본 FAIL 증적을
+  PASS로 덮어쓰지 않는다. 수정 커밋의 새 matrix 증적 확보 후 독립 리뷰한다.
+- 원본 증적의 fds-project-evidence 정식 편입은 아직 남아 있다.
+
 ## 구현
 
 - fixture/원본 추출을 PyYAML 전용 모듈로 분리. Ansible 내부 import 제거.
