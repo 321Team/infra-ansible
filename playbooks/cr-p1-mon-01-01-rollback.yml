@@ -95,7 +95,7 @@
         enabled: false
       when:
         - not cr_mon_original_state.squid_preinstalled
-        - (cr_mon_squid_unit_state.stdout | default('') | trim) not in ['not-found', '']
+        - not (cr_mon_squid_unit_state.rc == 0 and (cr_mon_squid_unit_state.stdout | trim) == 'not-found')
 
     - name: Restore original squid configuration when it existed before this change
       ansible.builtin.copy:
@@ -105,9 +105,13 @@
         owner: "{{ cr_mon_original_state.squid_conf_owner | default('root') }}"
         group: "{{ cr_mon_original_state.squid_conf_group | default('root') }}"
         mode: "{{ cr_mon_original_state.squid_conf_mode | default('0644') }}"
-      when:
-        - cr_mon_original_state.squid_preinstalled
-        - cr_mon_original_state.squid_conf_preexisted
+      when: cr_mon_original_state.squid_conf_preexisted
+
+    - name: Remove the configuration this change created when none existed before
+      ansible.builtin.file:
+        path: /etc/squid/squid.conf
+        state: absent
+      when: not cr_mon_original_state.squid_conf_preexisted
 
     - name: Restore squid to its exact pre-change active/enabled state
       ansible.builtin.service:
@@ -140,10 +144,13 @@
             address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}"
             protocol="tcp" accept
       loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
+      vars:
+        cr_mon_rollback_rule_string: >-
+          rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
       register: cr_mon_firewalld_remove_permanent
       when: >-
-        ('source address=\"' + item + '\" port port=\"' + (cr_mon_original_state.proxy_port | string) + '\" protocol=\"tcp\" accept')
-        not in (cr_mon_original_state.firewalld_permanent_rules_before | default([]) | join('\n'))
+        cr_mon_rollback_rule_string
+        not in (cr_mon_original_state.firewalld_permanent_rules_before | default([]))
       failed_when: >-
         cr_mon_firewalld_remove_permanent.rc != 0
         and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_permanent.stderr | default(''))
@@ -159,10 +166,13 @@
             address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}"
             protocol="tcp" accept
       loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
+      vars:
+        cr_mon_rollback_rule_string: >-
+          rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
       register: cr_mon_firewalld_remove_runtime
       when: >-
-        ('source address=\"' + item + '\" port port=\"' + (cr_mon_original_state.proxy_port | string) + '\" protocol=\"tcp\" accept')
-        not in (cr_mon_original_state.firewalld_runtime_rules_before | default([]) | join('\n'))
+        cr_mon_rollback_rule_string
+        not in (cr_mon_original_state.firewalld_runtime_rules_before | default([]))
       failed_when: >-
         cr_mon_firewalld_remove_runtime.rc != 0
         and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_runtime.stderr | default(''))

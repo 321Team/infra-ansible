@@ -182,6 +182,23 @@
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
 
+- name: Fail when an existing baseline does not identify itself as this change/host
+  ansible.builtin.assert:
+    that:
+      - cr_mon_existing_baseline.change_id | default('') == cr_mon_change_id
+      - cr_mon_existing_baseline.inventory_hostname | default('') == inventory_hostname
+    fail_msg: >-
+      A baseline file exists at {{ cr_mon_state_dir }}/original-state.json on
+      {{ inventory_hostname }} but does not identify itself as belonging to
+      {{ cr_mon_change_id }} on this host (missing or mismatched change_id /
+      inventory_hostname — it may be empty, corrupt, truncated, or left over
+      from a different change). Refusing to treat it as this change's
+      baseline or drift-compare against it; investigate and remove or
+      restore it manually before re-running apply.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
 - name: Refuse to re-apply with inputs that differ from the captured baseline
   ansible.builtin.assert:
     that:
@@ -227,7 +244,6 @@
     owner: root
     group: root
     mode: "0600"
-    force: false
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
@@ -349,7 +365,6 @@
     group: root
     mode: "0644"
     validate: squid -k parse -f %s
-  notify: restart squid
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
@@ -364,10 +379,13 @@
         address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
         protocol="tcp" accept
   loop: "{{ cr_mon_proxy_allowed_clients }}"
+  vars:
+    cr_mon_apply_rule_string: >-
+      rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_proxy_port }}" protocol="tcp" accept
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
-    - ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept') not in cr_mon_firewalld_rules_before.stdout
+    - cr_mon_apply_rule_string not in cr_mon_firewalld_rules_before.stdout_lines
   changed_when: true
 
 - name: Open the proxy port for approved internal clients only (runtime, no reload)
@@ -379,10 +397,13 @@
         address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
         protocol="tcp" accept
   loop: "{{ cr_mon_proxy_allowed_clients }}"
+  vars:
+    cr_mon_apply_rule_string: >-
+      rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_proxy_port }}" protocol="tcp" accept
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
-    - ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept') not in cr_mon_firewalld_runtime_rules_before.stdout
+    - cr_mon_apply_rule_string not in cr_mon_firewalld_runtime_rules_before.stdout_lines
   changed_when: true
 
 - name: Enable and start squid
@@ -390,12 +411,73 @@
     name: squid
     enabled: true
     state: started
+  register: cr_mon_squid_start
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
 
-- name: Apply notified squid restart handler
-  ansible.builtin.meta: flush_handlers
+# A plain "state: started" is a no-op on an already-running squid, so it
+# never picks up a rewritten config on its own. Relying on the template
+# task's notify to trigger a restart is not retry-safe: if a later task
+# (e.g. the firewall rules below) fails before flush_handlers runs, the
+# notified handler is lost, the file on disk is already correct so a
+# same-input retry never re-notifies, and squid keeps serving whatever it
+# loaded last — silently, since a same-input retry then reports changed=0.
+# "state: reloaded" always reports changed=true regardless of whether a
+# reload was actually needed, so reloading whenever the service was merely
+# already-running (rather than freshly started) would make every run after
+# the first report changed>0 forever, breaking the apply_idempotency check.
+# Comparing against a persisted checksum of the last configuration squid
+# actually had reloaded into it gives a reload that is both retry-safe
+# (independent of any single run's notify/changed state) and genuinely
+# idempotent (a no-op once the running process has caught up).
+- name: Record the checksum of the configuration just deployed
+  ansible.builtin.stat:
+    path: /etc/squid/squid.conf
+  register: cr_mon_squid_conf_deployed
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Check whether a "squid has loaded this config" marker exists
+  ansible.builtin.stat:
+    path: "{{ cr_mon_state_dir }}/active-config.sha1"
+  register: cr_mon_squid_active_marker
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Read the marker recording which configuration squid last loaded
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/active-config.sha1"
+  register: cr_mon_squid_active_marker_file
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_squid_active_marker.stat.exists
+
+- name: Reload squid when the on-disk configuration differs from what it loaded
+  ansible.builtin.service:
+    name: squid
+    state: reloaded
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - not cr_mon_squid_start.changed
+    - >-
+      not cr_mon_squid_active_marker.stat.exists
+      or (cr_mon_squid_active_marker_file.content | b64decode | trim) != cr_mon_squid_conf_deployed.stat.checksum
+
+- name: Record which configuration squid now has loaded
+  ansible.builtin.copy:
+    content: "{{ cr_mon_squid_conf_deployed.stat.checksum }}"
+    dest: "{{ cr_mon_state_dir }}/active-config.sha1"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
 
 - name: Run CR-P1-MON-01-01 post-run verification tasks
   ansible.builtin.include_tasks: verify.yml
