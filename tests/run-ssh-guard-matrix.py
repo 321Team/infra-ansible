@@ -7,6 +7,7 @@ import subprocess
 
 import yaml
 from ssh_guard_fixtures import NAMES
+from regression_expectations import ENGINES, GUARD_MUTATIONS, complete_guards, guard_case_count
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,7 +23,7 @@ def main():
     source = ROOT / 'playbooks/harden_svc_ansible_key.yml'
     variants = [('baseline', source, None)]
     for index, name in enumerate(NAMES):
-        for mutation in ('and', 'broken-list', 'undefined'):
+        for mutation in GUARD_MUTATIONS:
             data = yaml.safe_load(source.read_text(encoding='utf-8'))
             task = next(t for t in data[0]['tasks'] if t['name'] == name)
             expression = task['failed_when']
@@ -40,7 +41,7 @@ def main():
             variants.append((f'{mutation}-{index}', path, 'FAIL' if mutation == 'and' else 'ERROR'))
     runs = []
     baselines = []
-    for version, python in [('2.16.19', args.python216), ('2.21.3', args.python221)]:
+    for version, python in zip(ENGINES, (args.python216, args.python221)):
         python = python.absolute()
         for name, variant, expected in variants:
             report = output / f'{version}-{name}.json'
@@ -57,7 +58,7 @@ def main():
                 # A missing engine must never count as a successful mutation kill.
                 valid = summary['engine'] == version and summary.get('cli_rc') is not None
                 if expected is None:
-                    valid &= process.returncode == 0 and counts == {'PASS': 14, 'FAIL': 0, 'ERROR': 0}
+                    valid &= process.returncode == 0 and counts == {'PASS': guard_case_count(), 'FAIL': 0, 'ERROR': 0}
                     baselines.append([(r['case'], r['guard'], r['expected_failure'], r.get('observed_failure'),
                                        r.get('rc'), r.get('count'), r['outcome']) for r in summary['results']])
                 else:
@@ -67,12 +68,12 @@ def main():
                     # The untouched guard must still pass all seven cases.
                     unaffected = NAMES[1 - int(name.rsplit('-', 1)[1])]
                     valid &= sum(r['guard'] == unaffected and r['outcome'] == 'PASS'
-                                 for r in summary['results']) == 7
+                                 for r in summary['results']) == guard_case_count() // len(NAMES)
                 runs.append({'engine': version, 'variant': name, 'passed': bool(valid), 'outcomes': counts})
             except (OSError, ValueError, subprocess.SubprocessError) as exc:
                 runs.append({'engine': version, 'variant': name, 'passed': False, 'error': str(exc)})
-    same = len(baselines) == 2 and baselines[0] == baselines[1]
-    passed = same and len(runs) == 14 and all(r['passed'] for r in runs)
+    same = len(baselines) == len(ENGINES) and all(row == baselines[0] for row in baselines)
+    passed = same and complete_guards(runs)
     report = {'status': 'PASS' if passed else 'FAIL', 'same_baseline_results': same, 'runs': runs}
     (output / 'MATRIX.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))

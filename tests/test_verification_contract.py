@@ -238,9 +238,8 @@ class ContractTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('contract_matrix', ROOT / 'tests/run-verification-contract-matrix.py')
         suite = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(suite)
-        for case in ('baseline', 'wording', 'serial', 'ssh_proof', 'ssh_proof_wrong_count',
-                     'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
-                     'expression', 'hidden_rc', 'changed', 'transport_error', 'limited_nodes', 'timeout'):
+        from regression_expectations import CONTRACT_CLI_CASES, DERIVED_CASES
+        for case in CONTRACT_CLI_CASES:
             plays = suite.make_play(case, Path('/fixture/python'), META)
             self.assertEqual(plays[0]['connection'], 'local')
             self.assertFalse(plays[0]['become'])
@@ -251,7 +250,7 @@ class ContractTests(unittest.TestCase):
                 self.assertEqual(plays[0]['vars']['p1_managed_key_count']['stdout'],
                                  '2\n' if case == 'ssh_proof_wrong_count' else '1\n')
         mutations = list(suite.corruptions(baseline()))
-        self.assertEqual(len(mutations), 13)
+        self.assertEqual([name for name, _ in mutations], list(DERIVED_CASES))
         for name, raw in mutations:
                 self.assertEqual(self.check_events(raw=raw)['status'], 'PASS' if name == 'whitespace' else 'REVIEW_REQUIRED')
 

@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 from ssh_guard_fixtures import generate
+from regression_expectations import ENGINES
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -84,7 +85,7 @@ def run(args, directory):
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             results.append(dict(case, outcome='ERROR', error=str(exc)))
     summary['outcomes'] = {s: sum(r['outcome'] == s for r in results) for s in ('PASS', 'FAIL', 'ERROR')}
-    summary['status'] = 'PASS' if summary.get('cli_rc') == 0 and summary['outcomes']['PASS'] == 14 else 'FAIL'
+    summary['status'] = 'PASS' if summary.get('cli_rc') == 0 and summary['outcomes']['PASS'] == len(case_list) else 'FAIL'
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(summary, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({k: summary[k] for k in ('engine', 'total', 'outcomes', 'status')}))
@@ -97,7 +98,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--export-dir', type=Path)
     parser.add_argument('--ansible-playbook')
-    parser.add_argument('--expect-engine', choices=['2.16.19', '2.21.3'])
+    parser.add_argument('--expect-engine', choices=ENGINES)
     parser.add_argument('--timeout', type=int, default=600)
     args = parser.parse_args()
     if args.export_dir:
