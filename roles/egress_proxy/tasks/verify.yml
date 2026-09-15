@@ -86,10 +86,13 @@
   ansible.builtin.command:
     argv:
       - curl
+      - -q
       - --max-time
       - "5"
       - --proxy
       - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --noproxy
+      - ""
       - --silent
       - --show-error
       - --output
@@ -108,10 +111,13 @@
   ansible.builtin.command:
     argv:
       - curl
+      - -q
       - --max-time
       - "5"
       - --proxy
       - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --noproxy
+      - ""
       - --silent
       - --show-error
       - --output

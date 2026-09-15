@@ -14,15 +14,18 @@ acl SSL_ports port 443
 acl Safe_ports port 443
 acl CONNECT method CONNECT
 
-acl allowed_egress_domains dstdomain {% for domain in cr_mon_allowed_domains %}.{{ domain }} {{ domain }} {% endfor %}
+## Exact FQDN match only — no leading-dot form, so subdomains of an
+## approved domain are not implicitly allowed. Add them explicitly to
+## cr_mon_allowed_domains if a subdomain is actually needed.
+acl allowed_egress_domains dstdomain {% for domain in cr_mon_allowed_domains %}{{ domain }} {% endfor %}
 
-
+## CONNECT/443 tunnel only — no plain-HTTP allow rule, since this proxy
+## exists to carry HTTPS webhook traffic, not to inspect or relay
+## cleartext requests to the allowed domains.
 http_access deny !Safe_ports
 http_access deny CONNECT !SSL_ports
 http_access allow localnet CONNECT allowed_egress_domains
-http_access allow localnet allowed_egress_domains
 http_access allow proxy_self_test CONNECT allowed_egress_domains
-http_access allow proxy_self_test allowed_egress_domains
 http_access deny all
 
 http_port {{ cr_mon_proxy_port }}
@@ -31,4 +34,9 @@ via off
 forwarded_for delete
 
 cache deny all
-access_log /var/log/squid/access.log squid
+
+## Custom format omits the request URL (path/query, which the Host header
+## never carries) so a webhook token in a path is never written to disk,
+## while still recording enough to audit source/destination/allow-deny.
+logformat cr_mon_egress_summary %tl %>a %rm %{Host}>h %>Hs %Ss
+access_log /var/log/squid/access.log cr_mon_egress_summary

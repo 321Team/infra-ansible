@@ -119,6 +119,54 @@
   changed_when: false
   check_mode: false
 
+- name: Check whether a baseline for this change was already captured
+  ansible.builtin.stat:
+    path: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_baseline_file
+  when: cr_mon_phase == 'apply'
+
+- name: Read previously captured baseline for drift comparison
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_baseline_file_content
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Decode previously captured baseline for drift comparison
+  ansible.builtin.set_fact:
+    cr_mon_existing_baseline: >-
+      {{ cr_mon_baseline_file_content.content | b64decode | from_json }}
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Refuse to re-apply with inputs that differ from the captured baseline
+  ansible.builtin.assert:
+    that:
+      - >-
+        cr_mon_existing_baseline.proxy_port is not defined
+        or cr_mon_existing_baseline.proxy_port == (cr_mon_proxy_port | int)
+      - >-
+        cr_mon_existing_baseline.proxy_allowed_clients is not defined
+        or cr_mon_existing_baseline.proxy_allowed_clients == cr_mon_proxy_allowed_clients
+      - >-
+        cr_mon_existing_baseline.firewalld_default_zone is not defined
+        or cr_mon_existing_baseline.firewalld_default_zone == (cr_mon_firewalld_zone.stdout | trim)
+    fail_msg: >-
+      {{ cr_mon_change_id }} already captured a baseline on {{ inventory_hostname }}
+      for proxy_port={{ cr_mon_existing_baseline.proxy_port | default('n/a') }},
+      proxy_allowed_clients={{ cr_mon_existing_baseline.proxy_allowed_clients | default('n/a') }},
+      zone={{ cr_mon_existing_baseline.firewalld_default_zone | default('n/a') }}, but the current
+      inputs differ (port={{ cr_mon_proxy_port }}, clients={{ cr_mon_proxy_allowed_clients }},
+      zone={{ cr_mon_firewalld_zone.stdout | trim }}). The baseline is captured only once, so a
+      silent re-apply here would add firewalld rules that rollback can never discover and remove.
+      Roll back {{ cr_mon_change_id }} on this host first, then re-apply with the new inputs so a
+      fresh baseline is captured.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
 - name: Create protected CR rollback state directory
   ansible.builtin.file:
     path: "{{ cr_mon_state_dir }}"
@@ -143,6 +191,7 @@
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
     - cr_mon_squid_conf_before.stat.exists
+    - not cr_mon_baseline_file.stat.exists
 
 - name: Preserve original squid and firewalld state once
   ansible.builtin.copy:
@@ -177,6 +226,7 @@
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
+    - not cr_mon_baseline_file.stat.exists
 
 - name: Install squid
   ansible.builtin.dnf:

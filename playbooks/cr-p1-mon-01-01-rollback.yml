@@ -168,7 +168,7 @@
     - name: Verify no permanent rich rule this change added is still present
       vars:
         cr_mon_rollback_rule_string: >-
-          source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
+          rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
       ansible.builtin.assert:
         that:
           - >-
@@ -184,7 +184,7 @@
     - name: Verify no runtime rich rule this change added is still present
       vars:
         cr_mon_rollback_rule_string: >-
-          source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
+          rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
       ansible.builtin.assert:
         that:
           - >-
