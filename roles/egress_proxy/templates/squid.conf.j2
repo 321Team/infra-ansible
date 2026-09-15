@@ -16,8 +16,11 @@ acl CONNECT method CONNECT
 
 ## Exact FQDN match only — no leading-dot form, so subdomains of an
 ## approved domain are not implicitly allowed. Add them explicitly to
-## cr_mon_allowed_domains if a subdomain is actually needed.
-acl allowed_egress_domains dstdomain {% for domain in cr_mon_allowed_domains %}{{ domain }} {% endfor %}
+## cr_mon_allowed_domains if a subdomain is actually needed. -n disables
+## dstdomain's default reverse-DNS-lookup matching, so a client CONNECTing
+## directly to a numeric IP can never be let through just because that IP's
+## PTR record happens to resolve to an allowed name.
+acl allowed_egress_domains dstdomain -n {% for domain in cr_mon_allowed_domains %}{{ domain }} {% endfor %}
 
 ## CONNECT/443 tunnel only — no plain-HTTP allow rule, since this proxy
 ## exists to carry HTTPS webhook traffic, not to inspect or relay
