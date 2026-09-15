@@ -141,10 +141,12 @@ test -s docs/evidence/CR-P1-MON-01-01/EVIDENCE_INDEX.md
 ```
 
 `SHA256SUMS` records paths relative to the evidence directory itself
-(`./20260101T000000+0900_apply.txt`, ...); running the check from the repo
-root instead of `cd`-ing in first resolves those paths against the wrong
-directory and fails with "No such file or directory" even though nothing is
-actually wrong.
+(`./20260101T000000+0900_1234_apply.txt`, where `1234` is the runner
+process's PID — included so two invocations of the same subcommand within
+the same second never write to the same file — ...); running the check
+from the repo root instead of `cd`-ing in first resolves those paths
+against the wrong directory and fails with "No such file or directory"
+even though nothing is actually wrong.
 
 ## 8. Hand off to Issue B
 

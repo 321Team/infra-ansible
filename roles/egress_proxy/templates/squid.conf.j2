@@ -38,14 +38,15 @@ forwarded_for delete
 
 cache deny all
 
-## Custom format carries no client-supplied header or the request URL
-## (path/query, method, or any part of Host — none of it is written here),
-## so nothing the client sent, including a webhook token in a path, ever
-## reaches disk. %<a (lowercase: server IP address, per Squid's logformat
-## reference) is the one destination field used: it is set by Squid itself
-## from the connection it actually made, not by anything in the request, and
-## stays empty ("-") for an ACL-denied request that never got that far.
-## Method/status/result code plus source and destination address are enough
-## to audit source, allow/deny outcome, and where an allowed request went.
+## Custom format carries no client-supplied header and no request URL
+## (path/query, or any part of Host), so nothing the client sent — including
+## a webhook token in a path — ever reaches disk. Method (%rm) is kept since
+## CONNECT/GET/etc. is not sensitive and is useful for audit. %<a (lowercase:
+## server IP address, per Squid's logformat reference) is the one
+## destination field used: it is set by Squid itself from the connection it
+## actually made, not by anything in the request, and stays empty ("-") for
+## an ACL-denied request that never got that far. Timestamp, source, method,
+## destination address, status, and result code are enough to audit source,
+## allow/deny outcome, and where an allowed request went.
 logformat cr_mon_egress_summary %tl %>a %rm %<a %>Hs %Ss
 access_log /var/log/squid/access.log cr_mon_egress_summary
