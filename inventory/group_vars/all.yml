@@ -40,10 +40,13 @@ cr_mon_change_id: CR-P1-MON-01-01
 cr_mon_state_dir: /var/lib/fds-change/CR-P1-MON-01-01
 cr_mon_allowed_domains:
   - discord.com
-# Sources permitted to use the proxy. Defaults to the six existing
-# k8s_nodes IPs (Calico masquerades pod egress to the node address).
-# Confirm the actual Alertmanager pod egress source address during
-# CR-P1-MON-01-01 precheck before relying on this default.
+# Sources permitted to use the proxy. STALE DEFAULT: still the six
+# k8s_nodes IPs assumed under the old "repurpose a k8s node" plan.
+# The target proxy host is now the dedicated egress-proxy01 VM
+# (DEC-P1-EGRESS-01 / fds-project-baseline#78), so the actual Alertmanager
+# pod egress source (post-Calico-masquerade) toward that host has not been
+# measured yet. Do not run apply against real targets until this list is
+# confirmed against a precheck measurement.
 cr_mon_proxy_allowed_clients:
   - 10.1.93.102
   - 10.1.93.103

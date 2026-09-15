@@ -88,7 +88,6 @@
         - cr_mon_original_state.squid_preinstalled
         - cr_mon_original_state.squid_conf_preexisted
         - cr_mon_original_state.squid_service_active_state == 'active'
-        - not cr_mon_squid_restore_service.changed
 
     - name: Remove only the firewalld rich rules this change introduced (permanent)
       ansible.builtin.command:
