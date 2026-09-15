@@ -134,6 +134,64 @@
         - cr_mon_original_state.squid_conf_preexisted
         - cr_mon_original_state.squid_service_active_state == 'active'
 
+    - name: Read post-rollback squid service state for verification
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=LoadState
+          - --property=ActiveState
+          - --value
+          - squid.service
+      register: cr_mon_squid_service_after
+      changed_when: false
+      check_mode: false
+      when: cr_mon_original_state.squid_preinstalled
+
+    - name: Read post-rollback squid enabled state for verification
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-enabled
+          - squid.service
+      register: cr_mon_squid_enabled_after
+      changed_when: false
+      check_mode: false
+      failed_when: false
+      when: cr_mon_original_state.squid_preinstalled
+
+    - name: Verify squid's service state was actually restored, not just requested
+      ansible.builtin.assert:
+        that:
+          - cr_mon_squid_service_after.stdout_lines[1] == cr_mon_original_state.squid_service_active_state
+          - (cr_mon_squid_enabled_after.stdout | trim) == cr_mon_original_state.squid_service_enabled_state
+        fail_msg: >-
+          Rollback verification failed on {{ inventory_hostname }}: squid's
+          post-rollback ActiveState/enabled state
+          ({{ cr_mon_squid_service_after.stdout_lines[1] | default('n/a') }} /
+          {{ cr_mon_squid_enabled_after.stdout | default('n/a') | trim }}) does
+          not match the recorded pre-change baseline
+          ({{ cr_mon_original_state.squid_service_active_state }} /
+          {{ cr_mon_original_state.squid_service_enabled_state }}).
+      when: cr_mon_original_state.squid_preinstalled
+
+    - name: Read post-rollback squid.conf presence for verification
+      ansible.builtin.stat:
+        path: /etc/squid/squid.conf
+      register: cr_mon_squid_conf_after
+
+    - name: Verify squid.conf ended up in the expected post-rollback state
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cr_mon_original_state.squid_conf_preexisted and cr_mon_squid_conf_after.stat.exists)
+            or (not cr_mon_original_state.squid_conf_preexisted and not cr_mon_squid_conf_after.stat.exists)
+        fail_msg: >-
+          Rollback verification failed on {{ inventory_hostname }}: squid.conf
+          {{ 'is missing but should have been restored' if cr_mon_original_state.squid_conf_preexisted
+             else 'still exists but should have been removed' }}
+          (squid_conf_preexisted={{ cr_mon_original_state.squid_conf_preexisted }}).
+
     - name: Remove only the firewalld rich rules this change introduced (permanent)
       ansible.builtin.command:
         argv:
@@ -238,8 +296,11 @@
           change_id: "{{ cr_mon_change_id }}"
           host: "{{ inventory_hostname }}"
           squid_preinstalled: "{{ cr_mon_original_state.squid_preinstalled }}"
-          restored_active_state: "{{ cr_mon_original_state.squid_service_active_state | default('n/a') }}"
-          restored_enabled_state: "{{ cr_mon_original_state.squid_service_enabled_state | default('n/a') }}"
+          verified_active_state: >-
+            {{ cr_mon_squid_service_after.stdout_lines[1] if cr_mon_original_state.squid_preinstalled else 'n/a (stopped/disabled)' }}
+          verified_enabled_state: >-
+            {{ (cr_mon_squid_enabled_after.stdout | trim) if cr_mon_original_state.squid_preinstalled else 'n/a (stopped/disabled)' }}
+          squid_conf_verified: true
           firewalld_zone: "{{ cr_mon_original_state.firewalld_default_zone }}"
           firewalld_rules_verified: true
           proxy_state: ROLLED_BACK
