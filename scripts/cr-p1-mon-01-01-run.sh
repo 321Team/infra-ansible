@@ -19,7 +19,11 @@ run_playbook() {
   local label="$1"
   local target="$2"
   shift 2
-  local logfile="${evidence_root}/${timestamp}_${label}.txt"
+  # PID-qualified so two processes invoking the same subcommand within the
+  # same wall-clock second (identical $timestamp) never tee to the same
+  # path; run_id in the header alone only identifies a log after the fact,
+  # it does nothing to stop two processes from colliding on one filename.
+  local logfile="${evidence_root}/${timestamp}_$$_${label}.txt"
   local run_sha run_tree input_hash
   run_sha="$(git -C "${repo_root}" rev-parse --verify HEAD)"
   run_tree="clean"
@@ -41,18 +45,22 @@ run_playbook() {
 }
 
 # Fails the run unless every non-localhost PLAY RECAP line in the just-
-# produced log shows a true no-op (changed=0, unreachable=0, failed=0).
-# ansible-playbook itself exits 0 for a successful run that still changed
-# things, so this is the only thing that actually enforces "the second
-# apply must be a no-op" rather than leaving it to whoever reads the log
-# afterward. Checking every matching line (not just the last) matters once
-# there is more than one real target host: a passing recap for the last
-# host in the list must not hide a changed>0 recap for an earlier one, and
-# the localhost guard play's own recap (always ok=1 changed=0, unrelated to
-# the actual target) is excluded so it can't be mistaken for real evidence.
+# produced log shows a true no-op (changed=0, unreachable=0, failed=0), AND
+# the set of hosts that actually appear in the recap is exactly the set
+# inventory says egress_proxy should contain — not a subset, not a superset,
+# not a completely different host. ansible-playbook itself exits 0 for a
+# successful run that still changed things (or ran against the wrong hosts),
+# so this is the only thing that actually enforces "the second apply ran
+# against the right target(s) and was a true no-op" rather than leaving it
+# to whoever reads the log afterward. Checking every matching line (not just
+# the last) matters once there is more than one real target host: a passing
+# recap for the last host must not hide a changed>0 recap for an earlier
+# one, and the localhost guard play's own recap (always ok=1 changed=0,
+# unrelated to the actual target) is excluded so it can't be mistaken for
+# real evidence.
 assert_idempotent() {
   local logfile="$1"
-  local recap_lines
+  local recap_lines expected_hosts actual_hosts
   recap_lines="$(grep -E '^[^[:space:]]+[[:space:]]*: ok=[0-9]+[[:space:]]+changed=[0-9]+[[:space:]]+unreachable=[0-9]+[[:space:]]+failed=[0-9]+' "${logfile}" \
     | grep -v '^localhost[[:space:]]')"
   if [[ -z "${recap_lines}" ]]; then
@@ -62,6 +70,15 @@ assert_idempotent() {
   if printf '%s\n' "${recap_lines}" | grep -qvE 'changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0'; then
     echo "IDEMPOTENCY CHECK FAILED: one or more target hosts were not a no-op:" >&2
     printf '%s\n' "${recap_lines}" >&2
+    exit 1
+  fi
+  expected_hosts="$(ansible-inventory -i "${repo_root}/inventory/hosts.yml" --graph --limit egress_proxy \
+    | sed -n 's/^.*--//p' | grep -vE '^@|:$' | sort)"
+  actual_hosts="$(printf '%s\n' "${recap_lines}" | awk '{print $1}' | sort)"
+  if [[ "${expected_hosts}" != "${actual_hosts}" ]]; then
+    echo "IDEMPOTENCY CHECK FAILED: recap host set does not match the egress_proxy inventory:" >&2
+    echo "  expected: $(printf '%s' "${expected_hosts}" | tr '\n' ' ')" >&2
+    echo "  actual:   $(printf '%s' "${actual_hosts}" | tr '\n' ' ')" >&2
     exit 1
   fi
 }

@@ -183,19 +183,30 @@
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
 
-- name: Fail when an existing baseline does not identify itself as this change/host
+- name: Fail when an existing baseline is missing required fields
   ansible.builtin.assert:
     that:
       - cr_mon_existing_baseline.change_id | default('') == cr_mon_change_id
       - cr_mon_existing_baseline.inventory_hostname | default('') == inventory_hostname
+      - cr_mon_existing_baseline.squid_preinstalled is defined
+      - cr_mon_existing_baseline.squid_conf_preexisted is defined
+      - cr_mon_existing_baseline.squid_service_active_state is defined
+      - cr_mon_existing_baseline.squid_service_enabled_state is defined
+      - cr_mon_existing_baseline.firewalld_default_zone is defined
+      - cr_mon_existing_baseline.firewalld_permanent_rules_before is defined
+      - cr_mon_existing_baseline.firewalld_runtime_rules_before is defined
+      - cr_mon_existing_baseline.proxy_port is defined
+      - cr_mon_existing_baseline.proxy_allowed_clients is defined
     fail_msg: >-
       A baseline file exists at {{ cr_mon_state_dir }}/original-state.json on
       {{ inventory_hostname }} but does not identify itself as belonging to
-      {{ cr_mon_change_id }} on this host (missing or mismatched change_id /
-      inventory_hostname — it may be empty, corrupt, truncated, or left over
-      from a different change). Refusing to treat it as this change's
-      baseline or drift-compare against it; investigate and remove or
-      restore it manually before re-running apply.
+      {{ cr_mon_change_id }} on this host, or is missing one or more fields
+      rollback depends on (it may be empty, corrupt, truncated, a legacy
+      schema from before this field set existed, or left over from a
+      different change). Refusing to treat it as this change's baseline or
+      drift-compare against it — a partial/legacy baseline must not silently
+      pass as if it were complete. Investigate, archive, or remove it
+      manually before re-running apply.
   when:
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
@@ -203,20 +214,14 @@
 - name: Refuse to re-apply with inputs that differ from the captured baseline
   ansible.builtin.assert:
     that:
-      - >-
-        cr_mon_existing_baseline.proxy_port is not defined
-        or cr_mon_existing_baseline.proxy_port == (cr_mon_proxy_port | int)
-      - >-
-        cr_mon_existing_baseline.proxy_allowed_clients is not defined
-        or cr_mon_existing_baseline.proxy_allowed_clients == cr_mon_proxy_allowed_clients
-      - >-
-        cr_mon_existing_baseline.firewalld_default_zone is not defined
-        or cr_mon_existing_baseline.firewalld_default_zone == (cr_mon_firewalld_zone.stdout | trim)
+      - cr_mon_existing_baseline.proxy_port == (cr_mon_proxy_port | int)
+      - cr_mon_existing_baseline.proxy_allowed_clients == cr_mon_proxy_allowed_clients
+      - cr_mon_existing_baseline.firewalld_default_zone == (cr_mon_firewalld_zone.stdout | trim)
     fail_msg: >-
       {{ cr_mon_change_id }} already captured a baseline on {{ inventory_hostname }}
-      for proxy_port={{ cr_mon_existing_baseline.proxy_port | default('n/a') }},
-      proxy_allowed_clients={{ cr_mon_existing_baseline.proxy_allowed_clients | default('n/a') }},
-      zone={{ cr_mon_existing_baseline.firewalld_default_zone | default('n/a') }}, but the current
+      for proxy_port={{ cr_mon_existing_baseline.proxy_port }},
+      proxy_allowed_clients={{ cr_mon_existing_baseline.proxy_allowed_clients }},
+      zone={{ cr_mon_existing_baseline.firewalld_default_zone }}, but the current
       inputs differ (port={{ cr_mon_proxy_port }}, clients={{ cr_mon_proxy_allowed_clients }},
       zone={{ cr_mon_firewalld_zone.stdout | trim }}). The baseline is captured only once, so a
       silent re-apply here would add firewalld rules that rollback can never discover and remove.
@@ -432,6 +437,14 @@
 # actually had reloaded into it gives a reload that is both retry-safe
 # (independent of any single run's notify/changed state) and genuinely
 # idempotent (a no-op once the running process has caught up).
+#
+# The reload decision below deliberately does NOT use
+# cr_mon_squid_start.changed: that task's `changed` also goes true when
+# squid was already active and only its `enabled` flag flips (e.g.
+# active+disabled -> active+enabled), which is not evidence that the
+# process just (re)loaded this config. cr_mon_squid_service_before was
+# captured before this run touched anything, so "was it active already"
+# is immune to that noise.
 - name: Record the checksum of the configuration just deployed
   ansible.builtin.stat:
     path: /etc/squid/squid.conf
@@ -457,18 +470,23 @@
     - not ansible_check_mode
     - cr_mon_squid_active_marker.stat.exists
 
-- name: Reload squid when the on-disk configuration differs from what it loaded
+- name: Reload squid when it was already running and the config differs from the marker
   ansible.builtin.service:
     name: squid
     state: reloaded
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
-    - not cr_mon_squid_start.changed
+    - cr_mon_squid_service_before.stdout_lines[1] == 'active'
     - >-
       not cr_mon_squid_active_marker.stat.exists
       or (cr_mon_squid_active_marker_file.content | b64decode | trim) != cr_mon_squid_conf_deployed.stat.checksum
 
+# Reached only if nothing above failed, so either this was a genuine fresh
+# start (which already loaded the current file), or the reload above ran
+# and succeeded, or it was correctly skipped because the marker already
+# matched — every path that gets here means the running process and the
+# marker are now consistent with what's on disk.
 - name: Record which configuration squid now has loaded
   ansible.builtin.copy:
     content: "{{ cr_mon_squid_conf_deployed.stat.checksum }}"

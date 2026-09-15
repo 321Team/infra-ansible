@@ -134,6 +134,34 @@
         - cr_mon_original_state.squid_conf_preexisted
         - cr_mon_original_state.squid_service_active_state == 'active'
 
+    # The apply-side "has squid loaded this config" marker (active-config.sha1)
+    # would otherwise keep pointing at the managed config this change wrote.
+    # A later re-apply with the same managed config would then see disk and
+    # marker agree and skip reloading — even though the process rollback just
+    # reloaded is running the just-restored original config, not that managed
+    # one. Removing it unconditionally and re-seeding it only when a real
+    # config now sits at squid.conf (i.e. it was restored, not deleted)
+    # forces the next apply to make its own honest comparison.
+    - name: Remove the stale "squid has loaded this config" marker
+      ansible.builtin.file:
+        path: "{{ cr_mon_state_dir }}/active-config.sha1"
+        state: absent
+
+    - name: Read the checksum of the configuration now in place after rollback
+      ansible.builtin.stat:
+        path: /etc/squid/squid.conf
+      register: cr_mon_squid_conf_after_rollback
+      when: cr_mon_original_state.squid_conf_preexisted
+
+    - name: Re-seed the marker to the restored (pre-change) configuration
+      ansible.builtin.copy:
+        content: "{{ cr_mon_squid_conf_after_rollback.stat.checksum }}"
+        dest: "{{ cr_mon_state_dir }}/active-config.sha1"
+        owner: root
+        group: root
+        mode: "0600"
+      when: cr_mon_original_state.squid_conf_preexisted
+
     - name: Read post-rollback squid service state for verification
       ansible.builtin.command:
         argv:
