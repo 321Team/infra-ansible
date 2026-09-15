@@ -17,35 +17,51 @@ mkdir -p "${evidence_root}"
 
 run_playbook() {
   local label="$1"
-  shift
+  local target="$2"
+  shift 2
   local logfile="${evidence_root}/${timestamp}_${label}.txt"
-  local run_sha run_tree
+  local run_sha run_tree input_hash
   run_sha="$(git -C "${repo_root}" rev-parse --verify HEAD)"
   run_tree="clean"
   git -C "${repo_root}" diff --quiet --ignore-submodules HEAD -- || run_tree="dirty"
+  input_hash="$(cat "${repo_root}/inventory/hosts.yml" "${repo_root}/inventory/group_vars/all.yml" \
+    | sha256sum | cut -d' ' -f1)"
   {
-    printf '# commit=%s tree=%s label=%s started=%s\n' \
-      "${run_sha}" "${run_tree}" "${label}" "$(date -Iseconds)"
+    printf '# run_id=%s_%s commit=%s tree=%s label=%s target=%s input_hash=%s started=%s\n' \
+      "${timestamp}" "$$" "${run_sha}" "${run_tree}" "${label}" "${target}" \
+      "${input_hash}" "$(date -Iseconds)"
+    set +e
     ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" 2>&1
+    rc=$?
+    set -e
+    printf '# rc=%s finished=%s\n' "${rc}" "$(date -Iseconds)"
+    exit "${rc}"
   } | tee "${logfile}"
   last_log_file="${logfile}"
 }
 
-# Fails the run unless the just-produced log's PLAY RECAP shows a true no-op
-# (changed=0, unreachable=0, failed=0). ansible-playbook itself exits 0 for a
-# successful run that still changed things, so this is the only thing that
-# actually enforces "the second apply must be a no-op" rather than leaving it
-# to whoever reads the log afterward.
+# Fails the run unless every non-localhost PLAY RECAP line in the just-
+# produced log shows a true no-op (changed=0, unreachable=0, failed=0).
+# ansible-playbook itself exits 0 for a successful run that still changed
+# things, so this is the only thing that actually enforces "the second
+# apply must be a no-op" rather than leaving it to whoever reads the log
+# afterward. Checking every matching line (not just the last) matters once
+# there is more than one real target host: a passing recap for the last
+# host in the list must not hide a changed>0 recap for an earlier one, and
+# the localhost guard play's own recap (always ok=1 changed=0, unrelated to
+# the actual target) is excluded so it can't be mistaken for real evidence.
 assert_idempotent() {
   local logfile="$1"
-  local recap
-  recap="$(grep -E ' : ok=[0-9]+[[:space:]]+changed=[0-9]+[[:space:]]+unreachable=[0-9]+[[:space:]]+failed=[0-9]+' "${logfile}" | tail -n1)"
-  if [[ -z "${recap}" ]]; then
-    echo "IDEMPOTENCY CHECK FAILED: no PLAY RECAP line found in ${logfile}" >&2
+  local recap_lines
+  recap_lines="$(grep -E '^[^[:space:]]+[[:space:]]*: ok=[0-9]+[[:space:]]+changed=[0-9]+[[:space:]]+unreachable=[0-9]+[[:space:]]+failed=[0-9]+' "${logfile}" \
+    | grep -v '^localhost[[:space:]]')"
+  if [[ -z "${recap_lines}" ]]; then
+    echo "IDEMPOTENCY CHECK FAILED: no non-localhost PLAY RECAP line found in ${logfile}" >&2
     exit 1
   fi
-  if ! printf '%s\n' "${recap}" | grep -qE 'changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0'; then
-    echo "IDEMPOTENCY CHECK FAILED: ${recap}" >&2
+  if printf '%s\n' "${recap_lines}" | grep -qvE 'changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0'; then
+    echo "IDEMPOTENCY CHECK FAILED: one or more target hosts were not a no-op:" >&2
+    printf '%s\n' "${recap_lines}" >&2
     exit 1
   fi
 }
@@ -60,33 +76,33 @@ require_clients_confirmed() {
 
 case "${action}" in
   precheck)
-    run_playbook "precheck" \
+    run_playbook "precheck" "egress_proxy" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-precheck.yml"
     ;;
   apply)
     require_change_approval
     require_clients_confirmed
-    run_playbook "apply_check_diff" --check --diff \
+    run_playbook "apply_check_diff" "egress_proxy" --check --diff \
       -e "cr_mon_change_approved=${change_id}" \
       -e "cr_mon_proxy_clients_confirmed=true" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-apply.yml"
-    run_playbook "apply" \
+    run_playbook "apply" "egress_proxy" \
       -e "cr_mon_change_approved=${change_id}" \
       -e "cr_mon_proxy_clients_confirmed=true" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-apply.yml"
-    run_playbook "apply_idempotency" \
+    run_playbook "apply_idempotency" "egress_proxy" \
       -e "cr_mon_change_approved=${change_id}" \
       -e "cr_mon_proxy_clients_confirmed=true" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-apply.yml"
     assert_idempotent "${last_log_file}"
     ;;
   verify)
-    run_playbook "verify" \
+    run_playbook "verify" "egress_proxy" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-verify.yml"
     ;;
   rollback)
     require_change_approval
-    run_playbook "rollback" \
+    run_playbook "rollback" "egress_proxy" \
       -e "cr_mon_rollback_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-mon-01-01-rollback.yml"
     ;;
@@ -101,9 +117,19 @@ case "${action}" in
       echo "## Files"
       while IFS= read -r -d '' f; do
         fname="$(basename "${f}")"
-        run_commit="$(head -n1 "${f}" 2>/dev/null | grep -oE 'commit=[0-9a-f]+' | cut -d= -f2 || true)"
-        if [[ -n "${run_commit}" ]]; then
-          echo "- \`${fname}\` (commit: ${run_commit})"
+        header="$(head -n1 "${f}" 2>/dev/null)"
+        footer="$(tail -n2 "${f}" 2>/dev/null)"
+        run_id="$(printf '%s' "${header}" | grep -oE 'run_id=[^ ]+' | cut -d= -f2- || true)"
+        run_commit="$(printf '%s' "${header}" | grep -oE 'commit=[0-9a-f]+' | cut -d= -f2 || true)"
+        run_target="$(printf '%s' "${header}" | grep -oE 'target=[^ ]+' | cut -d= -f2 || true)"
+        run_rc="$(printf '%s' "${footer}" | grep -oE '^# rc=[0-9-]+' | tail -n1 | cut -d= -f2 || true)"
+        meta=""
+        [[ -n "${run_id}" ]] && meta="run_id: ${run_id}"
+        [[ -n "${run_target}" ]] && meta="${meta}${meta:+, }target: ${run_target}"
+        [[ -n "${run_commit}" ]] && meta="${meta}${meta:+, }commit: ${run_commit}"
+        [[ -n "${run_rc}" ]] && meta="${meta}${meta:+, }rc: ${run_rc}"
+        if [[ -n "${meta}" ]]; then
+          echo "- \`${fname}\` (${meta})"
         else
           echo "- \`${fname}\`"
         fi

@@ -41,5 +41,11 @@ cache deny all
 ## Custom format omits the request URL (path/query, which the Host header
 ## never carries) so a webhook token in a path is never written to disk,
 ## while still recording enough to audit source/destination/allow-deny.
-logformat cr_mon_egress_summary %tl %>a %rm %{Host}>h %>Hs %Ss
+## %{Host}>h is the destination the client claimed (never a path — the Host
+## header syntax has no room for one); %<A is the server address Squid
+## actually connected to, which a client cannot spoof and which is only
+## populated once a real upstream connection was made, so an ACL-denied
+## request (never reaching connect) logs "-" there rather than any address.
+## Together they audit both what was requested and where it truly went.
+logformat cr_mon_egress_summary %tl %>a %rm %{Host}>h %<A %>Hs %Ss
 access_log /var/log/squid/access.log cr_mon_egress_summary
