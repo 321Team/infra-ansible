@@ -103,6 +103,7 @@
     argv:
       - firewall-cmd
       - --permanent
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
       - --list-rich-rules
   register: cr_mon_firewalld_rules_before
   changed_when: false
@@ -112,6 +113,7 @@
   ansible.builtin.command:
     argv:
       - firewall-cmd
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
       - --list-rich-rules
   register: cr_mon_firewalld_runtime_rules_before
   changed_when: false
@@ -167,7 +169,9 @@
           'kubelet_active_state_before': cr_mon_kubelet_before_active,
           'firewalld_default_zone': cr_mon_firewalld_zone.stdout | trim,
           'firewalld_permanent_rules_before': cr_mon_firewalld_rules_before.stdout_lines,
-          'firewalld_runtime_rules_before': cr_mon_firewalld_runtime_rules_before.stdout_lines
+          'firewalld_runtime_rules_before': cr_mon_firewalld_runtime_rules_before.stdout_lines,
+          'proxy_port': cr_mon_proxy_port | int,
+          'proxy_allowed_clients': cr_mon_proxy_allowed_clients
         } | to_nice_json
       }}
   when:
@@ -200,6 +204,7 @@
     argv:
       - firewall-cmd
       - --permanent
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
       - --add-rich-rule=rule family="ipv4" source
         address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
         protocol="tcp" accept
@@ -214,6 +219,7 @@
   ansible.builtin.command:
     argv:
       - firewall-cmd
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
       - --add-rich-rule=rule family="ipv4" source
         address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
         protocol="tcp" accept

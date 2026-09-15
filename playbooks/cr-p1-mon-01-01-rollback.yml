@@ -48,6 +48,22 @@
         fail_msg: >-
           Preserved egress proxy state does not belong to this change or host.
 
+    - name: Fail when the preserved baseline predates recorded firewalld rule tracking
+      ansible.builtin.assert:
+        that:
+          - cr_mon_original_state.firewalld_default_zone is defined
+          - cr_mon_original_state.proxy_port is defined
+          - cr_mon_original_state.proxy_allowed_clients is defined
+        fail_msg: >-
+          Preserved state for {{ cr_mon_change_id }} on {{ inventory_hostname }}
+          has no recorded firewalld zone/port/client list from the original
+          apply run. Rolling back against the current cr_mon_proxy_port /
+          cr_mon_proxy_allowed_clients / default-zone values instead of the
+          values actually applied risks removing rules this change never
+          added or leaving behind rules it did. Refusing to guess before any
+          rollback action is taken; re-run apply to (re)capture a baseline
+          before rolling back.
+
   tasks:
     - name: Stop and disable squid when it was not present before this change
       ansible.builtin.service:
@@ -94,13 +110,14 @@
         argv:
           - firewall-cmd
           - --permanent
+          - --zone={{ cr_mon_original_state.firewalld_default_zone }}
           - --remove-rich-rule=rule family="ipv4" source
-            address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+            address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}"
             protocol="tcp" accept
-      loop: "{{ cr_mon_proxy_allowed_clients }}"
+      loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
       register: cr_mon_firewalld_remove_permanent
       when: >-
-        ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept')
+        ('source address=\"' + item + '\" port port=\"' + (cr_mon_original_state.proxy_port | string) + '\" protocol=\"tcp\" accept')
         not in (cr_mon_original_state.firewalld_permanent_rules_before | default([]) | join('\n'))
       failed_when: >-
         cr_mon_firewalld_remove_permanent.rc != 0
@@ -112,19 +129,73 @@
       ansible.builtin.command:
         argv:
           - firewall-cmd
+          - --zone={{ cr_mon_original_state.firewalld_default_zone }}
           - --remove-rich-rule=rule family="ipv4" source
-            address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+            address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}"
             protocol="tcp" accept
-      loop: "{{ cr_mon_proxy_allowed_clients }}"
+      loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
       register: cr_mon_firewalld_remove_runtime
       when: >-
-        ('source address=\"' + item + '\" port port=\"' + (cr_mon_proxy_port | string) + '\" protocol=\"tcp\" accept')
+        ('source address=\"' + item + '\" port port=\"' + (cr_mon_original_state.proxy_port | string) + '\" protocol=\"tcp\" accept')
         not in (cr_mon_original_state.firewalld_runtime_rules_before | default([]) | join('\n'))
       failed_when: >-
         cr_mon_firewalld_remove_runtime.rc != 0
         and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_runtime.stderr | default(''))
         and 'NOT_ENABLED' not in (cr_mon_firewalld_remove_runtime.stdout | default(''))
       changed_when: true
+
+    - name: Read post-rollback permanent firewalld rich rules for verification
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ cr_mon_original_state.firewalld_default_zone }}
+          - --list-rich-rules
+      register: cr_mon_firewalld_permanent_rules_after
+      changed_when: false
+      check_mode: false
+
+    - name: Read post-rollback runtime firewalld rich rules for verification
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ cr_mon_original_state.firewalld_default_zone }}
+          - --list-rich-rules
+      register: cr_mon_firewalld_runtime_rules_after
+      changed_when: false
+      check_mode: false
+
+    - name: Verify no permanent rich rule this change added is still present
+      vars:
+        cr_mon_rollback_rule_string: >-
+          source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
+      ansible.builtin.assert:
+        that:
+          - >-
+            cr_mon_rollback_rule_string in (cr_mon_original_state.firewalld_permanent_rules_before | default([]))
+            or cr_mon_rollback_rule_string not in (cr_mon_firewalld_permanent_rules_after.stdout_lines | default([]))
+        fail_msg: >-
+          Rollback verification failed on {{ inventory_hostname }}: the
+          permanent rich rule for {{ item }}:{{ cr_mon_original_state.proxy_port }}
+          that {{ cr_mon_change_id }} added is still present in zone
+          {{ cr_mon_original_state.firewalld_default_zone }} after rollback.
+      loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
+
+    - name: Verify no runtime rich rule this change added is still present
+      vars:
+        cr_mon_rollback_rule_string: >-
+          source address="{{ item }}" port port="{{ cr_mon_original_state.proxy_port }}" protocol="tcp" accept
+      ansible.builtin.assert:
+        that:
+          - >-
+            cr_mon_rollback_rule_string in (cr_mon_original_state.firewalld_runtime_rules_before | default([]))
+            or cr_mon_rollback_rule_string not in (cr_mon_firewalld_runtime_rules_after.stdout_lines | default([]))
+        fail_msg: >-
+          Rollback verification failed on {{ inventory_hostname }}: the
+          runtime rich rule for {{ item }}:{{ cr_mon_original_state.proxy_port }}
+          that {{ cr_mon_change_id }} added is still present in zone
+          {{ cr_mon_original_state.firewalld_default_zone }} after rollback.
+      loop: "{{ cr_mon_original_state.proxy_allowed_clients }}"
 
     - name: Print rollback verdict
       ansible.builtin.debug:
@@ -134,4 +205,6 @@
           squid_preinstalled: "{{ cr_mon_original_state.squid_preinstalled }}"
           restored_active_state: "{{ cr_mon_original_state.squid_service_active_state | default('n/a') }}"
           restored_enabled_state: "{{ cr_mon_original_state.squid_service_enabled_state | default('n/a') }}"
+          firewalld_zone: "{{ cr_mon_original_state.firewalld_default_zone }}"
+          firewalld_rules_verified: true
           proxy_state: ROLLED_BACK
