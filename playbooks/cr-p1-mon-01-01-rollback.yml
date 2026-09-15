@@ -22,6 +22,16 @@
   any_errors_fatal: true
 
   pre_tasks:
+    - name: Verify this host matches its declared inventory identity
+      ansible.builtin.assert:
+        that:
+          - ansible_hostname == expected_hostname
+        fail_msg: >-
+          Baseline mismatch on {{ inventory_hostname }}: expected hostname
+          {{ expected_hostname }}, actual {{ ansible_hostname }}. Refusing
+          to roll back {{ cr_mon_change_id }} against a host that does not
+          match its declared inventory identity.
+
     - name: Validate rollback approval token
       ansible.builtin.assert:
         that:
@@ -65,12 +75,27 @@
           before rolling back.
 
   tasks:
+    - name: Check whether a squid unit currently exists on this host
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - show
+          - --property=LoadState
+          - --value
+          - squid.service
+      register: cr_mon_squid_unit_state
+      changed_when: false
+      check_mode: false
+      failed_when: false
+
     - name: Stop and disable squid when it was not present before this change
       ansible.builtin.service:
         name: squid
         state: stopped
         enabled: false
-      when: not cr_mon_original_state.squid_preinstalled
+      when:
+        - not cr_mon_original_state.squid_preinstalled
+        - (cr_mon_squid_unit_state.stdout | default('') | trim) not in ['not-found', '']
 
     - name: Restore original squid configuration when it existed before this change
       ansible.builtin.copy:

@@ -10,7 +10,7 @@
 - SSH known-hosts 및 서비스 계정 authorized_keys 경로 관리
 - Kubernetes API Load Balancer Stage A 연결 검증
 - `CR-P1-ANS-01-01` Kubernetes 전체 Node DNS Resolver 전환
-- `CR-P1-MON-01-01` Alertmanager egress용 Squid 프록시 서버 구성 (대상 노드 미정, `inventory/hosts.yml`의 `egress_proxy` 그룹에 확정 후 반영)
+- `CR-P1-MON-01-01` Alertmanager egress용 Squid 프록시 서버 구성 (대상: `egress-proxy01` / DEC-P1-EGRESS-01, `inventory/hosts.yml`의 `egress_proxy` 그룹에 반영됨; Squid apply 자체는 client 허용목록 실측 확인 전까지 HOLD)
 
 ## 저장소 구조
 

@@ -60,9 +60,16 @@ captured for later regression comparison.
 
 ```bash
 export CR_CHANGE_APPROVED=CR-P1-MON-01-01
+export CR_PROXY_CLIENTS_CONFIRMED=CR-P1-MON-01-01
 scripts/cr-p1-mon-01-01-run.sh apply
-unset CR_CHANGE_APPROVED
+unset CR_CHANGE_APPROVED CR_PROXY_CLIENTS_CONFIRMED
 ```
+
+`CR_PROXY_CLIENTS_CONFIRMED` is a second, separate attestation from
+`CR_CHANGE_APPROVED`: only set it once `cr_mon_proxy_allowed_clients` in
+`inventory/group_vars/all.yml` has been verified against a real precheck
+measurement of the Alertmanager egress source for the target host, not left
+at its STALE DEFAULT. The role refuses to run `apply` without it.
 
 Required result:
 
@@ -70,8 +77,10 @@ Required result:
   active.
 - The firewalld rich rule opens `cr_mon_proxy_port` only for
   `cr_mon_proxy_allowed_clients`.
-- The immediate second run ends with `changed=0`, `failed=0`,
-  `unreachable=0`.
+- The runner itself fails the `apply` subcommand if the immediate second
+  (idempotency) run's PLAY RECAP is not `changed=0`, `failed=0`,
+  `unreachable=0` — this is enforced automatically, not just something to
+  eyeball in the log.
 - kubelet state on the target host is unchanged from precheck (this role
   must not affect cluster membership if the target is still an active
   k8s_nodes member).
@@ -128,8 +137,14 @@ scripts/cr-p1-mon-01-01-run.sh finalize
 
 ```bash
 test -s docs/evidence/CR-P1-MON-01-01/EVIDENCE_INDEX.md
-sha256sum --check docs/evidence/CR-P1-MON-01-01/SHA256SUMS
+(cd docs/evidence/CR-P1-MON-01-01 && sha256sum --check SHA256SUMS)
 ```
+
+`SHA256SUMS` records paths relative to the evidence directory itself
+(`./20260101T000000+0900_apply.txt`, ...); running the check from the repo
+root instead of `cd`-ing in first resolves those paths against the wrong
+directory and fails with "No such file or directory" even though nothing is
+actually wrong.
 
 ## 8. Hand off to Issue B
 

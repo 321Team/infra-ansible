@@ -1,3 +1,7 @@
 ---
 cr_mon_proxy_port: 3128
 cr_mon_denied_probe_domain: example.com
+# Must be explicitly overridden to true (-e cr_mon_proxy_clients_confirmed=true)
+# for an apply run, attesting that cr_mon_proxy_allowed_clients was verified
+# against a real precheck measurement rather than left at its default guess.
+cr_mon_proxy_clients_confirmed: false

@@ -9,6 +9,47 @@
     fail_msg: >-
       Invalid {{ cr_mon_change_id }} egress proxy inputs or phase.
 
+- name: Validate CR-P1-MON-01-01 egress proxy input formats
+  ansible.builtin.assert:
+    that:
+      - cr_mon_proxy_port | int >= 1
+      - cr_mon_proxy_port | int <= 65535
+      - >-
+        cr_mon_proxy_allowed_clients
+        | reject('match', '^[0-9]{1,3}(\\.[0-9]{1,3}){3}(/[0-9]{1,2})?$')
+        | list | length == 0
+      - >-
+        cr_mon_allowed_domains
+        | reject('match', '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
+        | list | length == 0
+    fail_msg: >-
+      {{ cr_mon_change_id }} inputs failed format validation: cr_mon_proxy_port
+      must be an integer 1-65535, every cr_mon_proxy_allowed_clients entry
+      must be a dotted-quad IPv4 address (optionally /CIDR), and every
+      cr_mon_allowed_domains entry must be a syntactically valid FQDN.
+
+- name: Verify this host matches its declared inventory identity
+  ansible.builtin.assert:
+    that:
+      - ansible_hostname == expected_hostname
+    fail_msg: >-
+      Baseline mismatch on {{ inventory_hostname }}: expected hostname
+      {{ expected_hostname }}, actual {{ ansible_hostname }}. Refusing to
+      run {{ cr_mon_change_id }} against a host that does not match its
+      declared inventory identity.
+
+- name: Require explicit confirmation that proxy client sources were measured
+  ansible.builtin.assert:
+    that:
+      - cr_mon_proxy_clients_confirmed | default(false) | bool
+    fail_msg: >-
+      cr_mon_proxy_clients_confirmed must be explicitly set to true
+      (-e cr_mon_proxy_clients_confirmed=true) for an apply run, confirming
+      cr_mon_proxy_allowed_clients was verified against a real precheck
+      measurement of the Alertmanager egress source rather than left at its
+      STALE DEFAULT.
+  when: cr_mon_phase == 'apply'
+
 - name: Require explicit approval token for proxy changes
   ansible.builtin.assert:
     that:
@@ -235,6 +276,70 @@
   when:
     - cr_mon_phase == 'apply'
     - not ansible_check_mode
+
+- name: Check whether the squid binary is available yet for candidate validation
+  ansible.builtin.command:
+    argv:
+      - which
+      - squid
+  register: cr_mon_squid_binary_present
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Create a scratch file for validating the candidate configuration
+  ansible.builtin.tempfile:
+    state: file
+    suffix: cr-mon-squid-candidate
+  register: cr_mon_candidate_conf_file
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+
+- name: Render the candidate egress allowlist configuration for validation
+  ansible.builtin.template:
+    src: squid.conf.j2
+    dest: "{{ cr_mon_candidate_conf_file.path }}"
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+
+- name: Validate the candidate configuration parses (squid binary present)
+  ansible.builtin.command:
+    argv:
+      - squid
+      - -k
+      - parse
+      - -f
+      - "{{ cr_mon_candidate_conf_file.path }}"
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_squid_binary_present.rc == 0
+  check_mode: false
+  changed_when: false
+
+- name: Report candidate parse validation was skipped (squid not installed yet)
+  ansible.builtin.debug:
+    msg: >-
+      squid is not installed on {{ inventory_hostname }} yet, so `squid -k
+      parse` could not validate the candidate configuration in this run
+      (this is expected for --check on a brand-new host). Syntax will be
+      validated for real during the actual apply, which installs squid
+      before deploying and parsing this configuration.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_squid_binary_present.rc != 0
+
+- name: Remove the scratch candidate configuration file
+  ansible.builtin.file:
+    path: "{{ cr_mon_candidate_conf_file.path }}"
+    state: absent
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_candidate_conf_file.path is defined
+  check_mode: false
+  changed_when: false
 
 - name: Deploy discord.com-only egress allowlist configuration
   ansible.builtin.template:
