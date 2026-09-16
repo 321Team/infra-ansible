@@ -164,7 +164,26 @@
 - name: Check whether a baseline for this change was already captured
   ansible.builtin.stat:
     path: "{{ cr_mon_state_dir }}/original-state.json"
+    follow: false
   register: cr_mon_baseline_file
+  when: cr_mon_phase == 'apply'
+
+- name: Inspect the original configuration backup before any state writes
+  ansible.builtin.stat:
+    path: "{{ cr_mon_state_dir }}/original-squid.conf"
+    follow: false
+  register: cr_mon_original_backup
+  when: cr_mon_phase == 'apply'
+
+- name: Refuse an orphan backup or a non-regular baseline
+  ansible.builtin.assert:
+    that:
+      - cr_mon_baseline_file.stat.exists or not cr_mon_original_backup.stat.exists
+      - not cr_mon_baseline_file.stat.exists or (cr_mon_baseline_file.stat.isreg | default(false))
+    fail_msg: >-
+      Existing rollback state is inconsistent. Preserve the original backup
+      and current configuration; reconcile provenance before applying.
+      An orphan original-squid.conf must not be overwritten or deleted.
   when: cr_mon_phase == 'apply'
 
 - name: Read previously captured baseline for drift comparison
@@ -183,30 +202,23 @@
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
 
-- name: Fail when an existing baseline is missing required fields
+- name: Validate the complete existing baseline before re-apply
+  ansible.builtin.include_tasks: validate-baseline.yml
+  vars:
+    cr_mon_baseline: "{{ cr_mon_existing_baseline }}"
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Verify the original backup matches baseline presence
   ansible.builtin.assert:
     that:
-      - cr_mon_existing_baseline.change_id | default('') == cr_mon_change_id
-      - cr_mon_existing_baseline.inventory_hostname | default('') == inventory_hostname
-      - cr_mon_existing_baseline.squid_preinstalled is defined
-      - cr_mon_existing_baseline.squid_conf_preexisted is defined
-      - cr_mon_existing_baseline.squid_service_active_state is defined
-      - cr_mon_existing_baseline.squid_service_enabled_state is defined
-      - cr_mon_existing_baseline.firewalld_default_zone is defined
-      - cr_mon_existing_baseline.firewalld_permanent_rules_before is defined
-      - cr_mon_existing_baseline.firewalld_runtime_rules_before is defined
-      - cr_mon_existing_baseline.proxy_port is defined
-      - cr_mon_existing_baseline.proxy_allowed_clients is defined
-    fail_msg: >-
-      A baseline file exists at {{ cr_mon_state_dir }}/original-state.json on
-      {{ inventory_hostname }} but does not identify itself as belonging to
-      {{ cr_mon_change_id }} on this host, or is missing one or more fields
-      rollback depends on (it may be empty, corrupt, truncated, a legacy
-      schema from before this field set existed, or left over from a
-      different change). Refusing to treat it as this change's baseline or
-      drift-compare against it — a partial/legacy baseline must not silently
-      pass as if it were complete. Investigate, archive, or remove it
-      manually before re-running apply.
+      - >-
+        (cr_mon_existing_baseline.squid_conf_preexisted and
+         (cr_mon_original_backup.stat.isreg | default(false))) or
+        (not cr_mon_existing_baseline.squid_conf_preexisted and
+         not cr_mon_original_backup.stat.exists)
+    fail_msg: Original configuration backup is missing, non-regular or inconsistent; preserve state and stop.
   when:
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
@@ -225,8 +237,10 @@
       inputs differ (port={{ cr_mon_proxy_port }}, clients={{ cr_mon_proxy_allowed_clients }},
       zone={{ cr_mon_firewalld_zone.stdout | trim }}). The baseline is captured only once, so a
       silent re-apply here would add firewalld rules that rollback can never discover and remove.
-      Roll back {{ cr_mon_change_id }} on this host first, then re-apply with the new inputs so a
-      fresh baseline is captured.
+      Roll back with the retained baseline and verify restoration first.
+      Then archive the baseline, original backup and evidence together under
+      an approved new change cycle before capturing a fresh baseline.
+      Rollback alone retains the old baseline and does not reset this guard.
   when:
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists
@@ -247,6 +261,7 @@
     remote_src: true
     src: /etc/squid/squid.conf
     dest: "{{ cr_mon_state_dir }}/original-squid.conf"
+    force: false
     owner: root
     group: root
     mode: "0600"
