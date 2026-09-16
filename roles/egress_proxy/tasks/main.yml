@@ -206,19 +206,7 @@
   ansible.builtin.include_tasks: validate-baseline.yml
   vars:
     cr_mon_baseline: "{{ cr_mon_existing_baseline }}"
-  when:
-    - cr_mon_phase == 'apply'
-    - cr_mon_baseline_file.stat.exists
-
-- name: Verify the original backup matches baseline presence
-  ansible.builtin.assert:
-    that:
-      - >-
-        (cr_mon_existing_baseline.squid_conf_preexisted and
-         (cr_mon_original_backup.stat.isreg | default(false))) or
-        (not cr_mon_existing_baseline.squid_conf_preexisted and
-         not cr_mon_original_backup.stat.exists)
-    fail_msg: Original configuration backup is missing, non-regular or inconsistent; preserve state and stop.
+    cr_mon_backup_stat: "{{ cr_mon_original_backup.stat }}"
   when:
     - cr_mon_phase == 'apply'
     - cr_mon_baseline_file.stat.exists

@@ -119,7 +119,37 @@ def main():
                          ('squid_conf_mode', 'bad'), ('inventory_hostname', 'other')]:
         cases.append(('invalid-' + field, dict(baseline, **{field: value}), 2))
     for name, snapshot, rc in cases:
-        play('baseline-' + name, baseline_tasks, dict(variables, cr_mon_baseline=snapshot), rc)
+        play('baseline-' + name, baseline_tasks, dict(variables, cr_mon_baseline=snapshot,
+             cr_mon_backup_stat={'exists': True, 'isreg': True}), rc)
+
+    # Exercise each source call site with real stat results, including symlinks.
+    # Retain include vars/when so missing parameter wiring cannot pass unnoticed.
+    routes = [
+        ('apply', apply, 'Inspect the original configuration backup before any state writes',
+         'Validate the complete existing baseline before re-apply'),
+        ('rollback', rollback['pre_tasks'], 'Inspect the original configuration backup before rollback',
+         'Validate the complete baseline before rollback changes')]
+    for route, source, inspect_name, include_name in routes:
+        include = task(source, include_name)
+        include['ansible.builtin.include_tasks'] = str(repo / 'roles/egress_proxy/tasks/validate-baseline.yml')
+        for name, preexisted, kind, rc in [
+            ('regular', True, 'file', 0), ('missing', True, 'absent', 2),
+            ('symlink', True, 'symlink', 2), ('directory', True, 'directory', 2),
+            ('originally-absent', False, 'absent', 0), ('unexpected', False, 'file', 2)]:
+            if original.is_dir() and not original.is_symlink():
+                original.rmdir()
+            else:
+                original.unlink(missing_ok=True)
+            if kind == 'file':
+                original.write_text('ORIGINAL A\n')
+            elif kind == 'symlink':
+                original.symlink_to(current)
+            elif kind == 'directory':
+                original.mkdir()
+            snapshot = dict(baseline, squid_conf_preexisted=preexisted)
+            play('backup-' + route + '-' + name, [task(source, inspect_name), include],
+                 dict(variables, cr_mon_baseline_file={'stat': {'exists': True}},
+                      cr_mon_existing_baseline=snapshot, cr_mon_original_state=snapshot), rc)
 
     rule = 'rule family="ipv4" source address="10.1.93.105" port port="3128" protocol="tcp" accept'
     preserved = dict(baseline, firewalld_permanent_rules_before=[rule], firewalld_runtime_rules_before=[rule])

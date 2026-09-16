@@ -50,26 +50,17 @@
         cr_mon_original_state: >-
           {{ cr_mon_original_state_file.content | b64decode | from_json }}
 
-    - name: Validate the complete baseline before rollback changes
-      ansible.builtin.include_tasks: ../roles/egress_proxy/tasks/validate-baseline.yml
-      vars:
-        cr_mon_baseline: "{{ cr_mon_original_state }}"
-
     - name: Inspect the original configuration backup before rollback
       ansible.builtin.stat:
         path: "{{ cr_mon_state_dir }}/original-squid.conf"
         follow: false
       register: cr_mon_original_backup
 
-    - name: Verify the original backup matches baseline presence
-      ansible.builtin.assert:
-        that:
-          - >-
-            (cr_mon_original_state.squid_conf_preexisted and
-             (cr_mon_original_backup.stat.isreg | default(false))) or
-            (not cr_mon_original_state.squid_conf_preexisted and
-             not cr_mon_original_backup.stat.exists)
-        fail_msg: Original configuration backup is missing, non-regular or inconsistent; preserve state and stop.
+    - name: Validate the complete baseline before rollback changes
+      ansible.builtin.include_tasks: ../roles/egress_proxy/tasks/validate-baseline.yml
+      vars:
+        cr_mon_baseline: "{{ cr_mon_original_state }}"
+        cr_mon_backup_stat: "{{ cr_mon_original_backup.stat }}"
 
   tasks:
     # Invalidate before the first rollback mutation. Any failure/interruption
