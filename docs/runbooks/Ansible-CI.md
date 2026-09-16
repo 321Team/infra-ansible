@@ -2,7 +2,8 @@
 
 현재 구현은 실행기·비활성 Workflow 초안입니다. 실제 Actions PASS를 확보한 상태가 아닙니다.
 선행 #8은 코드 PR #16 / 증적 PR #12 독립 승인 후 병합됐으며 기반 main은
-`651c2558bc55ca8367bed32ad318c497e2f3bf35`입니다. 기존 Linux PASS는 이전 HEAD의 증적이고 이 변경의 새 실행 결과가 아닙니다.
+`651c2558bc55ca8367bed32ad318c497e2f3bf35`입니다. 후속으로 PR #12가 병합된 main
+`57e7cc740e7a406387848c52f4aa56b98c516168`을 CI 후보에 통합했습니다. 기존 Linux PASS는 이전 HEAD의 증적이고 이 변경의 새 실행 결과가 아닙니다.
 
 ## 현재 Runner 입력
 
@@ -27,7 +28,7 @@ python3.12 -I -B tools/run-ansible-ci.py --commit "$(git rev-parse HEAD)" --outp
 ```
 
 plan은 실행이 아닙니다. 실행은 전체 playbooks/*.yml 및 SSH 읽기/DNS 시험 Playbook을 양쪽 엔진에서
-syntax-check한 후 기존 단위·guard 결함·callback·DNS localhost fixture를 수행합니다. 현재 구문 대상은 12개 × 2엔진 =24개이며
+syntax-check한 후 기존 단위·guard 결함·callback·DNS localhost fixture를 수행합니다. 현재 구문 대상은 운영 playbook 14개 + 시험 playbook 2개 = 16개 × 2엔진 = 32개이며
 파일 목록에서 산출합니다. syntax-check 외 운영 playbook 실행 옵션은 없습니다.
 
 2.16.19/2.21.3은 한 Job 안의 두 엔진 matrix로 실행해 baseline을 직접 비교합니다. 엔진 목록은 기존

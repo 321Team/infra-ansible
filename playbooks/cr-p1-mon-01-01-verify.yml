@@ -1,0 +1,27 @@
+---
+- name: CR-P1-MON-01-01 guard against an empty egress_proxy target group
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  tasks:
+    - name: Fail loudly instead of a silent no-op when no target host is selected
+      ansible.builtin.assert:
+        that:
+          - groups['egress_proxy'] | default([]) | length > 0
+        fail_msg: >-
+          NOT RUN: the egress_proxy inventory group is empty. Select the
+          target host(s) in inventory/hosts.yml before running verify; an
+          empty-group exit code 0 must not be treated as verification evidence.
+
+- name: CR-P1-MON-01-01 egress proxy verify
+  hosts: egress_proxy
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    cr_mon_phase: verify
+
+  roles:
+    - role: egress_proxy

@@ -1,0 +1,12 @@
+---
+- name: CR-P1-MON-01-01 egress proxy precheck
+  hosts: egress_proxy
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    cr_mon_phase: precheck
+
+  roles:
+    - role: egress_proxy
