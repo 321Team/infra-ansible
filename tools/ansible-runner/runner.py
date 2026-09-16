@@ -24,6 +24,11 @@ from common import (ACCOUNT, ARCHIVE, BASE, BASE_ID, GID, HOST_PATH, REPO,
                     read_regular, require, write)
 
 ROOT = Path(__file__).resolve().parent
+PODMAN = ['podman', '--remote=false', '--cgroup-manager=systemd']
+PREPARE_LOG_STAGES = frozenset({'selinux', 'podman-info', 'base-inspect', 'image-build',
+    'image-inspect', 'proxy-start', 'container', 'container-inspect',
+    'runner-remove', 'runner-absent', 'proxy-remove', 'proxy-absent'})
+LOG_TAIL_BYTES = 65536
 MODES = ('prepare', 'registration-check', 'serve')
 STATES = {'prepare': 'PASS_PREPARE', 'registration-check': 'PASS_REGISTRATION_CHECK',
           'serve': 'SESSION_ENDED_REQUIRES_CI_REVIEW'}
@@ -39,7 +44,7 @@ PROBE_DENY = ('10.1.93.102', '169.254.169.254', 'example.com', 'github.com.evil.
 def podman_command(kind, image, run, name, mode):
     require(kind in ('proxy', 'runner') and mode in MODES, 'Invalid container kind/mode')
     image = image_id(image)
-    command = ['podman', 'run', '--cidfile', str(run / (kind + '.cid')), '--name', name + '-' + kind,
+    command = PODMAN + ['run', '--cidfile', str(run / (kind + '.cid')), '--name', name + '-' + kind,
                '--pull=never', '--userns=keep-id:uid=1000,gid=1000', '--user', '1000:1000',
                '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only',
                '--read-only-tmpfs=false', '--log-driver=none', '--stop-timeout=15']
@@ -126,35 +131,73 @@ class Controller:
         self.private = run / 'private'
         self.name = 'ansible-ci-' + uuid.uuid4().hex
         self.commands = []
+        self.diagnostic_errors = []
+
+    def preserve_prepare_logs(self, label, item):
+        # No raw host/container output is exported in credential-bearing modes.
+        if self.mode != 'prepare' or label not in PREPARE_LOG_STAGES:
+            return
+        metadata = {'stage': label, 'rc': item['rc'], 'cwd': str(self.run),
+                    'timed_out': item.get('timed_out', False), 'streams': {},
+                    'error_type': item.get('error_type')}
+        try:
+            for stream, suffix in (('stdout', '.log'), ('stderr', '.stderr.log')):
+                fd = os.open(self.private / (label + suffix), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, 'rb') as source:
+                    info = os.fstat(source.fileno())
+                    require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, 'Invalid diagnostic file')
+                    source.seek(max(0, info.st_size - LOG_TAIL_BYTES))
+                    data = source.read(LOG_TAIL_BYTES)
+                    require(os.fstat(source.fileno()).st_size == info.st_size, 'Diagnostic changed during collection')
+                target = label + '.prepare.' + stream + '.log'
+                (self.evidence / target).write_bytes(data)
+                metadata['streams'][stream] = {'file': target, 'original_bytes': info.st_size,
+                    'captured_bytes': len(data), 'truncated': info.st_size > LOG_TAIL_BYTES}
+            write(self.evidence / (label + '.prepare.json'), metadata)
+        except (Exception, KeyboardInterrupt) as exc:
+            self.diagnostic_errors.append({'stage': label, 'error_type': type(exc).__name__})
 
     def command(self, label, args, timeout=120, payload=None):
         require(payload is None or label == 'container', 'Secret input destination differs')
+        require(self.mode != 'prepare' or payload is None, 'prepare cannot receive credentials')
+        require(re.fullmatch('[a-z][a-z0-9-]{0,63}', label), 'Invalid command label')
         print('STAGE=' + label, flush=True)
-        item = {'stage': label, 'command': args, 'rc': None}
+        item = {'stage': label, 'command': args, 'cwd': str(self.run), 'rc': None, 'timed_out': False}
         self.commands.append(item)
-        with (self.private / (label + '.log')).open('wb') as log:
-            process = subprocess.Popen(args, stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
-                                       stdout=log, stderr=subprocess.STDOUT)
-            deadline = time.monotonic() + timeout
-            try:
-                first = True
-                while True:
-                    try:
-                        process.communicate(input=payload if first else None, timeout=min(30, max(0.1, deadline-time.monotonic())))
-                        break
-                    except subprocess.TimeoutExpired:
-                        first = False
-                        require(time.monotonic() < deadline, 'Stage timeout: ' + label)
-                        print('WAIT=' + label, flush=True)
-                item['rc'] = process.returncode
-            finally:
-                if process.poll() is None:
-                    process.terminate()
-                    try:
-                        process.wait(15)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
+        try:
+            with (self.private / (label + '.log')).open('wb') as log, \
+                 (self.private / (label + '.stderr.log')).open('wb') as errors:
+                process = subprocess.Popen(args, cwd=self.run,
+                    stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
+                    stdout=log, stderr=errors)
+                deadline = time.monotonic() + timeout
+                try:
+                    first = True
+                    while True:
+                        try:
+                            process.communicate(input=payload if first else None,
+                                                timeout=min(30, max(0.1, deadline-time.monotonic())))
+                            break
+                        except subprocess.TimeoutExpired:
+                            first = False
+                            if time.monotonic() >= deadline:
+                                item['timed_out'] = True
+                                raise RuntimeError('Stage timeout: ' + label)
+                            print('WAIT=' + label, flush=True)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(15)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+                    item['rc'] = process.returncode
+        except BaseException as exc:
+            item['error_type'] = type(exc).__name__
+            raise
+        finally:
+            self.preserve_prepare_logs(label, item)
         return item['rc']
 
     def output(self, label, args, maximum=1024*1024):
@@ -162,7 +205,7 @@ class Controller:
         return read_regular(self.private / (label + '.log'), maximum).decode('utf-8')
 
     def inspect_image(self, image):
-        items = json.loads(self.output('image-inspect', ['podman', 'image', 'inspect', image]))
+        items = json.loads(self.output('image-inspect', PODMAN + ['image', 'inspect', image]))
         require(type(items) is list and len(items) == 1, 'Image inspect count differs')
         value = items[0]
         require(image_id(value['Id']) == image_id(image) and value.get('Architecture') == 'amd64'
@@ -171,7 +214,7 @@ class Controller:
         return {'id': image_id(image), 'bundle_sha256': self.bundle, 'architecture': 'amd64', 'os': 'linux'}
 
     def build(self):
-        base = json.loads(self.output('base-inspect', ['podman', 'image', 'inspect', BASE]))
+        base = json.loads(self.output('base-inspect', PODMAN + ['image', 'inspect', BASE]))
         require(len(base) == 1 and image_id(base[0]['Id']) == BASE_ID
                 and base[0].get('Architecture') == 'amd64' and base[0].get('Os') == 'linux',
                 'Pinned r3 base image is absent or differs')
@@ -199,7 +242,7 @@ class Controller:
         for name in ('common.py', 'proxy.py', 'container.py'):
             shutil.copyfile(ROOT / name, context / name)
         shutil.copyfile(ROOT / 'build/Containerfile', context / 'Containerfile')
-        command = ['podman', 'build', '--pull=never', '--network=none', '--build-arg', 'BASE_IMAGE=' + BASE,
+        command = PODMAN + ['build', '--pull=never', '--network=none', '--build-arg', 'BASE_IMAGE=' + BASE,
                    '--label', 'io.fds.bundle=' + self.bundle, '--iidfile', str(self.run / 'image.id'), str(context)]
         require(self.command('image-build', command, 1200) == 0, 'Image build failed')
         return image_id(read_regular(self.run / 'image.id', 256).decode())
@@ -220,8 +263,8 @@ class Controller:
                 continue
             try:
                 identifier = self.cid(kind)
-                rc = self.command(kind + '-remove', ['podman', 'rm', '--force', '--time', '15', identifier], 60)
-                absent = self.command(kind + '-absent', ['podman', 'container', 'exists', identifier], 30)
+                rc = self.command(kind + '-remove', PODMAN + ['rm', '--force', '--time', '15', identifier], 60)
+                absent = self.command(kind + '-absent', PODMAN + ['container', 'exists', identifier], 30)
                 results[kind] = 'REMOVED' if rc == 0 and absent == 1 else 'FAILED'
             except (Exception, KeyboardInterrupt):
                 results[kind] = 'FAILED'
@@ -255,7 +298,7 @@ class Controller:
                 'Proxy socket identity differs')
         rc = self.command('container', podman_command('runner', image, self.run, self.name, self.mode),
                           3600 if self.mode == 'serve' else 600, payload)
-        inspected = json.loads(self.output('container-inspect', ['podman', 'container', 'inspect', self.cid('runner')]))
+        inspected = json.loads(self.output('container-inspect', PODMAN + ['container', 'inspect', self.cid('runner')]))
         require(type(inspected) is list and len(inspected) == 1, 'Container inspect count differs')
         raw_state = inspected[0].get('State', {})
         require(image_id(inspected[0]['Image']) == image, 'Container image differs')
@@ -302,6 +345,13 @@ def main():
         bundle = manifest(ROOT)
         controller.bundle = bundle
         record['bundle_sha256'] = bundle
+        try:
+            inherited_cwd = os.getcwd()
+        except OSError:
+            inherited_cwd = 'UNAVAILABLE'
+        write(controller.evidence / 'HOST_CONTEXT.json', {'uid': os.getuid(), 'gid': os.getgid(),
+            'inherited_cwd': inherited_cwd, 'command_cwd': str(run), 'podman_prefix': PODMAN,
+            'runtime_dir': os.environ.get('XDG_RUNTIME_DIR'), 'podman_path': shutil.which('podman')})
         require(shutil.which('pasta') is not None, 'pasta not found')
         memory = {line.split(':', 1)[0]: int(line.split()[1]) * 1024
                   for line in Path('/proc/meminfo').read_text().splitlines() if ':' in line}
@@ -310,7 +360,7 @@ def main():
         require((os.cpu_count() or 0) >= 4 and available >= 6*1024**3 and free_disk >= 8*1024**3,
                 'Need >=4 logical CPUs, >=6GiB available RAM and >=8GiB home free space')
         require(controller.output('selinux', ['getenforce']).strip() == 'Enforcing', 'SELinux must be Enforcing')
-        info = json.loads(controller.output('podman-info', ['podman', 'info', '--format=json']))
+        info = json.loads(controller.output('podman-info', PODMAN + ['info', '--format=json']))
         host = info.get('host', {})
         require(host.get('security', {}).get('rootless') is True and host.get('cgroupVersion') == 'v2'
                 and host.get('cgroupManager') == 'systemd', 'Rootless/cgroup preflight failed')
@@ -337,14 +387,10 @@ def main():
         # No arbitrary exception text in credential-bearing phases.
         if args.mode == 'prepare':
             record['prepare_error'] = str(exc)[:1024]
-            for label in ('image-build', 'proxy-start', 'container'):
-                file = controller.private / (label + '.log')
-                if file.is_file():
-                    with file.open('rb') as handle:
-                        handle.seek(max(0, file.stat().st_size - 65536))
-                        (controller.evidence / (label + '.prepare.log')).write_bytes(handle.read(65536))
     finally:
         cleaned = controller.cleanup()
+        record['diagnostic_errors'] = controller.diagnostic_errors
+        success = success and not controller.diagnostic_errors
         record['container_cleanup'] = 'REMOVED' if cleaned else 'FAILED'
         record['ended_at'] = now()
         if success and cleaned:

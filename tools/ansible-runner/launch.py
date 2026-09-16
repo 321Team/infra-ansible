@@ -36,10 +36,12 @@ def caller():
     return who
 
 
-def stream(command, evidence, label, payload=None):
+def stream(command, evidence, label, payload=None, cwd=None):
+    cwd = ROOT if cwd is None else cwd
     write(evidence / (label + '.command.json'), command)
+    write(evidence / (label + '.context.json'), {'cwd': str(cwd)})
     with (evidence / (label + '.log')).open('wb') as log:
-        process = subprocess.Popen(command, cwd=ROOT, env={'PATH': HOST_PATH, 'LANG': 'C.UTF-8', 'LC_ALL': 'C'},
+        process = subprocess.Popen(command, cwd=cwd, env={'PATH': HOST_PATH, 'LANG': 'C.UTF-8', 'LC_ALL': 'C'},
                                    stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
                                    stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -145,7 +147,8 @@ def main():
     evidence.mkdir()
     run = VERIFY_HOME / ('ansible-actions-' + uuid.uuid4().hex)
     record = {'status': 'FAIL', 'mode': args.mode, 'started_at': now(), 'login_account': who.pw_name,
-              'dedicated_run': str(run), 'host_rc': None, 'github_actions_verdict': 'NOT_ASSESSED',
+              'dedicated_run': str(run), 'host_rc': None,
+              'github_actions_verdict': 'NOT_RUN' if args.mode != 'serve' else 'NOT_ASSESSED',
               'production_apply': False, 'engine_transition': False}
     print('HOME_OUTPUT=' + str(output), flush=True)
     bundle = None
@@ -184,7 +187,7 @@ def main():
                    'python3', '-I', '-B', str(installed / 'runner.py'), args.mode, '--output', str(run)]
         if args.prepared:
             command += ['--prepared', args.prepared]
-        record['host_rc'] = stream(command, evidence, 'dedicated-run', payload)
+        record['host_rc'] = stream(command, evidence, 'dedicated-run', payload, cwd=VERIFY_HOME)
     except (Exception, KeyboardInterrupt) as exc:
         record['launch_error_type'] = type(exc).__name__
         if args.mode == 'prepare':

@@ -1,4 +1,6 @@
-# Ansible 전용 Actions Runner v1 — 검토·실행 키트
+# Ansible 전용 Actions Runner v1.1 — 검토·실행 키트
+
+v1 실행에서 계정·비sudo 검사는 통과했지만 `podman info` rc1로 컨테이너 생성 전 실패했다. 원본 stderr가 누락되어 직접 원인은 미확정이다. v1.1은 전용 계정 작업 디렉터리를 명시하고, 사전 점검 stdout/stderr를 보존한다. 기존 로그인 홈의 권한이나 SELinux를 완화하지 않는다. 상세 근거는 `PREPARE_FAILURE_REVIEW.md`와 `validation/INPUT_RECEIPT.json`에 있다.
 
 현재 권장 실행은 **`prepare`**다. 등록 토큰 없이 전용 컨테이너 이미지와 격리·통신을 실서버에서 검사한다. 새 Runner 등록, 실제 Actions, 활성화 리뷰, merge, 운영 적용은 이 키트의 로컬 검증으로 완료되지 않는다.
 
@@ -15,9 +17,9 @@ zip과 zip.sha256를 기존 로그인 홈에 놓고 다음을 실행한다. 토�
 
 ```bash
 cd "$HOME"
-sha256sum -c FDS_Ansible_Actions_Runner_v1.zip.sha256
-unzip FDS_Ansible_Actions_Runner_v1.zip
-cd FDS_Ansible_Actions_Runner_v1
+sha256sum -c FDS_Ansible_Actions_Runner_v1_1.zip.sha256
+unzip FDS_Ansible_Actions_Runner_v1_1.zip
+cd FDS_Ansible_Actions_Runner_v1_1
 sha256sum -c SHA256SUMS
 sudo bash run.sh prepare
 ```
@@ -90,13 +92,13 @@ Runner는 자동 업데이트를 비활성화한 버전 고정 이미지다. Git
 
 - token packet은 root launcher → runuser controller → `podman -i` stdin으로 전달한다. Podman argv/env·증적에는 원문을 넣지 않는다. config child에만 공식 `ACTIONS_RUNNER_INPUT_TOKEN` env 입력을 사용한다.
 - Runner `_diag`, `.credentials`, raw native output, token packet은 archive에서 제외한다. job을 실행한 모드에서는 컨테이너 출력의 임의 문자열을 수집하지 않고 고정 필드와 상태만 선별한다.
-- prepare는 토큰을 읽지 않으므로 실패 분석용 build/container 로그 끝64KiB를 포함할 수 있다.
+- prepare는 토큰을 읽지 않는다. 고정된 사전 점검·build·container·cleanup 단계의 stdout/stderr 각각 끝64KiB를 보존하며 rc/cwd/timeout/원래 길이/잘림 여부를 함께 기록한다. `podman-info.prepare.stderr.log`와 `podman-info.prepare.json`에서 초기 실패를 확인할 수 있다. 로그 수집 실패도 PASS를 차단한다.
 - workspace 삭제는 컨테이너 제거 확인 뒤 수행한다. 정리 실패 때는 FAIL과 잔존 위치를 기록하며 credential workspace가 남을 수 있으므로 증적 확인 후 해당 위치만 정리한다.
 - 원본 token packet은 자동 삭제하지 않는다. 사용 후 발급·만료 정책에 따라 관리하고, 증적 제출 대상으로 선택하지 않는다.
 
 ## 로컬 검증과 실제 검증의 구분
 
-`validation/RESULTS.json`과 `validation/unit.log`는 제작 환경의 단위·프로토콜 모형·파일/프로세스 경계 검사다. `python3 -I -B test-kit.py`로 재현한다. 실제 Podman build, UDS/SELinux 통신, Runner 등록, 실제 Actions는 제작 환경에서 NOT_RUN이다. 자체 코드 리뷰 기록은 독립 리뷰 승인이나 실제 서버 실행 증적이 아니다.
+`validation/RESULTS.json`과 `validation/unit.log`는 v1.1 제작 환경의 37건 단위·프로토콜 모형·파일/프로세스 경계 검사다. 로컬 자식 프로세스로 rc1·timeout·stderr 경고·작업 디렉터리·archive 잔존을 검사했다. 이는 실제 Podman 시험이 아니다. `python3 -I -B test-kit.py`로 재현한다. 실제 Podman build, UDS/SELinux 통신, Runner 등록, 실제 Actions는 제작 환경에서 NOT_RUN이다. 자체 코드 리뷰 기록은 독립 리뷰 승인이나 실제 서버 실행 증적이 아니다.
 
 ## 공식 근거
 
@@ -105,3 +107,5 @@ Runner는 자동 업데이트를 비활성화한 버전 고정 이미지다. Git
 - [GitHub Runner 프록시 설정](https://docs.github.com/en/actions/how-tos/manage-runners/use-proxy-servers)
 - [Runner 통신·ephemeral·업데이트 정책](https://docs.github.com/en/actions/reference/runners/self-hosted-runners)
 - [Podman run의 userns·mount·보안 옵션](https://docs.podman.io/en/latest/markdown/podman-run.1.html)
+
+- [Podman의 local/remote 및 cgroup-manager 전역 옵션](https://docs.podman.io/en/latest/markdown/podman.1.html)

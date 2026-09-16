@@ -21,3 +21,16 @@
 - `prepare`가 실패하면 등록하지 않는다. 로그/컨테이너 정리 상태를 확인해 구체적인 원인을 수정한 새 manifest로 다시 prepare한다. 보안 옵션을 완화하는 자동 fallback은 없다.
 - Runner 세션은 일회용이며 상시 운영 서비스가 아니다. 호스트 재부팅·SIGKILL·전원 중단은 Python finally 정리를 보장하지 않으므로 같은 UUID/CID와 GitHub ID/name의 잔존을 관리 호스트에서 확인해야 한다.
 - 모든 키트 자체 증적은 로컬 상태 기록이지 외부 attestation이 아니다. Job이 수정할 수 있는 session 결과를 독립 CI 성공 근거로 사용하지 않는다. 기존 앱 Runner의 관측·이슈 AC·활성화 리뷰 상태는 별도로 유지한다.
+
+
+## v1.1 수정 후 검토 — 2026-09-16
+
+실제 제출 v1 결과는 podman-info rc1, 컨테이너/등록 미착수다. 직접 원인은 stdout/stderr 누락으로 아직 확정하지 않았다. `PREPARE_FAILURE_REVIEW.md`의 수정 전 검토 후 다음을 반영했다.
+
+- root launcher의 dedicated child cwd는 검증된 ansible-verify 홈으로, controller의 명령 cwd는 이번 run directory로 명시했다.
+- Podman은 r3에서 사용한 local/systemd 옵션을 명시한다. 설정파일이나 계정 정책은 수정하지 않는다.
+- stdout/stderr를 분리하고 prepare 고정 단계 로그만 각64KiB 보존한다. rc1/timeout/spawn failure 및 cleanup 명령도 포함한다. credentials 단계는 원문 export를 하지 않는다.
+- diagnostics의 symlink·hardlink·special file을 거절하고, 수집 실패가 있으면 prepare PASS를 막는다.
+- v1의 27건과 새 경계 검사10건, 총37건 PASS. 실제 Python 자식 프로세스의 cwd·rc1/stderr·timeout·JSON 경고 분리와 archive 보존을 확인했다. 실제 UID1001 Podman과 SELinux/Unix socket은 이번 제작 환경에서 실행하지 않았다.
+
+검증 범위가 부족했던 v1의 prepare 오류 수집 경로를 회귀 대상에 추가했다. 자체 수정/검증 완료를 실서버 장애 해소나 독립 리뷰 승인으로 표시하지 않는다.

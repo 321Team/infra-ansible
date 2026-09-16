@@ -107,6 +107,7 @@ class PolicyTests(unittest.TestCase):
         self.assertIn('--network=pasta', side)
         self.assertIn('/dedicated/fresh/proxy:/proxy:ro,z', main)
         for args in (main, side):
+            self.assertEqual(args[:3], ['podman', '--remote=false', '--cgroup-manager=systemd'])
             for flag in ('--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only',
                          '--userns=keep-id:uid=1000,gid=1000', '--log-driver=none'):
                 self.assertIn(flag, args)
@@ -288,12 +289,124 @@ class CleanupTests(unittest.TestCase):
     def test_secret_not_in_command_records(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder); controller = self.controller(root)
+            controller.mode = 'serve'
             secret = b'DUMMY_SECRET_NEVER_EXPORT\n'
             rc = controller.command('container', [sys.executable, '-I', '-B', '-c',
                 'import sys; assert len(sys.stdin.buffer.read()) > 0; print("safe")'], payload=secret)
             self.assertEqual(rc, 0)
             self.assertNotIn(secret.decode().strip(), json.dumps(controller.commands))
             self.assertNotIn(secret, (root / 'private/container.log').read_bytes())
+
+
+class PreflightDiagnosticsTests(unittest.TestCase):
+    def controller(self, root, mode='prepare'):
+        for name in ('evidence', 'private'):
+            (root / name).mkdir()
+        return runner.Controller(root, mode, 'test-bundle')
+
+    def child(self, source):
+        return [sys.executable, '-I', '-B', '-c', source]
+
+    def test_controller_commands_use_dedicated_run_cwd(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            result = controller.output('podman-info', self.child('import os; print(os.getcwd())'))
+            self.assertEqual(result.strip(), str(root))
+            self.assertEqual(controller.commands[0]['cwd'], str(root))
+
+    def test_rc1_stderr_survives_cleanup_and_archive(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            command = self.child('import sys; print("SIMULATED podman preflight error", file=sys.stderr); sys.exit(1)')
+            self.assertRaises(RuntimeError, controller.output, 'podman-info', command)
+            self.assertEqual(controller.commands[0]['rc'], 1)
+            self.assertTrue(controller.cleanup())
+            self.assertFalse((root / 'private').exists())
+            log = root / 'evidence/podman-info.prepare.stderr.log'
+            self.assertEqual(log.read_text(), 'SIMULATED podman preflight error\n')
+            self.assertEqual(json.loads((root/'evidence/podman-info.prepare.json').read_text())['rc'], 1)
+            archive = root / 'test.tar.gz'
+            with tarfile.open(archive, 'w:gz') as handle:
+                handle.add(root / 'evidence', arcname='evidence')
+            with tarfile.open(archive, 'r:gz') as handle:
+                self.assertEqual(handle.extractfile('evidence/podman-info.prepare.stderr.log').read(), log.read_bytes())
+            self.assertFalse((root / 'evidence/PREPARED.json').exists())
+
+    def test_json_stdout_not_contaminated_by_stderr_warning(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            source = 'import sys,json; print(json.dumps({"rootless":True})); print("SIMULATED warning",file=sys.stderr)'
+            self.assertEqual(json.loads(controller.output('podman-info', self.child(source))), {'rootless': True})
+            self.assertIn('SIMULATED warning', (root / 'evidence/podman-info.prepare.stderr.log').read_text())
+
+    def test_timeout_has_nonzero_rc_and_diagnostics(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            source = 'import sys,time; print("before timeout", file=sys.stderr, flush=True); time.sleep(5)'
+            self.assertRaises(RuntimeError, controller.command, 'podman-info', self.child(source), 0.3)
+            record = json.loads((root / 'evidence/podman-info.prepare.json').read_text())
+            self.assertTrue(record['timed_out'])
+            self.assertNotEqual(record['rc'], 0)
+            self.assertIn('before timeout', (root / 'evidence/podman-info.prepare.stderr.log').read_text())
+
+    def test_spawn_failure_record_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            self.assertRaises(FileNotFoundError, controller.command, 'podman-info', [str(root/'missing-executable')])
+            record = json.loads((root / 'evidence/podman-info.prepare.json').read_text())
+            self.assertEqual(record['error_type'], 'FileNotFoundError')
+            self.assertIsNone(record['rc'])
+
+    def test_tail_bounded_and_truncation_recorded(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            count = runner.LOG_TAIL_BYTES + 101
+            source = f'import sys; sys.stderr.write("x"*{count}+"TAIL")'
+            self.assertEqual(controller.command('podman-info', self.child(source)), 0)
+            log = (root / 'evidence/podman-info.prepare.stderr.log').read_bytes()
+            self.assertEqual(len(log), runner.LOG_TAIL_BYTES)
+            self.assertTrue(log.endswith(b'TAIL'))
+            record = json.loads((root / 'evidence/podman-info.prepare.json').read_text())['streams']['stderr']
+            self.assertTrue(record['truncated'])
+            self.assertEqual(record['original_bytes'], count+4)
+
+    def test_credential_modes_never_export_raw_output(self):
+        for mode in ('registration-check', 'serve'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder); controller = self.controller(root, mode)
+                source = 'import sys; data=sys.stdin.buffer.read(); sys.stdout.buffer.write(data); sys.stderr.buffer.write(data)'
+                self.assertEqual(controller.command('container', self.child(source), payload=b'DUMMY_SECRET'), 0)
+                self.assertEqual(list((root/'evidence').iterdir()), [])
+                self.assertNotIn('DUMMY_SECRET', json.dumps(controller.commands))
+                (root/'runner.cid').write_text('a'*64)
+                controller.command = lambda stage, *args: 1 if stage.endswith('-absent') else 0
+                self.assertTrue(controller.cleanup())
+                for path in (root/'evidence').iterdir():
+                    self.assertNotIn(b'DUMMY_SECRET', path.read_bytes())
+
+    def test_prepare_rejects_secret_payload(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            self.assertRaises(RuntimeError, controller.command, 'container', self.child('pass'), payload=b'DUMMY')
+            self.assertEqual(controller.commands, [])
+
+    def test_linked_diagnostics_not_followed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); controller = self.controller(root)
+            secret = root / 'sensitive'; secret.write_bytes(b'PRIVATE_SENTINEL')
+            (root/'private/podman-info.log').symlink_to(secret)
+            controller.preserve_prepare_logs('podman-info', {'rc':1})
+            self.assertEqual(controller.diagnostic_errors, [{'stage':'podman-info','error_type':'OSError'}])
+            self.assertEqual(list((root/'evidence').iterdir()), [])
+
+    def test_launcher_child_cwd_is_explicit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); evidence = root/'evidence'; evidence.mkdir()
+            dedicated = root/'dedicated'; dedicated.mkdir()
+            rc = launch.stream(self.child('import os; print(os.getcwd())'), evidence, 'dedicated-run', cwd=dedicated)
+            self.assertEqual(rc, 0)
+            self.assertEqual((evidence/'dedicated-run.log').read_text().strip(), str(dedicated))
+            self.assertEqual(json.loads((evidence/'dedicated-run.context.json').read_text())['cwd'], str(dedicated))
 
     def test_missing_container_result_does_not_become_pass(self):
         with tempfile.TemporaryDirectory() as folder:

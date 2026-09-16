@@ -1,9 +1,15 @@
 STAGE=container
+STAGE=podman-info
+STAGE=container
+STAGE=container
+STAGE=podman-info
+/tmp/tmpj9a45dgv/dedicated
+STAGE=podman-info
+STAGE=podman-info
+STAGE=podman-info
+STAGE=podman-info
 test_cleanup_failure_preserves_workspace_and_fails (__main__.CleanupTests.test_cleanup_failure_preserves_workspace_and_fails) ... ok
 test_exact_cids_only_removed_then_workspace_deleted (__main__.CleanupTests.test_exact_cids_only_removed_then_workspace_deleted) ... ok
-test_home_collector_accepts_fixed_bounded_result (__main__.CleanupTests.test_home_collector_accepts_fixed_bounded_result) ... ok
-test_home_collector_rejects_symlink_archive (__main__.CleanupTests.test_home_collector_rejects_symlink_archive) ... ok
-test_missing_container_result_does_not_become_pass (__main__.CleanupTests.test_missing_container_result_does_not_become_pass) ... ok
 test_secret_not_in_command_records (__main__.CleanupTests.test_secret_not_in_command_records) ... ok
 test_started_without_cid_is_failure (__main__.CleanupTests.test_started_without_cid_is_failure) ... ok
 test_commands_enforce_isolation (__main__.PolicyTests.test_commands_enforce_isolation) ... ok
@@ -16,6 +22,19 @@ test_proxy_rejected_targets (__main__.PolicyTests.test_proxy_rejected_targets) .
 test_token_file_mode_owner_and_links (__main__.PolicyTests.test_token_file_mode_owner_and_links) ... ok
 test_token_only_config_child_env (__main__.PolicyTests.test_token_only_config_child_env) ... ok
 test_token_packet_valid_and_rejections (__main__.PolicyTests.test_token_packet_valid_and_rejections) ... ok
+test_controller_commands_use_dedicated_run_cwd (__main__.PreflightDiagnosticsTests.test_controller_commands_use_dedicated_run_cwd) ... ok
+test_credential_modes_never_export_raw_output (__main__.PreflightDiagnosticsTests.test_credential_modes_never_export_raw_output) ... ok
+test_home_collector_accepts_fixed_bounded_result (__main__.PreflightDiagnosticsTests.test_home_collector_accepts_fixed_bounded_result) ... ok
+test_home_collector_rejects_symlink_archive (__main__.PreflightDiagnosticsTests.test_home_collector_rejects_symlink_archive) ... ok
+test_json_stdout_not_contaminated_by_stderr_warning (__main__.PreflightDiagnosticsTests.test_json_stdout_not_contaminated_by_stderr_warning) ... ok
+test_launcher_child_cwd_is_explicit (__main__.PreflightDiagnosticsTests.test_launcher_child_cwd_is_explicit) ... ok
+test_linked_diagnostics_not_followed (__main__.PreflightDiagnosticsTests.test_linked_diagnostics_not_followed) ... ok
+test_missing_container_result_does_not_become_pass (__main__.PreflightDiagnosticsTests.test_missing_container_result_does_not_become_pass) ... ok
+test_prepare_rejects_secret_payload (__main__.PreflightDiagnosticsTests.test_prepare_rejects_secret_payload) ... ok
+test_rc1_stderr_survives_cleanup_and_archive (__main__.PreflightDiagnosticsTests.test_rc1_stderr_survives_cleanup_and_archive) ... ok
+test_spawn_failure_record_preserved (__main__.PreflightDiagnosticsTests.test_spawn_failure_record_preserved) ... ok
+test_tail_bounded_and_truncation_recorded (__main__.PreflightDiagnosticsTests.test_tail_bounded_and_truncation_recorded) ... ok
+test_timeout_has_nonzero_rc_and_diagnostics (__main__.PreflightDiagnosticsTests.test_timeout_has_nonzero_rc_and_diagnostics) ... ok
 test_dns_denial_never_opens_upstream (__main__.ProtocolTests.test_dns_denial_never_opens_upstream) ... ok
 test_invalid_pre_tunnel_payload_and_oversized_headers_rejected (__main__.ProtocolTests.test_invalid_pre_tunnel_payload_and_oversized_headers_rejected) ... ok
 test_public_connect_uses_validated_ip_without_reresolution (__main__.ProtocolTests.test_public_connect_uses_validated_ip_without_reresolution) ... ok
@@ -28,6 +47,6 @@ test_registration_requires_removal_and_identity (__main__.ResultTests.test_regis
 test_serve_is_not_ci_success (__main__.ResultTests.test_serve_is_not_ci_success) ... ok
 
 ----------------------------------------------------------------------
-Ran 27 tests in 0.032s
+Ran 37 tests in 0.469s
 
 OK
