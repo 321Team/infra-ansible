@@ -1,0 +1,19 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+COPY runner.tar.gz /tmp/runner.tar.gz
+RUN echo '70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  /tmp/runner.tar.gz' | sha256sum -c - \
+ && mkdir /opt/runner /opt/fds \
+ && tar xzf /tmp/runner.tar.gz -C /opt/runner \
+ && rm /tmp/runner.tar.gz \
+ && groupadd --gid 1000 runner \
+ && useradd --uid 1000 --gid 1000 --no-create-home --home-dir /session/home runner \
+ && command -v git && command -v bash && command -v grep \
+ && python3.12 --version
+COPY common.py proxy.py container.py /opt/fds/
+RUN chown -R 0:0 /opt/fds /opt/runner \
+ && chmod 0555 /opt/fds /opt/runner \
+ && chmod 0444 /opt/fds/*.py
+USER 1000:1000
+WORKDIR /session
+ENTRYPOINT ["/usr/local/bin/python3", "-I", "-B", "/opt/fds/container.py"]
+CMD ["prepare"]
