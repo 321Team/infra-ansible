@@ -1,0 +1,505 @@
+---
+- name: Validate CR-P1-MON-01-01 egress proxy phase and variables
+  ansible.builtin.assert:
+    that:
+      - cr_mon_phase in ['precheck', 'apply', 'verify']
+      - cr_mon_allowed_domains | length > 0
+      - cr_mon_proxy_port | int > 0
+      - cr_mon_proxy_allowed_clients | length > 0
+    fail_msg: >-
+      Invalid {{ cr_mon_change_id }} egress proxy inputs or phase.
+
+- name: Validate CR-P1-MON-01-01 egress proxy input formats
+  ansible.builtin.assert:
+    that:
+      - cr_mon_proxy_port | int >= 1
+      - cr_mon_proxy_port | int <= 65535
+      - >-
+        cr_mon_proxy_allowed_clients
+        | reject('match', '^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}(/(3[0-2]|[12]?[0-9]))?$')
+        | list | length == 0
+      - >-
+        cr_mon_allowed_domains
+        | reject('match', '^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
+        | list | length == 0
+    fail_msg: >-
+      {{ cr_mon_change_id }} inputs failed format validation: cr_mon_proxy_port
+      must be an integer 1-65535, every cr_mon_proxy_allowed_clients entry
+      must be a dotted-quad IPv4 address with each octet 0-255 (optionally
+      /0-32 CIDR), and every cr_mon_allowed_domains entry must be a
+      syntactically valid FQDN.
+
+- name: Verify this host matches its declared inventory identity
+  ansible.builtin.assert:
+    that:
+      - ansible_hostname == expected_hostname
+    fail_msg: >-
+      Baseline mismatch on {{ inventory_hostname }}: expected hostname
+      {{ expected_hostname }}, actual {{ ansible_hostname }}. Refusing to
+      run {{ cr_mon_change_id }} against a host that does not match its
+      declared inventory identity.
+
+- name: Require explicit confirmation that proxy client sources were measured
+  ansible.builtin.assert:
+    that:
+      - cr_mon_proxy_clients_confirmed | default(false) | bool
+    fail_msg: >-
+      cr_mon_proxy_clients_confirmed must be explicitly set to true
+      (-e cr_mon_proxy_clients_confirmed=true) for an apply run, confirming
+      cr_mon_proxy_allowed_clients was verified against a real precheck
+      measurement of the Alertmanager egress source rather than left at its
+      STALE DEFAULT.
+  when: cr_mon_phase == 'apply'
+
+- name: Require explicit approval token for proxy changes
+  ansible.builtin.assert:
+    that:
+      - cr_mon_change_approved | default('') == cr_mon_change_id
+    fail_msg: >-
+      Set cr_mon_change_approved={{ cr_mon_change_id }} only for an approved
+      apply run.
+  when: cr_mon_phase == 'apply'
+
+- name: Verify firewalld is active before making any changes
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --state
+  register: cr_mon_firewalld_state
+  changed_when: false
+  check_mode: false
+  failed_when: cr_mon_firewalld_state.stdout | trim != 'running'
+
+- name: Read the default firewalld zone
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --get-default-zone
+  register: cr_mon_firewalld_zone
+  changed_when: false
+  check_mode: false
+
+- name: Check whether squid is already installed
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - squid
+  register: cr_mon_squid_preinstalled
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Check for existing squid configuration
+  ansible.builtin.stat:
+    path: /etc/squid/squid.conf
+  register: cr_mon_squid_conf_before
+
+- name: Read pre-change squid service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - squid.service
+  register: cr_mon_squid_service_before
+  changed_when: false
+  check_mode: false
+
+- name: Read pre-change squid enabled state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-enabled
+      - squid.service
+  register: cr_mon_squid_enabled_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Read pre-change kubelet state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - kubelet.service
+  register: cr_mon_kubelet_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Normalize pre-change kubelet state for evidence
+  ansible.builtin.set_fact:
+    cr_mon_kubelet_before_load: >-
+      {{ (cr_mon_kubelet_before.stdout_lines | default([]))[0] | default('unknown') }}
+    cr_mon_kubelet_before_active: >-
+      {{ (cr_mon_kubelet_before.stdout_lines | default([]))[1] | default('unknown') }}
+
+- name: Read current permanent firewalld rich rules
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
+      - --list-rich-rules
+  register: cr_mon_firewalld_rules_before
+  changed_when: false
+  check_mode: false
+
+- name: Read current runtime-only firewalld rich rules
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
+      - --list-rich-rules
+  register: cr_mon_firewalld_runtime_rules_before
+  changed_when: false
+  check_mode: false
+
+- name: Check whether a baseline for this change was already captured
+  ansible.builtin.stat:
+    path: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_baseline_file
+  when: cr_mon_phase == 'apply'
+
+- name: Read previously captured baseline for drift comparison
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_baseline_file_content
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Decode previously captured baseline for drift comparison
+  ansible.builtin.set_fact:
+    cr_mon_existing_baseline: >-
+      {{ cr_mon_baseline_file_content.content | b64decode | from_json }}
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Fail when an existing baseline is missing required fields
+  ansible.builtin.assert:
+    that:
+      - cr_mon_existing_baseline.change_id | default('') == cr_mon_change_id
+      - cr_mon_existing_baseline.inventory_hostname | default('') == inventory_hostname
+      - cr_mon_existing_baseline.squid_preinstalled is defined
+      - cr_mon_existing_baseline.squid_conf_preexisted is defined
+      - cr_mon_existing_baseline.squid_service_active_state is defined
+      - cr_mon_existing_baseline.squid_service_enabled_state is defined
+      - cr_mon_existing_baseline.firewalld_default_zone is defined
+      - cr_mon_existing_baseline.firewalld_permanent_rules_before is defined
+      - cr_mon_existing_baseline.firewalld_runtime_rules_before is defined
+      - cr_mon_existing_baseline.proxy_port is defined
+      - cr_mon_existing_baseline.proxy_allowed_clients is defined
+    fail_msg: >-
+      A baseline file exists at {{ cr_mon_state_dir }}/original-state.json on
+      {{ inventory_hostname }} but does not identify itself as belonging to
+      {{ cr_mon_change_id }} on this host, or is missing one or more fields
+      rollback depends on (it may be empty, corrupt, truncated, a legacy
+      schema from before this field set existed, or left over from a
+      different change). Refusing to treat it as this change's baseline or
+      drift-compare against it — a partial/legacy baseline must not silently
+      pass as if it were complete. Investigate, archive, or remove it
+      manually before re-running apply.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Refuse to re-apply with inputs that differ from the captured baseline
+  ansible.builtin.assert:
+    that:
+      - cr_mon_existing_baseline.proxy_port == (cr_mon_proxy_port | int)
+      - cr_mon_existing_baseline.proxy_allowed_clients == cr_mon_proxy_allowed_clients
+      - cr_mon_existing_baseline.firewalld_default_zone == (cr_mon_firewalld_zone.stdout | trim)
+    fail_msg: >-
+      {{ cr_mon_change_id }} already captured a baseline on {{ inventory_hostname }}
+      for proxy_port={{ cr_mon_existing_baseline.proxy_port }},
+      proxy_allowed_clients={{ cr_mon_existing_baseline.proxy_allowed_clients }},
+      zone={{ cr_mon_existing_baseline.firewalld_default_zone }}, but the current
+      inputs differ (port={{ cr_mon_proxy_port }}, clients={{ cr_mon_proxy_allowed_clients }},
+      zone={{ cr_mon_firewalld_zone.stdout | trim }}). The baseline is captured only once, so a
+      silent re-apply here would add firewalld rules that rollback can never discover and remove.
+      Roll back {{ cr_mon_change_id }} on this host first, then re-apply with the new inputs so a
+      fresh baseline is captured.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_baseline_file.stat.exists
+
+- name: Create protected CR rollback state directory
+  ansible.builtin.file:
+    path: "{{ cr_mon_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Preserve original squid configuration once
+  ansible.builtin.copy:
+    remote_src: true
+    src: /etc/squid/squid.conf
+    dest: "{{ cr_mon_state_dir }}/original-squid.conf"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_squid_conf_before.stat.exists
+    - not cr_mon_baseline_file.stat.exists
+
+- name: Preserve original squid and firewalld state once
+  ansible.builtin.copy:
+    dest: "{{ cr_mon_state_dir }}/original-state.json"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+    content: >-
+      {{
+        {
+          'change_id': cr_mon_change_id,
+          'captured_at': ansible_date_time.iso8601,
+          'inventory_hostname': inventory_hostname,
+          'squid_preinstalled': cr_mon_squid_preinstalled.rc == 0,
+          'squid_conf_preexisted': cr_mon_squid_conf_before.stat.exists,
+          'squid_conf_owner': cr_mon_squid_conf_before.stat.pw_name | default('root'),
+          'squid_conf_group': cr_mon_squid_conf_before.stat.gr_name | default('root'),
+          'squid_conf_mode': cr_mon_squid_conf_before.stat.mode | default('0644'),
+          'squid_service_load_state': cr_mon_squid_service_before.stdout_lines[0],
+          'squid_service_active_state': cr_mon_squid_service_before.stdout_lines[1],
+          'squid_service_enabled_state': cr_mon_squid_enabled_before.stdout | trim,
+          'kubelet_load_state_before': cr_mon_kubelet_before_load,
+          'kubelet_active_state_before': cr_mon_kubelet_before_active,
+          'firewalld_default_zone': cr_mon_firewalld_zone.stdout | trim,
+          'firewalld_permanent_rules_before': cr_mon_firewalld_rules_before.stdout_lines,
+          'firewalld_runtime_rules_before': cr_mon_firewalld_runtime_rules_before.stdout_lines,
+          'proxy_port': cr_mon_proxy_port | int,
+          'proxy_allowed_clients': cr_mon_proxy_allowed_clients
+        } | to_nice_json
+      }}
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - not cr_mon_baseline_file.stat.exists
+
+- name: Install squid
+  ansible.builtin.dnf:
+    name: squid
+    state: present
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Check whether the squid binary is available yet for candidate validation
+  ansible.builtin.command:
+    argv:
+      - which
+      - squid
+  register: cr_mon_squid_binary_present
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+  failed_when: false
+
+- name: Create a scratch file for validating the candidate configuration
+  ansible.builtin.tempfile:
+    state: file
+    suffix: cr-mon-squid-candidate
+  register: cr_mon_candidate_conf_file
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+
+- name: Render the candidate egress allowlist configuration for validation
+  ansible.builtin.template:
+    src: squid.conf.j2
+    dest: "{{ cr_mon_candidate_conf_file.path }}"
+  when: cr_mon_phase == 'apply'
+  check_mode: false
+  changed_when: false
+
+- name: Validate the candidate configuration parses (squid binary present)
+  ansible.builtin.command:
+    argv:
+      - squid
+      - -k
+      - parse
+      - -f
+      - "{{ cr_mon_candidate_conf_file.path }}"
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_squid_binary_present.rc == 0
+  check_mode: false
+  changed_when: false
+
+- name: Report candidate parse validation was skipped (squid not installed yet)
+  ansible.builtin.debug:
+    msg: >-
+      squid is not installed on {{ inventory_hostname }} yet, so `squid -k
+      parse` could not validate the candidate configuration in this run
+      (this is expected for --check on a brand-new host). Syntax will be
+      validated for real during the actual apply, which installs squid
+      before deploying and parsing this configuration.
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_squid_binary_present.rc != 0
+
+- name: Remove the scratch candidate configuration file
+  ansible.builtin.file:
+    path: "{{ cr_mon_candidate_conf_file.path }}"
+    state: absent
+  when:
+    - cr_mon_phase == 'apply'
+    - cr_mon_candidate_conf_file.path is defined
+  check_mode: false
+  changed_when: false
+
+- name: Deploy discord.com-only egress allowlist configuration
+  ansible.builtin.template:
+    src: squid.conf.j2
+    dest: /etc/squid/squid.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: squid -k parse -f %s
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Open the proxy port for approved internal clients only (permanent)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
+      - --add-rich-rule=rule family="ipv4" source
+        address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+        protocol="tcp" accept
+  loop: "{{ cr_mon_proxy_allowed_clients }}"
+  vars:
+    cr_mon_apply_rule_string: >-
+      rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_proxy_port }}" protocol="tcp" accept
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_apply_rule_string not in cr_mon_firewalld_rules_before.stdout_lines
+  changed_when: true
+
+- name: Open the proxy port for approved internal clients only (runtime, no reload)
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --zone={{ cr_mon_firewalld_zone.stdout | trim }}
+      - --add-rich-rule=rule family="ipv4" source
+        address="{{ item }}" port port="{{ cr_mon_proxy_port }}"
+        protocol="tcp" accept
+  loop: "{{ cr_mon_proxy_allowed_clients }}"
+  vars:
+    cr_mon_apply_rule_string: >-
+      rule family="ipv4" source address="{{ item }}" port port="{{ cr_mon_proxy_port }}" protocol="tcp" accept
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_apply_rule_string not in cr_mon_firewalld_runtime_rules_before.stdout_lines
+  changed_when: true
+
+- name: Enable and start squid
+  ansible.builtin.service:
+    name: squid
+    enabled: true
+    state: started
+  register: cr_mon_squid_start
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+# A plain "state: started" is a no-op on an already-running squid, so it
+# never picks up a rewritten config on its own. Relying on the template
+# task's notify to trigger a restart is not retry-safe: if a later task
+# (e.g. the firewall rules below) fails before flush_handlers runs, the
+# notified handler is lost, the file on disk is already correct so a
+# same-input retry never re-notifies, and squid keeps serving whatever it
+# loaded last — silently, since a same-input retry then reports changed=0.
+# "state: reloaded" always reports changed=true regardless of whether a
+# reload was actually needed, so reloading whenever the service was merely
+# already-running (rather than freshly started) would make every run after
+# the first report changed>0 forever, breaking the apply_idempotency check.
+# Comparing against a persisted checksum of the last configuration squid
+# actually had reloaded into it gives a reload that is both retry-safe
+# (independent of any single run's notify/changed state) and genuinely
+# idempotent (a no-op once the running process has caught up).
+#
+# The reload decision below deliberately does NOT use
+# cr_mon_squid_start.changed: that task's `changed` also goes true when
+# squid was already active and only its `enabled` flag flips (e.g.
+# active+disabled -> active+enabled), which is not evidence that the
+# process just (re)loaded this config. cr_mon_squid_service_before was
+# captured before this run touched anything, so "was it active already"
+# is immune to that noise.
+- name: Record the checksum of the configuration just deployed
+  ansible.builtin.stat:
+    path: /etc/squid/squid.conf
+  register: cr_mon_squid_conf_deployed
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Check whether a "squid has loaded this config" marker exists
+  ansible.builtin.stat:
+    path: "{{ cr_mon_state_dir }}/active-config.sha1"
+  register: cr_mon_squid_active_marker
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Read the marker recording which configuration squid last loaded
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/active-config.sha1"
+  register: cr_mon_squid_active_marker_file
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_squid_active_marker.stat.exists
+
+- name: Reload squid when it was already running and the config differs from the marker
+  ansible.builtin.service:
+    name: squid
+    state: reloaded
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+    - cr_mon_squid_service_before.stdout_lines[1] == 'active'
+    - >-
+      not cr_mon_squid_active_marker.stat.exists
+      or (cr_mon_squid_active_marker_file.content | b64decode | trim) != cr_mon_squid_conf_deployed.stat.checksum
+
+# Reached only if nothing above failed, so either this was a genuine fresh
+# start (which already loaded the current file), or the reload above ran
+# and succeeded, or it was correctly skipped because the marker already
+# matched — every path that gets here means the running process and the
+# marker are now consistent with what's on disk.
+- name: Record which configuration squid now has loaded
+  ansible.builtin.copy:
+    content: "{{ cr_mon_squid_conf_deployed.stat.checksum }}"
+    dest: "{{ cr_mon_state_dir }}/active-config.sha1"
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - cr_mon_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Run CR-P1-MON-01-01 post-run verification tasks
+  ansible.builtin.include_tasks: verify.yml
+  when:
+    - cr_mon_phase in ['apply', 'verify']
+    - not ansible_check_mode

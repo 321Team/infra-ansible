@@ -1,0 +1,52 @@
+## Managed by infra-ansible — {{ cr_mon_change_id }}
+## Do not edit by hand; the next apply run overwrites this file.
+## Scope: forward proxy for Alertmanager egress. Only the domains listed in
+## cr_mon_allowed_domains may be reached through this proxy.
+
+acl localnet src {% for client in cr_mon_proxy_allowed_clients %}{{ client }} {% endfor %}
+
+## Loopback source used only by this role's own post-run verification
+## (roles/egress_proxy/tasks/verify.yml). Restricted to the same allowed
+## domains as every other client — never opened to arbitrary destinations.
+acl proxy_self_test src 127.0.0.1/32
+
+acl SSL_ports port 443
+acl Safe_ports port 443
+acl CONNECT method CONNECT
+
+## Exact FQDN match only — no leading-dot form, so subdomains of an
+## approved domain are not implicitly allowed. Add them explicitly to
+## cr_mon_allowed_domains if a subdomain is actually needed. -n disables
+## dstdomain's default reverse-DNS-lookup matching, so a client CONNECTing
+## directly to a numeric IP can never be let through just because that IP's
+## PTR record happens to resolve to an allowed name.
+acl allowed_egress_domains dstdomain -n {% for domain in cr_mon_allowed_domains %}{{ domain }} {% endfor %}
+
+## CONNECT/443 tunnel only — no plain-HTTP allow rule, since this proxy
+## exists to carry HTTPS webhook traffic, not to inspect or relay
+## cleartext requests to the allowed domains.
+http_access deny !Safe_ports
+http_access deny CONNECT !SSL_ports
+http_access allow localnet CONNECT allowed_egress_domains
+http_access allow proxy_self_test CONNECT allowed_egress_domains
+http_access deny all
+
+http_port {{ cr_mon_proxy_port }}
+
+via off
+forwarded_for delete
+
+cache deny all
+
+## Custom format carries no client-supplied header and no request URL
+## (path/query, or any part of Host), so nothing the client sent — including
+## a webhook token in a path — ever reaches disk. Method (%rm) is kept since
+## CONNECT/GET/etc. is not sensitive and is useful for audit. %<a (lowercase:
+## server IP address, per Squid's logformat reference) is the one
+## destination field used: it is set by Squid itself from the connection it
+## actually made, not by anything in the request, and stays empty ("-") for
+## an ACL-denied request that never got that far. Timestamp, source, method,
+## destination address, status, and result code are enough to audit source,
+## allow/deny outcome, and where an allowed request went.
+logformat cr_mon_egress_summary %tl %>a %rm %<a %>Hs %Ss
+access_log /var/log/squid/access.log cr_mon_egress_summary

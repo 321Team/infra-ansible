@@ -1,0 +1,160 @@
+---
+- name: Read post-run squid service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - squid.service
+  register: cr_mon_squid_service_after
+  changed_when: false
+  check_mode: false
+
+- name: Assert squid is loaded and active
+  ansible.builtin.assert:
+    that:
+      - cr_mon_squid_service_after.stdout_lines[0] == 'loaded'
+      - cr_mon_squid_service_after.stdout_lines[1] == 'active'
+    fail_msg: >-
+      squid.service is not loaded+active on {{ inventory_hostname }} after
+      {{ cr_mon_change_id }} (LoadState={{ cr_mon_squid_service_after.stdout_lines[0] }},
+      ActiveState={{ cr_mon_squid_service_after.stdout_lines[1] }}).
+
+- name: Read post-run kubelet state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - kubelet.service
+  register: cr_mon_kubelet_after
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Assert kubelet state did not regress within this run
+  ansible.builtin.assert:
+    that:
+      - cr_mon_kubelet_after.stdout == cr_mon_kubelet_before.stdout
+    fail_msg: >-
+      kubelet state changed during {{ cr_mon_change_id }} on
+      {{ inventory_hostname }}. This role must not affect cluster membership
+      of a node that still runs as a Kubernetes worker or control-plane node.
+
+- name: Read persisted pre-apply baseline state for a standalone verify run
+  ansible.builtin.slurp:
+    src: "{{ cr_mon_state_dir }}/original-state.json"
+  register: cr_mon_persisted_state_file
+  when: cr_mon_phase == 'verify'
+  failed_when: false
+  check_mode: false
+
+- name: Fail when a standalone verify has no usable pre-apply baseline
+  ansible.builtin.assert:
+    that:
+      - cr_mon_persisted_state_file.content is defined
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).change_id == cr_mon_change_id
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).inventory_hostname == inventory_hostname
+      - (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before is defined
+    fail_msg: >-
+      No usable pre-apply baseline for {{ cr_mon_change_id }} on
+      {{ inventory_hostname }} at {{ cr_mon_state_dir }}/original-state.json
+      (missing, unreadable, or recorded for a different host/change). A
+      standalone verify run cannot judge kubelet regression without it, so
+      this is a hard failure rather than a skipped check.
+  when: cr_mon_phase == 'verify'
+
+- name: Assert kubelet state did not regress against the persisted apply baseline
+  ansible.builtin.assert:
+    that:
+      - >-
+        cr_mon_kubelet_after.stdout_lines[1] ==
+        (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before
+    fail_msg: >-
+      kubelet ActiveState on {{ inventory_hostname }} ('{{ cr_mon_kubelet_after.stdout_lines[1] | default('') }}')
+      differs from the state recorded before the original {{ cr_mon_change_id }}
+      apply run ('{{ (cr_mon_persisted_state_file.content | b64decode | from_json).kubelet_active_state_before }}').
+      A same-run before/after comparison alone cannot detect this because a
+      standalone verify invocation has no pre-change state of its own.
+  when: cr_mon_phase == 'verify'
+
+- name: Verify an allowed destination is reachable through the proxy
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -q
+      - --max-time
+      - "5"
+      - --proxy
+      - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --noproxy
+      - ""
+      - --silent
+      - --show-error
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_code}"
+      - "https://{{ cr_mon_allowed_domains[0] }}"
+  register: cr_mon_allowed_probe
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    cr_mon_allowed_probe.rc != 0
+    or cr_mon_allowed_probe.stdout not in ['200', '301', '302', '308']
+
+- name: Verify a non-allowed destination is denied at the proxy's CONNECT layer
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -q
+      - --max-time
+      - "5"
+      - --proxy
+      - "http://127.0.0.1:{{ cr_mon_proxy_port }}"
+      - --noproxy
+      - ""
+      - --silent
+      - --show-error
+      - --output
+      - /dev/null
+      - --write-out
+      - "%{http_connect}"
+      - "https://{{ cr_mon_denied_probe_domain }}"
+  register: cr_mon_denied_probe
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Assert the non-allowed destination was denied at the CONNECT layer
+  ansible.builtin.assert:
+    that:
+      - cr_mon_denied_probe.stdout == '403'
+    fail_msg: >-
+      {{ cr_mon_change_id }} allowlist did not deny
+      {{ cr_mon_denied_probe_domain }} at the proxy CONNECT layer on
+      {{ inventory_hostname }}. curl's %{http_connect} (the proxy's own
+      response code to the CONNECT request, distinct from whatever the
+      origin server returns after a tunnel is established) was
+      '{{ cr_mon_denied_probe.stdout }}' (rc={{ cr_mon_denied_probe.rc }});
+      expected 403. A value of 0 means curl never got a CONNECT response
+      from the proxy at all (proxy unreachable, or a DNS/TLS/network
+      failure), and 200 means the proxy tunnelled the connection through
+      instead of denying it — neither is equivalent to an explicit proxy
+      denial and must not be accepted as a pass.
+
+- name: Print CR-P1-MON-01-01 node verdict
+  ansible.builtin.debug:
+    msg:
+      change_id: "{{ cr_mon_change_id }}"
+      host: "{{ inventory_hostname }}"
+      phase: "{{ cr_mon_phase }}"
+      squid_load_state: "{{ cr_mon_squid_service_after.stdout_lines[0] }}"
+      squid_active_state: "{{ cr_mon_squid_service_after.stdout_lines[1] }}"
+      allowed_domain_probe_status: "{{ cr_mon_allowed_probe.stdout }}"
+      denied_domain_probe: DENIED_AT_CONNECT
+      kubelet_regression: NONE
