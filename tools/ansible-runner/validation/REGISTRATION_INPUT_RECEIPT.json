@@ -1,0 +1,19 @@
+{
+  "source_archive_sha256": "5cf140fc17fb452c2c681502aa61e2eede0cc6992bdb13c55269c42c06c2351a",
+  "source_bytes": 6093,
+  "checked_at_utc": "2026-09-16T16:03:56.142878+00:00",
+  "outer_files": 17,
+  "inner_files": 10,
+  "integrity": "PASS_EXTERNAL_INNER_MANIFEST_EXACT_SET",
+  "copied_host_result": "BYTE_IDENTICAL",
+  "bundle_binding": "V1.1_MATCH",
+  "image_binding": "V1.1_MATCH",
+  "status": "FAIL_REGISTRATION_CHECK",
+  "configure_rc": 0,
+  "remove_rc": 0,
+  "runner_identity": "NOT_PRESERVED",
+  "actual_server_exception": "UNKNOWN",
+  "local_bom_compatibility_defect": "REPRODUCED",
+  "github_runner_api_absence": "NOT_VERIFIED",
+  "actions": "NOT_RUN"
+}

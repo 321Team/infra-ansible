@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import URL, VERSION, now, packet, require, write
+from common import URL, VERSION, now, packet, read_regular, require, write
 from proxy import relay
 
 SESSION = Path('/session')
@@ -145,6 +145,24 @@ def native(args, stage, token=None, timeout=180):
     return process.returncode
 
 
+def registered_identity(path, name, checks):
+    # Runner v2.337.0 IOUtil.SaveObject writes Encoding.UTF8 (with a BOM).
+    # Keep strict UTF-8/JSON and identity validation; only the leading BOM is optional.
+    raw = read_regular(path, 32768)
+    checks['utf8_bom'] = raw.startswith(b'\xef\xbb\xbf')
+    metadata = json.loads(raw.decode('utf-8-sig'))
+    checks['json_parsed'] = True
+    checks['object'] = type(metadata) is dict
+    require(checks['object'], 'Runner settings must be an object')
+    url, identifier = metadata.get('gitHubUrl'), metadata.get('agentId')
+    checks['url_matches'] = type(url) is str and url.rstrip('/') == URL
+    checks['name_matches'] = metadata.get('agentName') == name
+    checks['id_valid'] = type(identifier) is int and 0 < identifier < 2**53
+    require(all(checks[key] for key in ('url_matches', 'name_matches', 'id_valid')),
+            'Registered identity differs')
+    return {'agentId': identifier, 'agentName': name, 'gitHubUrl': URL}
+
+
 def session_run():
     completed = False
     job_result = None
@@ -185,6 +203,7 @@ def main():
     bridge = None
     secret = None
     removal_attempted = False
+    phase = 'isolation'
     try:
         require(ctypes.CDLL(None).prctl(4, 0, 0, 0, 0) == 0, 'Cannot disable controller memory dumping')
         isolation()
@@ -194,6 +213,7 @@ def main():
             (SESSION / name).mkdir(mode=0o700)
         shutil.copytree('/opt/runner', RUNNER)
         os.chmod(RUNNER, 0o700)
+        phase = 'listener-version'
         version = subprocess.run([str(RUNNER / 'bin/Runner.Listener'), '--version'], cwd=RUNNER,
                                  env=runner_env(), text=True, capture_output=True, timeout=30)
         record['listener_version_matches'] = version.returncode == 0 and version.stdout.strip() == VERSION
@@ -202,24 +222,27 @@ def main():
             event('listener-version-failed', rc=version.returncode, detail=version.stderr[-4096:])
         require(record['listener_version_matches'], 'Runner.Listener version/dependency test failed')
         if mode == 'prepare':
+            phase = 'network-probe'
             probe()
             record['status'] = 'PASS_PREPARE_CONTAINER'
             return 0
+        phase = 'token-packet'
         secret = packet(json.loads(sys.stdin.buffer.readline(8193)))
         require(len(sys.stdin.buffer.read(1)) == 0, 'Unexpected token packet suffix')
         name = os.environ['FDS_RUNNER_NAME']
         require(re.fullmatch(r'ansible-ci-[0-9a-f]{32}', name), 'Invalid fresh Runner name')
+        phase = 'configure'
         rc = native(['/bin/bash', './config.sh', '--unattended', '--url', URL, '--name', name,
                      '--work', '_work', '--labels', 'fds-ci,ansible-isolated', '--ephemeral', '--disableupdate'],
                     'configure', secret['registration']['token'])
         record['configure_rc'] = rc
         require(rc == 0, 'Runner configuration failed; private native logs excluded')
-        metadata = json.loads((RUNNER / '.runner').read_text())
-        require(metadata.get('gitHubUrl', '').rstrip('/') == URL and metadata.get('agentName') == name
-                and type(metadata.get('agentId')) is int, 'Registered identity differs')
-        record['runner'] = {'agentId': metadata['agentId'], 'agentName': name, 'gitHubUrl': URL}
+        phase = 'registered-identity'
+        record['identity_checks'] = {}
+        record['runner'] = registered_identity(RUNNER / '.runner', name, record['identity_checks'])
         event('configured', id=record['runner']['agentId'], name=name)
         if mode == 'serve':
+            phase = 'listener-session'
             rc, completed, reported = session_run()
             record.update(listener_rc=rc, job_finished_observed=completed, reported_job_result=reported,
                           status='SESSION_ENDED' if rc == 0 else 'FAIL', github_actions_verdict='VERIFY_RUN_AND_ARTIFACT')
@@ -227,6 +250,7 @@ def main():
             # may leave a record; management-host API observation is still required.
             record['deregistration'] = 'REQUIRES_MANAGEMENT_API_CHECK'
             return 0 if rc == 0 and completed else 1
+        phase = 'remove'
         removal_attempted = True
         removal = native(['/bin/bash', './config.sh', 'remove', '--unattended'], 'remove', secret['removal']['token'])
         record['remove_rc'] = removal
@@ -234,6 +258,7 @@ def main():
         record['status'] = 'PASS_REGISTRATION_CHECK'
         return 0
     except BaseException as exc:
+        record['failure_phase'] = phase
         record['error_type'] = type(exc).__name__
         # Fixed messages only. Never serialize arbitrary exceptions containing credentials.
         event('failed', error_type=type(exc).__name__)

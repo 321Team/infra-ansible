@@ -64,6 +64,21 @@ def clean_result(value, mode, name):
     require(type(value) is dict and value.get('mode') == mode, 'Missing/mismatched container result')
     allowed = {'FAIL', 'PASS_PREPARE_CONTAINER', 'PASS_REGISTRATION_CHECK', 'SESSION_ENDED'}
     out = {'mode': mode, 'status': value.get('status') if value.get('status') in allowed else 'FAIL'}
+    # Fixed classifications/booleans only. Never export exception text, metadata
+    # values that failed comparison, native logs, or a job-controlled string.
+    phase = value.get('failure_phase')
+    if type(phase) is str and phase in ('isolation', 'listener-version', 'network-probe',
+            'token-packet', 'configure', 'registered-identity', 'listener-session', 'remove'):
+        out['failure_phase'] = phase
+    error = value.get('error_type')
+    if type(error) is str:
+        out['error_type'] = error if error in ('RuntimeError', 'JSONDecodeError', 'UnicodeDecodeError',
+            'FileNotFoundError', 'PermissionError', 'OSError', 'TimeoutExpired', 'KeyboardInterrupt',
+            'TypeError', 'ValueError', 'KeyError', 'AttributeError') else 'OTHER'
+    checks = value.get('identity_checks')
+    if type(checks) is dict:
+        out['identity_checks'] = {key: checks[key] for key in ('utf8_bom', 'json_parsed', 'object',
+            'url_matches', 'name_matches', 'id_valid') if type(checks.get(key)) is bool}
     for key in ('listener_version_matches', 'job_finished_observed'):
         out[key] = value.get(key) is True
     for key in ('configure_rc', 'remove_rc', 'listener_rc'):

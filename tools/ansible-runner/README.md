@@ -1,4 +1,8 @@
-# Ansible 전용 Actions Runner v1.1 — 검토·실행 키트
+# Ansible 전용 Actions Runner v1.2 — 등록 파일 호환성 수정
+
+v1.1의 실제 registration-check는 configure/remove 각각 rc0이지만 전체 FAIL이었다. 격리14개와 컨테이너·workspace 정리는 통과했다. 공식 Runner가 저장하는 UTF-8 BOM 설정 파일을 `read_text()` → `json.loads()`가 거절하는 호환성 결함을 재현했다. v1.2는 bounded regular file을 `utf-8-sig`로 읽고 기존 저장소/이름/ID 검사를 유지한다. 실패 단계·허용된 예외 분류·BOM/identity 검사 boolean만 선별 보존한다. 서버의 원래 예외는 이전 증적에 없어 직접 원인을 확정하지 않는다. `REGISTRATION_FAILURE_REVIEW.md`는 코드 수정 전 검토다.
+
+**v1.2는 새 이미지와 새 prepare가 필요하다.** 이전 v1.1 PREPARED.json을 재사용하거나 수정하지 않는다. 아래 prepare 성공 증적을 확인한 뒤, 기존 관리 도구 v1.1.1로 새 토큰을 발급한다. 이전 실패에서 생성한 Runner 이름의 관리 API 목록 부재도 재등록 전에 확인해야 한다. 새 키트의 실제 Podman/등록 검사는 아직 NOT_RUN이다.
 
 v1 실행에서 계정·비sudo 검사는 통과했지만 `podman info` rc1로 컨테이너 생성 전 실패했다. 원본 stderr가 누락되어 직접 원인은 미확정이다. v1.1은 전용 계정 작업 디렉터리를 명시하고, 사전 점검 stdout/stderr를 보존한다. 기존 로그인 홈의 권한이나 SELinux를 완화하지 않는다. 상세 근거는 `PREPARE_FAILURE_REVIEW.md`와 `validation/INPUT_RECEIPT.json`에 있다.
 
@@ -17,9 +21,9 @@ zip과 zip.sha256를 기존 로그인 홈에 놓고 다음을 실행한다. 토�
 
 ```bash
 cd "$HOME"
-sha256sum -c FDS_Ansible_Actions_Runner_v1_1.zip.sha256
-unzip FDS_Ansible_Actions_Runner_v1_1.zip
-cd FDS_Ansible_Actions_Runner_v1_1
+sha256sum -c FDS_Ansible_Actions_Runner_v1_2.zip.sha256
+unzip FDS_Ansible_Actions_Runner_v1_2.zip
+cd FDS_Ansible_Actions_Runner_v1_2
 sha256sum -c SHA256SUMS
 sudo bash run.sh prepare
 ```
@@ -52,7 +56,7 @@ Unix socket의 SELinux 공유와 .NET 의존성은 prepare의 실제 확인 대�
 
 ### 1. 단기 토큰 발급·등록 후 해제 검사
 
-관리 호스트 ansible01에서 같은 검토본을 열고 기존 관리 로그인으로 실행한다.
+관리 호스트 ansible01에서 기존에 전달한 별도 `FDS_Ansible_Admin_Token_v1_1_1` 관리 키트를 열고 기존 관리 로그인으로 실행한다. 이 Runner 키트의 동명 초기 helper 대신 이미 발급 PASS한 v1.1.1을 사용한다.
 
 ```bash
 python3 -I -B admin-token.py
@@ -98,7 +102,7 @@ Runner는 자동 업데이트를 비활성화한 버전 고정 이미지다. Git
 
 ## 로컬 검증과 실제 검증의 구분
 
-`validation/RESULTS.json`과 `validation/unit.log`는 v1.1 제작 환경의 37건 단위·프로토콜 모형·파일/프로세스 경계 검사다. 로컬 자식 프로세스로 rc1·timeout·stderr 경고·작업 디렉터리·archive 잔존을 검사했다. 이는 실제 Podman 시험이 아니다. `python3 -I -B test-kit.py`로 재현한다. 실제 Podman build, UDS/SELinux 통신, Runner 등록, 실제 Actions는 제작 환경에서 NOT_RUN이다. 자체 코드 리뷰 기록은 독립 리뷰 승인이나 실제 서버 실행 증적이 아니다.
+`validation/RESULTS.json`, `unit.log`, `registration.log`는 v1.2 제작 환경의 단위·프로토콜 모형·파일/프로세스 경계 검사다. 기존37건과 새 등록 파일/회복/진단 회귀12건, 총49건 PASS다. 새 검사는 UTF-8 BOM/무BOM 정상 파일, 깨진 JSON/잘못된 identity 거절, main 모형의 등록→확인→제거 및 실패 시 회복 제거, 고정 필드 외 정보 제외를 포함한다. `python3 -I -B test-kit.py` 및 `python3 -I -B test-registration.py`로 재현한다. 실제 Podman build, UDS/SELinux 통신, Runner 등록, 실제 Actions는 제작 환경에서 NOT_RUN이다. 자체 코드 리뷰 기록은 독립 리뷰 승인이나 실제 서버 실행 증적이 아니다. 기존 `INPUT_RECEIPT.json`은 v1 prepare 실패 이력이며 이번 입력은 `REGISTRATION_INPUT_RECEIPT.json`이다.
 
 ## 공식 근거
 
