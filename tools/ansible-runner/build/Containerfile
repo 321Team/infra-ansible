@@ -9,7 +9,7 @@ RUN echo '70920811a4f8ad4328818682bca5c6469c1c942fab52448868071d0063816613  /tmp
  && useradd --uid 1000 --gid 1000 --no-create-home --home-dir /session/home runner \
  && command -v git && command -v bash && command -v grep \
  && python3.12 --version
-COPY common.py proxy.py container.py /opt/fds/
+COPY common.py proxy.py container.py ipc_probe.py /opt/fds/
 RUN chown -R 0:0 /opt/fds /opt/runner \
  && chmod 0555 /opt/fds /opt/runner \
  && chmod 0444 /opt/fds/*.py

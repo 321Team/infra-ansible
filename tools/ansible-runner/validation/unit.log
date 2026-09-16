@@ -22,7 +22,7 @@ test_home_collector_accepts_fixed_bounded_result (__main__.PreflightDiagnosticsT
 test_home_collector_rejects_symlink_archive (__main__.PreflightDiagnosticsTests.test_home_collector_rejects_symlink_archive) ... ok
 test_json_stdout_not_contaminated_by_stderr_warning (__main__.PreflightDiagnosticsTests.test_json_stdout_not_contaminated_by_stderr_warning) ... STAGE=podman-info
 ok
-test_launcher_child_cwd_is_explicit (__main__.PreflightDiagnosticsTests.test_launcher_child_cwd_is_explicit) ... /tmp/tmpjrn7xu83/dedicated
+test_launcher_child_cwd_is_explicit (__main__.PreflightDiagnosticsTests.test_launcher_child_cwd_is_explicit) ... /tmp/tmpvqgfghc1/dedicated
 ok
 test_linked_diagnostics_not_followed (__main__.PreflightDiagnosticsTests.test_linked_diagnostics_not_followed) ... ok
 test_missing_container_result_does_not_become_pass (__main__.PreflightDiagnosticsTests.test_missing_container_result_does_not_become_pass) ... ok
@@ -47,6 +47,6 @@ test_registration_requires_removal_and_identity (__main__.ResultTests.test_regis
 test_serve_is_not_ci_success (__main__.ResultTests.test_serve_is_not_ci_success) ... ok
 
 ----------------------------------------------------------------------
-Ran 37 tests in 0.479s
+Ran 37 tests in 0.471s
 
 OK

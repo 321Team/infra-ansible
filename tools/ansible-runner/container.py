@@ -64,6 +64,29 @@ class Bridge(socketserver.ThreadingMixIn, socketserver.TCPServer):
             self.slots.release()
 
 
+def shm_checks(mountinfo, stats):
+    """Require only the dedicated, bounded, hardened writable shared memory mount."""
+    rows = [line.split(' - ', 1) for line in mountinfo.splitlines() if ' - ' in line]
+    rows = [(left.split(), right.split()) for left, right in rows]
+    rows = [(left, right) for left, right in rows if len(left) >= 6 and len(right) >= 3 and left[4] == '/dev/shm']
+    if len(rows) != 1:
+        return dict.fromkeys(('shm-tmpfs', 'shm-writable', 'shm64m', 'shm-hardening'), False)
+    left, right = rows[0]
+    options = set(left[5].split(',')) | set(right[2].split(','))
+    return {
+        'shm-tmpfs': right[0] == 'tmpfs',
+        'shm-writable': not bool(stats.f_flag & os.ST_RDONLY) and 'rw' in options and 'ro' not in options,
+        'shm64m': stats.f_frsize * stats.f_blocks == 64 * 1024**2,
+        'shm-hardening': {'nosuid', 'nodev', 'noexec'} <= options,
+    }
+
+
+def ipc_preflight():
+    result = subprocess.run([sys.executable, '-I', '-B', str(Path(__file__).with_name('ipc_probe.py'))],
+                            text=True, capture_output=True, timeout=20)
+    return result.returncode == 0 and result.stdout.strip() == 'PASS_IPC'
+
+
 def isolation():
     values = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
     interfaces = {line.split(':', 1)[0].strip() for line in Path('/proc/net/dev').read_text().splitlines() if ':' in line}
@@ -81,6 +104,7 @@ def isolation():
         'pids512': Path('/sys/fs/cgroup/pids.max').read_text().strip() == '512',
         'cpu2': Path('/sys/fs/cgroup/cpu.max').read_text().split() == ['200000', '100000'],
     }
+    checks.update(shm_checks(Path('/proc/self/mountinfo').read_text(), os.statvfs('/dev/shm')))
     for host in ('1.1.1.1', '10.1.93.102'):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(2)
@@ -207,6 +231,9 @@ def main():
     try:
         require(ctypes.CDLL(None).prctl(4, 0, 0, 0, 0) == 0, 'Cannot disable controller memory dumping')
         isolation()
+        phase = 'ipc-preflight'
+        record['ipc_preflight_passed'] = ipc_preflight()
+        require(record['ipc_preflight_passed'], 'Multiprocessing preflight failed')
         bridge = Bridge(('127.0.0.1', 3128), BridgeHandler)
         threading.Thread(target=bridge.serve_forever, daemon=True).start()
         for name in ('home', 'tmp'):

@@ -82,7 +82,7 @@ class IdentityTests(unittest.TestCase):
 
 
 class RegistrationFlowTests(unittest.TestCase):
-    def flow(self, data, configure_rc=0, remove_rc=0):
+    def flow(self, data, configure_rc=0, remove_rc=0, ipc_ok=True):
         with tempfile.TemporaryDirectory() as folder, ExitStack() as stack:
             root = Path(folder)
             target = root / 'runner'
@@ -99,7 +99,7 @@ class RegistrationFlowTests(unittest.TestCase):
                 return remove_rc
             replacements = {'SESSION': root, 'RUNNER': target, 'RESULT': root / 'CONTAINER_RESULT.json',
                 'EVENTS': root / 'EVENTS.jsonl', 'Bridge': MagicMock(), 'isolation': MagicMock(),
-                'event': MagicMock(), 'native': native,
+                'event': MagicMock(), 'native': native, 'ipc_preflight': MagicMock(return_value=ipc_ok),
                 'packet': lambda _: {'registration': {'token': SECRET}, 'removal': {'token': SECRET}}}
             for name, value in replacements.items():
                 stack.enter_context(patch.object(container, name, value))
@@ -116,6 +116,13 @@ class RegistrationFlowTests(unittest.TestCase):
             clean = runner.clean_result(raw, 'registration-check', NAME)
             self.assertNotIn(SECRET, json.dumps(clean))
             return rc, clean, calls
+
+    def test_ipc_failure_prevents_registration(self):
+        rc, value, calls = self.flow(b'', ipc_ok=False)
+        self.assertEqual((rc, calls), (1, []))
+        self.assertEqual(value['failure_phase'], 'ipc-preflight')
+        self.assertFalse(value['ipc_preflight_passed'])
+        self.assertNotIn('runner', value)
 
     def test_bom_registration_configure_identity_remove_pass(self):
         rc, value, calls = self.flow(BOM + json.dumps(settings()).encode())

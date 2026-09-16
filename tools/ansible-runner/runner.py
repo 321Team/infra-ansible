@@ -35,6 +35,7 @@ STATES = {'prepare': 'PASS_PREPARE', 'registration-check': 'PASS_REGISTRATION_CH
 ISOLATION_KEYS = {'uid-gid', 'cap-effective-zero', 'cap-bounding-zero', 'no-new-privileges',
                   'seccomp', 'selinux-container-domain', 'network-only-loopback', 'root-readonly',
                   'socket-mount-readonly', 'memory4g', 'pids512', 'cpu2',
+                  'shm-tmpfs', 'shm-writable', 'shm64m', 'shm-hardening',
                   'direct-network-blocked-1.1.1.1', 'direct-network-blocked-10.1.93.102'}
 PROBE_ALLOW = ('https://api.github.com/', 'https://github.com/', 'https://pypi.org/simple/ansible-core/',
                'https://files.pythonhosted.org/')
@@ -53,7 +54,9 @@ def podman_command(kind, image, run, name, mode):
                           '--pids-limit=128', '--volume', str(run / 'proxy') + ':/proxy:rw,z',
                           '--workdir=/proxy', '--entrypoint=/usr/local/bin/python3', '-d',
                           image, '-I', '-B', '/opt/fds/proxy.py']
-    return command + ['--network=none', '--cpus=2', '--memory=4g', '--memory-swap=4g',
+    return command + ['--network=none', '--ipc=private', '--tmpfs',
+                      '/dev/shm:rw,nosuid,nodev,noexec,size=64m,mode=1777',
+                      '--cpus=2', '--memory=4g', '--memory-swap=4g',
                       '--pids-limit=512', '--volume', str(run / 'session') + ':/session:rw,Z',
                       '--volume', str(run / 'proxy') + ':/proxy:ro,z',
                       '--env', 'FDS_RUNNER_NAME=' + name, '-i', image, mode]
@@ -67,7 +70,7 @@ def clean_result(value, mode, name):
     # Fixed classifications/booleans only. Never export exception text, metadata
     # values that failed comparison, native logs, or a job-controlled string.
     phase = value.get('failure_phase')
-    if type(phase) is str and phase in ('isolation', 'listener-version', 'network-probe',
+    if type(phase) is str and phase in ('isolation', 'ipc-preflight', 'listener-version', 'network-probe',
             'token-packet', 'configure', 'registered-identity', 'listener-session', 'remove'):
         out['failure_phase'] = phase
     error = value.get('error_type')
@@ -79,7 +82,7 @@ def clean_result(value, mode, name):
     if type(checks) is dict:
         out['identity_checks'] = {key: checks[key] for key in ('utf8_bom', 'json_parsed', 'object',
             'url_matches', 'name_matches', 'id_valid') if type(checks.get(key)) is bool}
-    for key in ('listener_version_matches', 'job_finished_observed'):
+    for key in ('listener_version_matches', 'job_finished_observed', 'ipc_preflight_passed'):
         out[key] = value.get(key) is True
     for key in ('configure_rc', 'remove_rc', 'listener_rc'):
         v = value.get(key)
@@ -99,6 +102,7 @@ def container_ok(mode, value, rc, state, checks, probe=None):
     if (type(rc) is not int or rc != 0 or state.get('Status') != 'exited'
             or type(state.get('ExitCode')) is not int or state['ExitCode'] != 0
             or state.get('OOMKilled') is not False or not value.get('listener_version_matches')
+            or value.get('ipc_preflight_passed') is not True
             or set(checks) != ISOLATION_KEYS or not all(v is True for v in checks.values())):
         return False
     if mode == 'prepare':
@@ -254,7 +258,7 @@ class Controller:
         require(count == RUNNER_BYTES and digest(archive) == RUNNER_SHA, 'Runner archive checksum/size mismatch')
         write(self.evidence / 'RUNNER_DOWNLOAD.json', {'url': RUNNER_URL, 'version': VERSION,
               'sha256': RUNNER_SHA, 'bytes': count, 'base': BASE, 'base_image_id': BASE_ID})
-        for name in ('common.py', 'proxy.py', 'container.py'):
+        for name in ('common.py', 'proxy.py', 'container.py', 'ipc_probe.py'):
             shutil.copyfile(ROOT / name, context / name)
         shutil.copyfile(ROOT / 'build/Containerfile', context / 'Containerfile')
         command = PODMAN + ['build', '--pull=never', '--network=none', '--build-arg', 'BASE_IMAGE=' + BASE,

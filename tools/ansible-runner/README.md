@@ -1,115 +1,70 @@
-# Ansible 전용 Actions Runner v1.2 — 등록 파일 호환성 수정
+# Ansible 격리 Runner v1.3 — IPC 수정 및 준비 재검증
 
-v1.1의 실제 registration-check는 configure/remove 각각 rc0이지만 전체 FAIL이었다. 격리14개와 컨테이너·workspace 정리는 통과했다. 공식 Runner가 저장하는 UTF-8 BOM 설정 파일을 `read_text()` → `json.loads()`가 거절하는 호환성 결함을 재현했다. v1.2는 bounded regular file을 `utf-8-sig`로 읽고 기존 저장소/이름/ID 검사를 유지한다. 실패 단계·허용된 예외 분류·BOM/identity 검사 boolean만 선별 보존한다. 서버의 원래 예외는 이전 증적에 없어 직접 원인을 확정하지 않는다. `REGISTRATION_FAILURE_REVIEW.md`는 코드 수정 전 검토다.
+Run35139314896/Attempt1은 실제 실행 후 FAIL이다. 32개 syntax rc0,
+두 엔진의 baseline fixture는 각각 PASS0/FAIL0/ERROR14이며 /dev/shm 읽기 전용으로 multiprocessing이 실패했다.
+원본 artifact397파일 및 SHA256 검증 완료. 상세 근거는 IPC_FAILURE_REVIEW.md.
 
-**v1.2는 새 이미지와 새 prepare가 필요하다.** 이전 v1.1 PREPARED.json을 재사용하거나 수정하지 않는다. 아래 prepare 성공 증적을 확인한 뒤, 기존 관리 도구 v1.1.1로 새 토큰을 발급한다. 이전 실패에서 생성한 Runner 이름의 관리 API 목록 부재도 재등록 전에 확인해야 한다. 새 키트의 실제 Podman/등록 검사는 아직 NOT_RUN이다.
+## 변경과 현재 한계
 
-v1 실행에서 계정·비sudo 검사는 통과했지만 `podman info` rc1로 컨테이너 생성 전 실패했다. 원본 stderr가 누락되어 직접 원인은 미확정이다. v1.1은 전용 계정 작업 디렉터리를 명시하고, 사전 점검 stdout/stderr를 보존한다. 기존 로그인 홈의 권한이나 SELinux를 완화하지 않는다. 상세 근거는 `PREPARE_FAILURE_REVIEW.md`와 `validation/INPUT_RECEIPT.json`에 있다.
+Runner만 private IPC와64MiB /dev/shm tmpfs(rw,nosuid,nodev,noexec,mode1777)를 사용한다.
+루트 읽기 전용·network none·SELinux·capabilities0·CPU2/RAM4GiB/PIDs512·proxy 제한은 유지한다.
+모든 모드에서 shm mount4개와 fork/spawn semaphore·자식통신 검사를 토큰 읽기 전에 수행한다.
+검사 실패 시 등록 및 prepare PASS를 차단한다. Proxy에는 새 쓰기 가능 마운트를 추가하지 않는다.
 
-현재 권장 실행은 **`prepare`**다. 등록 토큰 없이 전용 컨테이너 이미지와 격리·통신을 실서버에서 검사한다. 새 Runner 등록, 실제 Actions, 활성화 리뷰, merge, 운영 적용은 이 키트의 로컬 검증으로 완료되지 않는다.
+기존 Runner v1.2 이미지/PREPARED는 이 bundle에서 재사용할 수 없다. 새prepare로 새이미지를 만든다.
+이 ZIP을 작성한 환경에서 Python IPC 동작은 통과했으나 실제cicd-runner01의 수정Podman 실행은 아직 NOT_RUN이다.
+토큰 발급·등록·Actions 재실행은 이 문서의 절차에 포함하지 않는다.
+기존 부재증적은 ID3 대상이다. 이번 ID4는 관리자 API로 별도 확인한다.
 
-## 확인된 출발점
+## 실행
 
-- 2026-09-16 제출 증적: cicd-runner01의 기존 앱 Runner ID2는 infra-cicd 소속이며 online/idle이었다. infra-ansible Runner는 0대였다. 이 관측은 이후 상태를 보장하지 않는다.
-- cicd-runner01: 기존 로그인 `server01_cicd-runner` UID1000, 격리 계정 `ansible-verify` UID1001/GID1002. 격리 계정 password locked/비sudo, home0700를 매번 다시 검사한다. sudo 목록의 rc0만으로 권한을 판단하지 않는다.
-- 제출된 r3 증적에서 rootless Podman6.1/SELinux Enforcing/cgroupv2와 두 Ansible 엔진 localhost 회귀가 실제 PASS했다. 새 Runner의 실서버 PASS 근거로 대체하지 않는다.
-- 검토 대상: CI PR17 `169571801d1b0cee0ba75137380149a48d6b56dd`, egress PR18 `d5147ebff0febbb8ab2afca28fe64d68301e033c`. 소스가 바뀌면 후속 Actions 증적은 새 SHA로 다시 묶어야 한다.
+ZIP과 .zip.sha256를 두 호스트의 기존 로그인 홈에 복사한다.
+root/sudo 로그인으로 시작하지 않는다. 경로를 입력받거나 HOME을 재정의하지 않는다.
+새wrapper에는 홈chmod·삭제·서비스설정 변경이 없다. 증적은 기존로그인홈 신규디렉터리에 생성한다.
 
-## 지금 실행할 명령 — cicd-runner01 기존 로그인
-
-zip과 zip.sha256를 기존 로그인 홈에 놓고 다음을 실행한다. 토큰 파일은 필요 없다.
+1. ansible01 / server01_ansible: 기존 gh 인증으로 ID4/name 부재를 GET 확인한다. 삭제나 토큰 발급은 없다.
 
 ```bash
+(
+set -euo pipefail
+umask 077
 cd "$HOME"
-sha256sum -c FDS_Ansible_Actions_Runner_v1_2.zip.sha256
-unzip FDS_Ansible_Actions_Runner_v1_2.zip
-cd FDS_Ansible_Actions_Runner_v1_2
-sha256sum -c SHA256SUMS
-sudo bash run.sh prepare
+sha256sum -c FDS_Ansible_Actions_Runner_v1_3.zip.sha256
+TASK_IPC_ADMIN=$(mktemp -d "$HOME/ansible-ipc-admin.XXXXXXXX")
+unzip -q FDS_Ansible_Actions_Runner_v1_3.zip -d "$TASK_IPC_ADMIN"
+cd "$TASK_IPC_ADMIN/FDS_Ansible_Actions_Runner_v1_3"
+bash 01-admin-absence.sh
+)
 ```
 
-이미 같은 이름의 폴더가 있으면 기존 내용을 덮어쓰지 말고 새 폴더에 압축을 해제한다. `sudo`는 계정 검사·검토본 설치·UID 전환·증적 수집에 사용하며 Podman은 UID1001로 실행한다. 기존 앱 Runner 서비스·등록·방화벽·sudo 정책을 바꾸지 않는다.
-
-최종 출력의 `HOME_EVIDENCE=` 파일과 같은 경로의 `.sha256`를 제출한다. 성공·실패 모두 `/home/server01_cicd-runner/ansible-actions-evidence-*/`에 생성한다. 실패 시 다른 단계로 진행하지 말고 이 두 증적만 제출하면 된다.
-
-`STATUS=PASS_PREPARE`에는 다음이 모두 필요하다.
-
-1. 전용 계정과 비sudo, systemd user bus, rootless Podman, SELinux Enforcing, cgroupv2/systemd 확인.
-2. 실행 시점 CPU≥4개, 사용 가능 RAM≥6GiB, home 여유≥8GiB. Runner는 CPU2/RAM4GiB/PIDs512, proxy는 CPU0.25/RAM256MiB/PIDs128로 제한한다. 기존 앱 작업이 쓰는 자원도 고려해 한 세션만 실행한다.
-3. r3에서 확인된 Python base 이미지가 전용 계정의 로컬 저장소에 있고 ID가 일치해야 한다. 자동으로 다른 태그를 pull해 대체하지 않는다.
-4. 공식 Runner v2.337.0 Linux x64 파일 226,430,031bytes와 SHA256 검증, network=none 이미지 build, Listener 버전·실행 의존성 확인.
-5. Runner 컨테이너 UID/GID1000, cap0, NNP, seccomp, SELinux container_t, root/socket mount readonly, loopback만 존재, CPU/RAM/PIDs 제한 및 직접 공인/사설주소 연결 거절 확인.
-6. 제한 프록시를 통한 GitHub/PyPI HTTPS 4건과 사설·metadata·미허용 도메인 거절 4건 확인. HTTPS 응답 수신은 인증/API/Actions 성공 판정이 아니다.
-7. 이번에 생성한 두 CID만 제거하고 private workspace를 정리한다. 하나라도 확인되지 않으면 FAIL. 이미지 캐시와 검토본 설치 폴더는 다음 단계에 사용한다.
-
-`PREPARED=`는 UID1001 홈에 남는 검증 영수증의 절대 경로다. 이 영수증은 키트 manifest와 이미지 ID에 묶이며 키트를 수정하면 다시 prepare해야 한다. 복제하거나 수기로 고치지 않는다.
-
-## 격리와 네트워크 범위
-
-Runner 전체는 `--network=none` 컨테이너에서 실행한다. 컨테이너 내부127.0.0.1:3128 → readonly로 마운트한 Unix socket → 별도 rootless proxy의 연결만 제공한다. proxy는 HTTPS CONNECT443과 코드에 고정된 GitHub/PyPI hostname만 허용하고 DNS 결과 전체가 공인 주소인지 검사한 후 같은 주소로 연결한다. 사설주소, loopback, metadata, IP literal, 다른 포트, DNS의 공인·사설 혼합 결과를 거절한다.
-
-`*.actions.githubusercontent.com`, `*.blob.core.windows.net`는 Actions 통신에 필요한 suffix 허용 범위다. 이는 공개 목적지 제한이며 특정 저장소만을 식별하는 애플리케이션 방화벽은 아니다. 이 환경에 운영 자격증명을 넣지 않는다. 새로운 도메인이나 필요한 Runner 업데이트는 공식 변경을 확인하고 코드 리뷰·prepare 후 반영한다.
-
-Unix socket의 SELinux 공유와 .NET 의존성은 prepare의 실제 확인 대상이다. 실패를 해결하려고 `--privileged`, SELinux disable, host network, daemon socket, 운영 계정 재사용으로 변경하지 않는다. 컨테이너는 호스트 커널을 공유하며 VM 경계로 간주하지 않는다.
-
-## 후속 단계 — prepare 증적 확인 후
-
-### 1. 단기 토큰 발급·등록 후 해제 검사
-
-관리 호스트 ansible01에서 기존에 전달한 별도 `FDS_Ansible_Admin_Token_v1_1_1` 관리 키트를 열고 기존 관리 로그인으로 실행한다. 이 Runner 키트의 동명 초기 helper 대신 이미 발급 PASS한 v1.1.1을 사용한다.
+2. cicd-runner01 / server01_cicd-runner: 수정된이미지 생성과 토큰없는 prepare 실행.
 
 ```bash
-python3 -I -B admin-token.py
+(
+set -euo pipefail
+umask 077
+cd "$HOME"
+sha256sum -c FDS_Ansible_Actions_Runner_v1_3.zip.sha256
+TASK_IPC_PREPARE=$(mktemp -d "$HOME/ansible-ipc-prepare.XXXXXXXX")
+unzip -q FDS_Ansible_Actions_Runner_v1_3.zip -d "$TASK_IPC_PREPARE"
+cd "$TASK_IPC_PREPARE/FDS_Ansible_Actions_Runner_v1_3"
+bash 02-prepare.sh
+)
 ```
 
-도구는 해당 관리 호스트의 `gh` 인증으로 `321Team/infra-ansible` 등록/제거 단기 토큰만 발급하고 로그인 홈에0600 packet을 만든다. PAT/gh 인증 파일을 Runner 호스트로 복사하지 않는다. `TOKEN_PACKET=` 파일은 자격증명이므로 이 대화나 증적에 첨부하지 않는다. 기존 승인된 사설 파일 전송 경로로 cicd-runner01 로그인 홈에0600으로 전달한다. 등록 시점에 두 토큰 모두 10분 이상, 120분 이하가 남아 있어야 한다.
+prepare는 기존 계정검증 후 sudo로 전용비sudo계정에 전환하고 새실행경로만 사용한다.
+이미지빌드를 위해 고정Runner2.337.0 배포파일을 다시다운로드하며 SHA256/크기를 검증한다.
+원본Python기반이미지를 재사용하고 호스트패키지·기존앱Runner서비스를 변경하지 않는다.
 
-cicd-runner01에서 실제 출력 경로로 다음 두 변수를 채운다.
+## 제출과 다음 실행
 
-```bash
-PREPARED_PATH='/home/ansible-verify/ansible-actions-실제ID/evidence/PREPARED.json'
-TOKEN_PATH="$HOME/ansible-runner-token-실제이름.json"
-sudo bash run.sh registration-check --prepared "$PREPARED_PATH" --token-file "$TOKEN_PATH"
-```
+각 호스트의 HOME_EVIDENCE= 압축파일과 .sha256를 제출한다.
+관리자는 ansible-runner-absence.tar.gz, Runner는 ansible-actions-runner-evidence.tar.gz다.
+관리자 PASS_ABSENT와 서버 PASS_PREPARE,18개격리체크,ipc_preflight_passed=true,
+네트워크probe·cleanup·새image/bundle/PREPARED 일치를 확인한뒤 같은PR20 소스로 정상Actions를 재시험한다.
+실패 시 같은실행을 반복하거나 구영수증을 편집하지 말고 생성된증적부터 확인한다.
 
-등록 이름은 `ansible-ci-<새 UUID>`이고 labels는 `self-hosted,Linux,X64,fds-ci,ansible-isolated`다. 기존 이름으로 replace하지 않는다. 이 모드는 Listener를 시작하지 않으며 등록 후 즉시 remove한다. `PASS_REGISTRATION_CHECK`는 config/remove 반환코드·선별 identity·컨테이너 정리 통과를 뜻한다. 관리 호스트에서도 해당 ID/name이 저장소 Runner 목록에서 사라졌는지 확인해야 한다.
-
-등록/제거 또는 세션이 중단되면 GitHub에 offline record가 남을 수 있다. 증적의 repository 및 `runner_name`/`agentId`와 관리 호스트 API 목록을 대조해 이번 생성 항목만 정리한다. CID 누락·정리 실패라면 dedicated_run/CLEANUP.json을 기준으로 확인하고 재실행 전에 남은 컨테이너를 해결한다. 전체 Runner 삭제나 Podman prune은 사용하지 않는다.
-
-### 2. 활성화 검토 후 Job1개 세션
-
-PR17의 workflow는 아직 `docs/ci/ansible-regression.workflow.yml`에 있는 비활성 템플릿이다. 이 키트는 workflow를 `.github/workflows`로 복사하거나 변수/정책을 활성화하지 않는다. 먼저 새 격리 Runner, 같은 저장소 PR만 실행, contents:read, secret 없음, 정확한 source SHA 및 정상/고의 결함 검증계획을 독립 리뷰한다.
-
-활성화 변경이 승인·반영되면 Runner selector의 후보는 `["self-hosted","Linux","X64","fds-ci","ansible-isolated"]`다. actual Runner의 API labels와 일치하는지 확인한다. 준비·등록 증적만으로 활성화 승인을 대체하지 않는다.
-
-새 단기 토큰 packet으로 한 세션을 시작한다.
-
-```bash
-sudo bash run.sh serve --prepared "$PREPARED_PATH" --token-file "$TOKEN_PATH"
-```
-
-최대1시간, Job1개 후 종료하는 ephemeral Runner다. 정상/고의 결함 시험은 각각 새로운 세션이 필요하다. 외부 호스트 controller가 timeout·종료 후 정확한 CID를 정리한다. `SESSION_ENDED_REQUIRES_CI_REVIEW`는 Job 종료를 관측했음을 의미하며 Job 자체가 Failed인 경우에도 나올 수 있다. GitHub에서 Run ID, Attempt, source/workflow/check SHA, 실제 conclusion, artifact SHA와 실패 차단을 별도로 검증한다. 정상 종료 전 중단되면 관리 API의 등록 제거 확인이 필요하다.
-
-Runner는 자동 업데이트를 비활성화한 버전 고정 이미지다. GitHub의 업데이트 허용 기간과 보안 업데이트 요구를 계속 충족해야 하며 버전 갱신 시 코드/이미지 검토·prepare를 반복한다. 장기간 운영용 상시 서비스나 재부팅 자동 복구 서비스는 제공하지 않는다.
-
-## 증적·토큰 처리
-
-- token packet은 root launcher → runuser controller → `podman -i` stdin으로 전달한다. Podman argv/env·증적에는 원문을 넣지 않는다. config child에만 공식 `ACTIONS_RUNNER_INPUT_TOKEN` env 입력을 사용한다.
-- Runner `_diag`, `.credentials`, raw native output, token packet은 archive에서 제외한다. job을 실행한 모드에서는 컨테이너 출력의 임의 문자열을 수집하지 않고 고정 필드와 상태만 선별한다.
-- prepare는 토큰을 읽지 않는다. 고정된 사전 점검·build·container·cleanup 단계의 stdout/stderr 각각 끝64KiB를 보존하며 rc/cwd/timeout/원래 길이/잘림 여부를 함께 기록한다. `podman-info.prepare.stderr.log`와 `podman-info.prepare.json`에서 초기 실패를 확인할 수 있다. 로그 수집 실패도 PASS를 차단한다.
-- workspace 삭제는 컨테이너 제거 확인 뒤 수행한다. 정리 실패 때는 FAIL과 잔존 위치를 기록하며 credential workspace가 남을 수 있으므로 증적 확인 후 해당 위치만 정리한다.
-- 원본 token packet은 자동 삭제하지 않는다. 사용 후 발급·만료 정책에 따라 관리하고, 증적 제출 대상으로 선택하지 않는다.
-
-## 로컬 검증과 실제 검증의 구분
-
-`validation/RESULTS.json`, `unit.log`, `registration.log`는 v1.2 제작 환경의 단위·프로토콜 모형·파일/프로세스 경계 검사다. 기존37건과 새 등록 파일/회복/진단 회귀12건, 총49건 PASS다. 새 검사는 UTF-8 BOM/무BOM 정상 파일, 깨진 JSON/잘못된 identity 거절, main 모형의 등록→확인→제거 및 실패 시 회복 제거, 고정 필드 외 정보 제외를 포함한다. `python3 -I -B test-kit.py` 및 `python3 -I -B test-registration.py`로 재현한다. 실제 Podman build, UDS/SELinux 통신, Runner 등록, 실제 Actions는 제작 환경에서 NOT_RUN이다. 자체 코드 리뷰 기록은 독립 리뷰 승인이나 실제 서버 실행 증적이 아니다. 기존 `INPUT_RECEIPT.json`은 v1 prepare 실패 이력이며 이번 입력은 `REGISTRATION_INPUT_RECEIPT.json`이다.
-
-## 공식 근거
-
-- [Runner v2.337.0 release와 checksum](https://github.com/actions/runner/releases/tag/v2.337.0)
-- [해당 버전의 token env 처리](https://github.com/actions/runner/blob/v2.337.0/src/Runner.Listener/CommandSettings.cs)
-- [GitHub Runner 프록시 설정](https://docs.github.com/en/actions/how-tos/manage-runners/use-proxy-servers)
-- [Runner 통신·ephemeral·업데이트 정책](https://docs.github.com/en/actions/reference/runners/self-hosted-runners)
-- [Podman run의 userns·mount·보안 옵션](https://docs.podman.io/en/latest/markdown/podman-run.1.html)
-
-- [Podman의 local/remote 및 cgroup-manager 전역 옵션](https://docs.podman.io/en/latest/markdown/podman.1.html)
+과거 DEEP_REVIEW/CODE_REVIEW/PREPARE_FAILURE_REVIEW/REGISTRATION_FAILURE_REVIEW와
+validation/INPUT_RECEIPT 및 REGISTRATION_INPUT_RECEIPT는 버전별 이력이다.
+현재검증은 validation/IPC_INPUT_RECEIPT.json·IPC_RESULTS.json 및 새로그다.
+정상Actions PASS·결함시험·독립승인·병합·운영apply·Issue5완료는 아직 충족되지 않았다.

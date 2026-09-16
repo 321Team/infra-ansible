@@ -177,7 +177,7 @@ class ResultTests(unittest.TestCase):
     def setUp(self):
         self.state = {'Status': 'exited', 'ExitCode': 0, 'OOMKilled': False}
         self.checks = dict.fromkeys(runner.ISOLATION_KEYS, True)
-        self.result = {'mode': 'prepare', 'status': 'PASS_PREPARE_CONTAINER', 'listener_version_matches': True}
+        self.result = {'mode': 'prepare', 'status': 'PASS_PREPARE_CONTAINER', 'listener_version_matches': True, 'ipc_preflight_passed': True}
 
     def test_prepare_requires_all_conditions(self):
         self.assertTrue(runner.container_ok('prepare', self.result, 0, self.state, self.checks, True))
@@ -200,7 +200,7 @@ class ResultTests(unittest.TestCase):
         self.assertRaises(RuntimeError, runner.clean_result, {}, 'prepare', NAME)
 
     def test_registration_requires_removal_and_identity(self):
-        result = {'status': 'PASS_REGISTRATION_CHECK', 'listener_version_matches': True,
+        result = {'status': 'PASS_REGISTRATION_CHECK', 'listener_version_matches': True, 'ipc_preflight_passed': True,
                   'configure_rc': 0, 'remove_rc': 0, 'runner': {'agentId': 7}}
         self.assertTrue(runner.container_ok('registration-check', result, 0, self.state, self.checks))
         result['remove_rc'] = 1
@@ -209,7 +209,7 @@ class ResultTests(unittest.TestCase):
         self.assertFalse(runner.container_ok('registration-check', result, 0, self.state, self.checks))
 
     def test_serve_is_not_ci_success(self):
-        result = {'status': 'SESSION_ENDED', 'listener_version_matches': True, 'configure_rc': 0,
+        result = {'status': 'SESSION_ENDED', 'listener_version_matches': True, 'ipc_preflight_passed': True, 'configure_rc': 0,
                   'listener_rc': 0, 'runner': {'agentId': 7}, 'job_finished_observed': True, 'reported_job_result': 'Failed'}
         self.assertTrue(runner.container_ok('serve', result, 0, self.state, self.checks))
         result['job_finished_observed'] = False
