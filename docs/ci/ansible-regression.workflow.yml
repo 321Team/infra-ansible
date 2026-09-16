@@ -14,8 +14,11 @@ jobs:
     # Skipped is NOT the evidence required by Issue #5; enable only on an isolated Runner.
     if: >-
       vars.ANSIBLE_CI_ENABLED == 'true' &&
+      vars.ANSIBLE_CI_RUNNER_LABELS != '' &&
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ${{ fromJSON(vars.ANSIBLE_CI_RUNNER_LABELS) }}
+    # Keep a valid nonempty selector even when the disabled job has no labels.
+    # Never assign the sentinel label to a Runner; missing labels must skip above.
+    runs-on: ${{ fromJSON(vars.ANSIBLE_CI_RUNNER_LABELS || '["self-hosted","ansible-ci-unconfigured"]') }}
     timeout-minutes: 30
     env:
       CI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

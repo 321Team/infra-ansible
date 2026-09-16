@@ -44,6 +44,11 @@ CI_RESULT status FAIL 및 실행기 exit1로 전달합니다. continue-on-error�
 `docs/ci/ansible-regression.workflow.yml`은 **.github/workflows 바깥의 비활성 초안**입니다.
 Runner 입력·경계와 독립 리뷰를 확인한 별도 변경에서 .github/workflows/ansible-regression.yml로 편입합니다.
 확정한 labels를 JSON 배열로 ANSIBLE_CI_RUNNER_LABELS에, 동작 확인 후 ANSIBLE_CI_ENABLED=true를 설정합니다.
+labels가 미설정/빈 문자열이면 활성화 값과 무관하게 Job 조건이 false가 됩니다. `runs-on`도 빈 JSON 파싱을
+피하도록 비어 있지 않은 sentinel 배열로 폴백합니다. `ansible-ci-unconfigured`는 실제 Runner에 부여하지 않습니다.
+빈 배열을 안전한 Runner 선택으로 가정하지 않으며, 비어 있지 않은 잘못된 JSON은 자동 보정하지 않습니다.
+활성화 검증에는 미설정 labels, 정상 labels, 잘못된 JSON, 비활성 및 fork PR 조건을 포함합니다.
+이 조건의 로컬 점검은 GitHub의 실제 skip/실행 증적을 대신하지 않으며 skipped는 #5의 PASS가 아닙니다.
 선택 값 ANSIBLE_CI_WHEEL_DIR은 승인된 wheel 보관 경로입니다. 본 작업은 저장소 변수나 Runner 등록을 변경하지 않습니다.
 
 trigger는 동일 저장소의 main 대상 pull_request 및 workflow_dispatch입니다. pull_request_target·자동 병합·배포 단계는 없습니다.
