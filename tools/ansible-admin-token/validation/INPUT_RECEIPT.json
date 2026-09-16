@@ -1,0 +1,17 @@
+{
+  "input": "dfb31334-c6e4-477d-b3c8-ffe795d54059.png",
+  "sha256": "bec6b7256a6dce93c4eb3583d2f7a175b99a62d0bd81b76596035c207cd6e694",
+  "type": "user_submitted_screenshot",
+  "observed": [
+    "ZIP and manifest checks printed success",
+    "STOP: RuntimeError",
+    "prompt server01_ansible@ansible01"
+  ],
+  "unknown": [
+    "failed stage",
+    "API returncode and HTTP status",
+    "whether any token POST succeeded",
+    "host UID and clock"
+  ],
+  "source_code_head": "5fd76293da7bbcdb238cc8edeb8206e47283e395"
+}
