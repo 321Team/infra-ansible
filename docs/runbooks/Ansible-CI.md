@@ -68,8 +68,11 @@ Fork PR은 실행하지 않으며 이 필터는 Runner 격리나 사람의 코�
 ## 정상·고의 결함 Actions 증명
 
 활성화 후 정상 HEAD에서 actual Run ID/Attempt·workflow SHA·source SHA·Runner 이름·Check SHA·artifact 해시를 기록합니다.
-정상 시험은 PASS/exit0이어야 합니다. 별도 임시 검증 브랜치에서 첫 SSH guard의 failed_when `or`를 `and`로 바꾼
-**실제 고의 결함 commit**을 만들고 해당 PR Run이 FAIL/exit1이 되는 것을 확인합니다. 다른 경로의 문법 오류도 차단됩니다.
+정상 시험은 PASS/exit0이어야 합니다. 별도 임시 검증 브랜치에서 첫 SSH guard의 count 비교 `!= 1`만 `!= 2`로 바꾼
+**실제 고의 결함 commit**을 만들고 해당 PR Run이 FAIL/exit1이 되는 것을 확인합니다. OR와 두 번째 guard 및 시험 기대값은 유지합니다.
+`or → and`는 기존 matrix 생성기의 OR 전제조건에서 먼저 중단되므로 이 실제 인수 사례로 사용하지 않습니다.
+결함 원인은 첫 guard의 one_plain/one_restricted/two_plain/two_restricted/mixed 5건 불일치로 확인해야 합니다.
+환경 오류·설치 실패·취소만으로 기대한 결함 탐지 성공을 인정하지 않습니다. 다른 경로의 문법 오류도 차단됩니다.
 결함 commit은 main에 병합하지 않으며 결과 확인 후 해당 PR을 닫고 원문 artifact는 보존합니다.
 
 내부 mutation 시험이 성공했다는 것만으로 실제 고의 결함 Actions Run을 대체하지 않습니다.
@@ -77,6 +80,9 @@ Fork PR은 실행하지 않으며 이 필터는 Runner 격리나 사람의 코�
 이번 선행 검토는 이하영 부재 기록과 CICD 검토 이력을 고려하여 이재환(`supreme33-kr`)에게 요청합니다.
 이는 이번 PR의 검토 담당 선택이며 상시 Lead/Support나 최종 병합 권한을 변경하지 않습니다.
 현재 이 단계는 NOT RUN이며 #5 AC는 최종 체크하지 않습니다.
+
+검토 가능한 비활성 patch와 실행별 증적 대조 기준은 [Actions 인수 준비](../ci/ACTIONS_ACCEPTANCE.md)를 따릅니다.
+patch 파일을 게시한 것만으로 Workflow가 활성화되지 않습니다.
 
 ## 증적과 작업 디렉터리 수명
 
