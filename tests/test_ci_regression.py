@@ -1,7 +1,9 @@
 """Matrix omissions and process failures must stop the CI gate without Linux."""
+import ast
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -14,6 +16,74 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('ci_runner', ROOT / 'tools/run-ansible-ci.py')
 ci = importlib.util.module_from_spec(spec); spec.loader.exec_module(ci)
 CODE = 'a' * 40
+
+# Review contract, deliberately independent from the YAML's configurable input.
+ISOLATED_LABELS = ['self-hosted', 'Linux', 'X64', 'fds-ci', 'ansible-isolated']
+ISOLATED_SETTING = json.dumps(ISOLATED_LABELS, separators=(',', ':'))
+
+
+def workflow_gate_model(expression, values):
+    """String-only model of this template; not GitHub's expression engine."""
+    expression = re.sub(r'(?:vars|github)(?:\.[A-Za-z_]+)+',
+                        lambda match: repr(values[match.group()]), expression)
+    tree = ast.parse(expression.replace('&&', 'and').replace('||', 'or').strip(), mode='eval')
+
+    def visit(node):
+        if isinstance(node, ast.Expression):
+            return visit(node.body)
+        if isinstance(node, ast.Constant) and type(node.value) is str:
+            # GitHub's string equality is case-insensitive. Inputs here are ASCII.
+            return node.value.casefold()
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
+            results = [visit(child) for child in node.values]
+            return all(results) if isinstance(node.op, ast.And) else any(results)
+        if isinstance(node, ast.Compare) and len(node.ops) == len(node.comparators) == 1:
+            left, right = visit(node.left), visit(node.comparators[0])
+            if isinstance(node.ops[0], ast.Eq):
+                return left == right
+            if isinstance(node.ops[0], ast.NotEq):
+                return left != right
+        raise ValueError('Unsupported workflow expression in the local model')
+
+    return visit(tree)
+
+
+def workflow_cases(job):
+    repo = '321Team/infra-ansible'
+    cases = [
+        ('same-repo', 'true', ISOLATED_SETTING, 'pull_request', repo, True),
+        ('manual', 'true', ISOLATED_SETTING, 'workflow_dispatch', '', True),
+        ('case-insensitive', 'TRUE', ISOLATED_SETTING.lower(), 'pull_request', repo.upper(), True),
+        ('disabled', 'false', ISOLATED_SETTING, 'pull_request', repo, False),
+        ('enabled-unset', '', ISOLATED_SETTING, 'pull_request', repo, False),
+        ('enabled-not-boolean-text', '1', ISOLATED_SETTING, 'pull_request', repo, False),
+        ('labels-unset', 'true', '', 'pull_request', repo, False),
+        ('labels-malformed', 'true', 'not-json', 'pull_request', repo, False),
+        ('labels-empty-array', 'true', '[]', 'pull_request', repo, False),
+        ('labels-null', 'true', 'null', 'pull_request', repo, False),
+        ('labels-group-object', 'true', '{"group":"unreviewed"}', 'pull_request', repo, False),
+        ('labels-broad', 'true', '["self-hosted"]', 'pull_request', repo, False),
+        ('labels-hosted', 'true', '["ubuntu-latest"]', 'pull_request', repo, False),
+        ('labels-missing-isolation', 'true', '["self-hosted","Linux","X64","fds-ci"]', 'pull_request', repo, False),
+        ('labels-reordered', 'true', json.dumps(list(reversed(ISOLATED_LABELS)), separators=(',', ':')), 'pull_request', repo, False),
+        ('labels-spaced', 'true', json.dumps(ISOLATED_LABELS), 'pull_request', repo, False),
+        ('fork', 'true', ISOLATED_SETTING, 'pull_request', 'other/infra-ansible', False),
+        ('missing-pr-repository', 'true', ISOLATED_SETTING, 'pull_request', '', False),
+        ('pull-request-target', 'true', ISOLATED_SETTING, 'pull_request_target', repo, False),
+        ('push', 'true', ISOLATED_SETTING, 'push', repo, False),
+        ('workflow-call', 'true', ISOLATED_SETTING, 'workflow_call', repo, False),
+        ('unknown-event', 'true', ISOLATED_SETTING, 'unknown', repo, False),
+    ]
+    results = []
+    for name, enabled, labels, event, head_repo, expected_gate in cases:
+        values = {'vars.ANSIBLE_CI_ENABLED': enabled, 'vars.ANSIBLE_CI_RUNNER_LABELS': labels,
+                  'github.event_name': event, 'github.event.pull_request.head.repo.full_name': head_repo,
+                  'github.repository': repo}
+        gate = workflow_gate_model(job['if'], values)
+        results.append({'case': name, 'expected': expected_gate, 'observed_model': gate,
+                        'selector': job['runs-on'],
+                        'passed': gate == expected_gate and job['runs-on'] == ISOLATED_LABELS})
+    return results
 
 def rows(variants, field):
     return [{'engine': e, field: c, 'passed': True} for e in expected.ENGINES for c in variants]
@@ -117,12 +187,18 @@ class CIGateTests(unittest.TestCase):
     def test_template_cannot_activate_and_leak_token_by_default(self):
         workflow=yaml.load((ROOT/'docs/ci/ansible-regression.workflow.yml').read_text(),Loader=yaml.BaseLoader)
         self.assertEqual(workflow['permissions'],{'contents':'read'})
-        self.assertNotIn('pull_request_target',workflow['on'])
+        self.assertEqual(set(workflow['on']), {'pull_request', 'workflow_dispatch'})
         job=workflow['jobs']['regression']; self.assertIn("vars.ANSIBLE_CI_ENABLED == 'true'",job['if'])
-        self.assertIn('ANSIBLE_CI_RUNNER_LABELS',job['runs-on'])
+        self.assertEqual(job['runs-on'], ISOLATED_LABELS)
         self.assertEqual(job['steps'][0]['with']['persist-credentials'],'false')
         for step in job['steps']:
             self.assertNotIn('continue-on-error',step)
             if 'uses' in step:self.assertRegex(step['uses'],r'^[^@]+@[0-9a-f]{40}$')
+
+    def test_workflow_gate_and_fixed_selector_for_each_scenario(self):
+        workflow = yaml.load((ROOT/'docs/ci/ansible-regression.workflow.yml').read_text(), Loader=yaml.BaseLoader)
+        for result in workflow_cases(workflow['jobs']['regression']):
+            with self.subTest(case=result['case']):
+                self.assertTrue(result['passed'], result)
 
 if __name__ == '__main__': unittest.main()

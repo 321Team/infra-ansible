@@ -7,9 +7,11 @@
 
 ## 현재 Runner 입력
 
-[P1-CICD-01](https://github.com/321Team/fds-project-baseline/issues/16)의 `cicd-runner01` /
-`server01_cicd-runner`는 `321Team/infra-cicd`에 등록된 것으로 기록돼 있습니다. `infra-ansible` 접근과
-운영 자격증명 없는 격리 실행은 아직 미확인입니다. 이 초안은 기존 Runner 등록·서비스·앱 Delivery Workflow를 바꾸지 않습니다.
+[P1-CICD-01](https://github.com/321Team/fds-project-baseline/issues/16)의 기존 앱 Runner는 `infra-cicd` 소속입니다.
+별도 `ansible-verify` 계정의 rootless Podman Runner v1.2는 prepare·격리14개·등록/제거·workspace 정리와
+관리 API에서 이번 ID3의 부재를 확인했습니다. [실제 등록 증적](https://github.com/321Team/fds-project-evidence/tree/d71a5a5992f994265f723c9e388b4d443287ce39/evidence/infra-ansible-followup/cicd-runner01-registration-20260916T172532Z),
+[ID3 부재 증적](https://github.com/321Team/fds-project-evidence/tree/89cdf9c3911afb8c734136dfff32758a8f78d6fc/evidence/infra-ansible-followup/ansible01-runner-absence-20260916T175215Z).
+이는 등록 검증 범위이며 실제 Actions Job 인수는 아직 미완료입니다. 기존 앱 Runner를 공유한다고 가정하지 않습니다.
 
 활성화 전 담당자가 실제 Runner 이름/labels/group, Ansible 저장소 접근, 작업 계정, Linux x86_64·glibc>=2.28·
 CPython3.12·Git·grep·Bash, 작업 디렉터리/종료 후 정리 소유자를 기록합니다. 운영 SSH 키·배포 Token·sudo·
@@ -43,11 +45,14 @@ CI_RESULT status FAIL 및 실행기 exit1로 전달합니다. continue-on-error�
 
 `docs/ci/ansible-regression.workflow.yml`은 **.github/workflows 바깥의 비활성 초안**입니다.
 Runner 입력·경계와 독립 리뷰를 확인한 별도 변경에서 .github/workflows/ansible-regression.yml로 편입합니다.
-확정한 labels를 JSON 배열로 ANSIBLE_CI_RUNNER_LABELS에, 동작 확인 후 ANSIBLE_CI_ENABLED=true를 설정합니다.
-labels가 미설정/빈 문자열이면 활성화 값과 무관하게 Job 조건이 false가 됩니다. `runs-on`도 빈 JSON 파싱을
-피하도록 비어 있지 않은 sentinel 배열로 폴백합니다. `ansible-ci-unconfigured`는 실제 Runner에 부여하지 않습니다.
-빈 배열을 안전한 Runner 선택으로 가정하지 않으며, 비어 있지 않은 잘못된 JSON은 자동 보정하지 않습니다.
-활성화 검증에는 미설정 labels, 정상 labels, 잘못된 JSON, 비활성 및 fork PR 조건을 포함합니다.
+`runs-on`은 `[self-hosted, Linux, X64, fds-ci, ansible-isolated]`로 고정하며 변수로 다른 Runner를 선택하지 않습니다.
+설정 변수 ANSIBLE_CI_RUNNER_LABELS는 이 선택에 대한 확인값입니다. 승인 후 공백 없이 정확한 순서의
+`["self-hosted","Linux","X64","fds-ci","ansible-isolated"]`를 사용하고 ANSIBLE_CI_ENABLED=true를 적용합니다.
+문자열 비교는 GitHub 규칙상 대소문자를 무시하지만 공백·순서를 자동 보정하지 않습니다.
+빈 값·부분 라벨·다른 Runner·잘못된 JSON은 Job 조건에서 skip되며 fromJSON으로 스케줄링 대상을 만들지 않습니다.
+허용 이벤트도 동일 저장소 pull_request와 workflow_dispatch로 명시합니다.
+코드 수정 전 검토는 `docs/ci/ACTIVATION_DEEP_REVIEW.md`에 있습니다.
+활성화 검증에는 미설정/정상/잘못된/넓은 labels, 비활성, fork 및 허용되지 않은 이벤트를 포함합니다.
 이 조건의 로컬 점검은 GitHub의 실제 skip/실행 증적을 대신하지 않으며 skipped는 #5의 PASS가 아닙니다.
 선택 값 ANSIBLE_CI_WHEEL_DIR은 승인된 wheel 보관 경로입니다. 본 작업은 저장소 변수나 Runner 등록을 변경하지 않습니다.
 
@@ -68,7 +73,9 @@ Fork PR은 실행하지 않으며 이 필터는 Runner 격리나 사람의 코�
 결함 commit은 main에 병합하지 않으며 결과 확인 후 해당 PR을 닫고 원문 artifact는 보존합니다.
 
 내부 mutation 시험이 성공했다는 것만으로 실제 고의 결함 Actions Run을 대체하지 않습니다.
-정상/결함 SHA·Run URL·Attempt·Check 결과·artifact SHA를 #5에 연결하고 이하영님의 독립 리뷰를 요청합니다.
+정상/결함 SHA·Run URL·Attempt·Check 결과·artifact SHA를 #5에 연결하고 당시 지정된 독립 리뷰어에게 검토를 요청합니다.
+이번 선행 검토는 이하영 부재 기록과 CICD 검토 이력을 고려하여 이재환(`supreme33-kr`)에게 요청합니다.
+이는 이번 PR의 검토 담당 선택이며 상시 Lead/Support나 최종 병합 권한을 변경하지 않습니다.
 현재 이 단계는 NOT RUN이며 #5 AC는 최종 체크하지 않습니다.
 
 ## 증적과 작업 디렉터리 수명
@@ -81,4 +88,5 @@ artifact 보존기간은14일이며 장기 보관은 검토 후 증적 저장소
 
 Job 완료(취소 포함) 후 일회성 Runner 폐기 또는 승인된 run-root 정리는 Runner 담당자가 보장합니다.
 Runner 서비스/기존 checkout/다른 run/SSH 키/known_hosts를 재귀 삭제하는 명령은 이 실행기에 넣지 않습니다.
-전체 압축 장기 보관 URI와 Runner 실제 정리 증명은 아직 미확인입니다. 기존 P1-CICD 앱 Delivery AC·일정·승인 범위는 유지합니다.
+등록 검사 때의 Runner 정리는 위 실제 증적에서 확인했습니다. 실제 Actions 각 세션의 정리·장기 보관 인수는 별도로 확인합니다.
+서버 수집 증적은 기존 로그인 홈에 생성하는 Runner launcher 절차를 사용합니다. 기존 P1-CICD 앱 Delivery AC·일정·승인 범위는 유지합니다.

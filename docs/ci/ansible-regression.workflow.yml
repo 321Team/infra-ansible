@@ -14,11 +14,12 @@ jobs:
     # Skipped is NOT the evidence required by Issue #5; enable only on an isolated Runner.
     if: >-
       vars.ANSIBLE_CI_ENABLED == 'true' &&
-      vars.ANSIBLE_CI_RUNNER_LABELS != '' &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    # Keep a valid nonempty selector even when the disabled job has no labels.
-    # Never assign the sentinel label to a Runner; missing labels must skip above.
-    runs-on: ${{ fromJSON(vars.ANSIBLE_CI_RUNNER_LABELS || '["self-hosted","ansible-ci-unconfigured"]') }}
+      vars.ANSIBLE_CI_RUNNER_LABELS == '["self-hosted","Linux","X64","fds-ci","ansible-isolated"]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+    # Settings acknowledge this reviewed selector; they cannot redirect the job.
+    # Empty, broader or malformed label settings must skip the job above.
+    runs-on: [self-hosted, Linux, X64, fds-ci, ansible-isolated]
     timeout-minutes: 30
     env:
       CI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
