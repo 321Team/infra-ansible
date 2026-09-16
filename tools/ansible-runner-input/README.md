@@ -1,84 +1,102 @@
-# Token input guard — Draft / NOT_RUN
+# Ansible Runner token input guard v1.0
 
-This helper replaces the earlier shell instruction that unconditionally applied
-chmod 600 to an operator-entered path. Do not run that withdrawn chmod step.
+기존의 입력 경로에 곧바로 chmod 600을 실행하는 안내를 폐기하고 이 도구로 대체한다.
+**로컬 회귀시험 20/20 PASS. 실제 서버에서 이 보호 도구를 실행한 증적은 아직 없다.**
+코드 작성 전 DEEP_REVIEW.md를 기록했으며 CODE_REVIEW.md는 자체 검토다.
+독립 승인이나 실제 Actions 성공을 의미하지 않는다.
 
-**This candidate has not been executed or packaged.** The development workspace
-became unavailable before implementation. The tests below are source code, not
-PASS evidence. Do not distribute or use this helper on the server until they pass
-and the review gate is completed.
+## 현재 상태와 사용 시점
 
-## Scope
+2026-09-16 17:25:32–17:25:58 UTC의 제출 증적은 PASS_REGISTRATION_CHECK다.
+Runner ID 3 / ansible-ci-f9e3ef4d85e44573891eaebcaffd5b1d의 등록·제거 rc0,
+UTF-8 BOM 파싱·identity·격리·정리가 통과했다. 이 보호 도구를 사용하기 전 실행이다.
+**보호 도구 확인만을 위해 토큰을 다시 발급하거나 등록 검사를 반복할 필요는 없다.**
+다음 운영 확인은 관리 호스트에서 이번 ID/name의 API 목록 부재를 확인하는 것이다.
 
-- Run as server01_cicd-runner on cicd-runner01, without sudo.
-- Token input must be a direct child of /home/server01_cicd-runner named
-  ansible-runner-token-<generated-name>.json.
-- The home comes from the passwd record and is checked against the expected
-  account path; an environment HOME override is not accepted.
-- Reject directories (including the home), links, special files, owner mismatch,
-  oversized/invalid/expired packets and a different repository before chmod.
-- Read and validate the same descriptor that receives fchmod(0600). A pathname
-  replacement cannot redirect that operation to a directory.
-- Refuse an unsafe home rather than changing it.
-- Write RESULT.json and RESULT.json.sha256 inside a new 0700
-  ansible-token-input-evidence-* directory in the original login home. Files are
-  0600. If the home itself cannot be trusted/opened, report failure on the terminal
-  without writing elsewhere.
-- Errors are fixed codes. Evidence contains no tokens, original input path,
-  packet content hashes or raw exception text.
-- No deletion, recursive chmod, registration, container execution, service or
-  account change. A valid token file may change from its original mode to 0600.
-- A failure after permission application may leave that verified file at 0600;
-  the result explicitly records permission_changed. It never widens permissions
-  or attempts rollback onto an operator-supplied path.
-- Concurrent modification by the same account is not treated as a security
-  boundary. Metadata/identity changes are rejected, and the Runner launcher must
-  independently re-read and validate the packet after this helper succeeds.
+기존 Runner v1.2 24파일과 관리 토큰 도구 11파일은 변경하지 않았다.
+기존 PREPARED/image 연결을 유지하므로 이 별도 도구 추가만으로 새 prepare가 필요하지 않다.
 
-The packet schema and 10–120 minute expiry contract match the deployed
-tools/ansible-runner/common.py. Duplicate JSON keys are additionally rejected.
-The helper imports only the Python standard library and makes no network calls.
+## 방어 범위
 
-## Review and test gate
+- cicd-runner01의 server01_cicd-runner 일반 로그인으로 실행한다. sudo로 실행하지 않는다.
+- passwd 홈이 /home/server01_cicd-runner인지 확인한다. 환경변수 HOME을 신뢰 기준으로 쓰지 않는다.
+- 홈 바로 아래 ansible-runner-token-<발급된이름>.json 일반 파일만 허용한다.
+- 홈/디렉터리/심볼릭 링크/하드 링크/FIFO/다른 소유자/특수 권한/8KiB 초과 파일은 권한 변경 전에 거절한다.
+- 같은 파일 디스크립터에서 JSON 형식·저장소·토큰 필드·남은 유효기간 10~120분을 확인한 후 fchmod(0600)만 실행한다.
+- 입력 pathname으로 chmod하지 않는다. 이름이 디렉터리로 바뀌어도 그 디렉터리의 권한을 변경할 수 없다.
+- 입력 검증 실패 때는 입력 파일과 홈 권한을 변경하지 않는다.
+- 권한 적용 뒤 이름/메타데이터/증적 쓰기 검사에서 실패하면 검증한 파일은 0600으로 남을 수 있다.
+  permission_changed로 이를 기록하며, 입력 경로에 대한 권한 복원을 시도하지 않는다.
+- 재귀 chmod, 삭제, 계정·서비스 변경, 컨테이너 실행, Runner 등록, 외부 통신은 없다.
+- 결과는 기존 로그인 홈의 새 ansible-token-input-evidence-* 0700 디렉터리에 RESULT.json과
+  RESULT.json.sha256로 생성한다. 파일은 0600이다. 홈 자체가 부적합하면 터미널에서 중단하고 다른 위치에 쓰지 않는다.
+- 증적에는 고정 오류 코드·상태·boolean만 저장한다. 토큰·입력 원문·토큰 해시·원시 예외를 남기지 않는다.
+- 같은 UID의 동시 수정 자체를 보안 경계로 보장하지 않는다. 변경 감지 시 실패하고 이후 기존 launcher도 독립 재검증한다.
 
-DEEP_REVIEW.md was committed before code was written.
-CODE_REVIEW.md records the subsequent static review and remaining execution gap.
+packet 계약은 검증된 Runner common.py와 같고 중복 JSON 키는 추가로 거절한다.
 
-From a checkout of this Draft PR, on a suitable Linux development environment:
+## 향후 토큰 입력 시 사용
 
-    python3 -I -B tools/ansible-runner-input/test_safe_input.py
+ZIP과 sidecar를 cicd-runner01 기존 로그인 홈에 전달한 후, 일반 로그인에서 다음처럼 새 디렉터리에 푼다.
+HOME 변수 자체를 재정의하지 않는다.
 
-The 20 test methods use synthetic tokens and new temporary directories in the
-test account's passwd home. They do not use an actual token, Podman or GitHub API.
-Do not count these tests as passed until an actual log and return code exist.
+    (
+      set -euo pipefail
+      umask 077
+      cd "$HOME"
+      sha256sum -c FDS_Ansible_Runner_Input_Guard_v1_0.zip.sha256
+      TASK_GUARD_DIR=$(mktemp -d "$HOME/ansible-input-guard.XXXXXXXX")
+      unzip -q FDS_Ansible_Runner_Input_Guard_v1_0.zip -d "$TASK_GUARD_DIR"
+      cd "$TASK_GUARD_DIR/FDS_Ansible_Runner_Input_Guard_v1_0"
+      sha256sum -c SHA256SUMS
+      read -r -p 'Token packet 절대 경로: ' TASK_TOKEN_PATH
+      if python3 -I -B safe_input.py --token-file "$TASK_TOKEN_PATH"; then
+        printf '입력 보호 검사 통과. 이후 승인된 Runner 단계에서 위 TOKEN_FILE을 사용하세요.\n'
+      else
+        printf '중단: 출력된 증적만 확인하세요.\n' >&2
+        exit 1
+      fi
+    )
 
-After the gate has passed, the operator flow is:
+출력 STATUS=PASS_TOKEN_INPUT 및 exit0일 때만 이후 승인된 Runner 명령에 TOKEN_FILE을 전달한다.
+자동화와 연결할 때도 보호 도구 실패 후 launcher를 실행하지 않도록 명시적 조건문으로 묶는다.
+토큰 파일은 증적으로 제출하지 않는다. HOME_EVIDENCE로 출력한 JSON과 sidecar만 제출한다.
+이 도구는 만료한 토큰을 갱신하거나 실제 Runner 실행을 승인하지 않는다.
 
-1. Transfer the freshly issued token packet privately into the login home.
-2. Run safe_input.py --token-file with its exact path, as the normal login user.
-3. Continue to the existing Runner launcher only if exit code is 0 and status is
-   PASS_TOKEN_INPUT. A shell integration must enforce this with an explicit
-   conditional or a correctly scoped set -e; never run the launcher regardless
-   of guard failure.
-4. Submit only the evidence JSON and its sidecar. Never upload the token packet.
+## 지금 필요한 읽기 전용 확인 — ansible01 관리 로그인
 
-No executable deployment instructions or ZIP are issued with this untested
-candidate.
+이번 등록 검사는 이미 PASS했다. 관리 호스트에서 해당 ID 또는 이름의 잔존 여부만 확인한다.
+아래 쿼리는 infra-ansible만 읽으며 infra-cicd의 기존 Runner ID2를 변경하지 않는다.
 
-## Current Runner result
+    (
+      set -euo pipefail
+      umask 077
+      TASK_ABSENCE_FILE=$(mktemp "$HOME/ansible-runner-absence.XXXXXXXX.txt")
+      printf 'repository=321Team/infra-ansible\nrunner_id=3\nrunner_name=ansible-ci-f9e3ef4d85e44573891eaebcaffd5b1d\nqueried_at_utc=%s\n' \
+        "$(date -u +%FT%TZ)" > "$TASK_ABSENCE_FILE"
+      TASK_QUERY_RC=0
+      if gh api --paginate 'repos/321Team/infra-ansible/actions/runners?per_page=100' \
+        --jq '.runners[] | select(.id == 3 or .name == "ansible-ci-f9e3ef4d85e44573891eaebcaffd5b1d") | {id,name,status}' \
+        >> "$TASK_ABSENCE_FILE"; then
+        :
+      else
+        TASK_QUERY_RC=$?
+      fi
+      printf '\nquery_rc=%s\n' "$TASK_QUERY_RC" >> "$TASK_ABSENCE_FILE"
+      sha256sum "$TASK_ABSENCE_FILE" > "$TASK_ABSENCE_FILE.sha256"
+      cat "$TASK_ABSENCE_FILE"
+      printf 'HOME_EVIDENCE=%s\n' "$TASK_ABSENCE_FILE"
+      exit "$TASK_QUERY_RC"
+    )
 
-The submitted runtime archive with SHA256
-7b8906a94ad5a4b23ae8a1d32cc307160311ea90cf17cad70623898384d1a0b7 passed
-registration-check on 2026-09-16 17:25:32–17:25:58 UTC.
-Runner ID 3 / ansible-ci-f9e3ef4d85e44573891eaebcaffd5b1d configured and removed with
-rc0. The UTF-8 BOM identity parsing and isolation/cleanup checks passed.
-This earlier run did not use this new guard.
+query_rc=0이며 Runner JSON 항목이 없어야 해당 시점 부재를 확인할 수 있다.
+목록에 남아 있으면 증적을 검토하며 자동 삭제하거나 전체 Runner를 정리하지 않는다.
+HOME_EVIDENCE 파일과 sidecar를 제출한다.
 
-The 24-file Runner v1.2 bundle, 11-file admin-token bundle, PREPARED receipt and
-verified image remain unchanged. Adding this separate helper does not require a
-new image build or repeating the already successful registration check merely
-to test the helper.
+## 로컬 검증
 
-Next: confirm the new ID/name is absent through the management host's read-only
-GitHub API query. Workflow activation, actual Actions runs, independent approval
-and merging remain separate outstanding steps.
+    python3 -I -B test_safe_input.py
+
+20개 시험은 임시 홈 하위의 합성 파일·토큰만 사용한다. 실제 서버 자격증명·Podman·GitHub API는 사용하지 않는다.
+validation/unit.log와 unit.rc는 실제 실행 결과다. validation/RESULTS.json에서 로컬 시험과 서버 미실행을 구분한다.
+기존 Runner의 49개 시험을 이 도구의 시험 개수로 전용하지 않는다.

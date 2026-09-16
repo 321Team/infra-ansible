@@ -41,3 +41,7 @@ That run predates and does not exercise this new input guard. Management API abs
 
 The earlier unconditional `chmod 600` on an operator-supplied token path is withdrawn.
 Keep the historical runtime bundles byte-for-byte; use the new operations note for current instructions after its validation gate is satisfied.
+
+## Subsequent execution update
+
+The workspace connection recovered after the Draft source commit. The 20 regression methods were then executed successfully; validation/unit.log and validation/unit.rc preserve the actual run. The earlier outage paragraph above records the pre-implementation state. Server execution of this guard remains NOT_RUN.

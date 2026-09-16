@@ -1,6 +1,6 @@
 # Static code review of the input guard
 
-Status: self-reviewed source only; NOT_RUN. No independent approval claimed.
+Status: static self-review completed; 20 local regression methods subsequently PASS. No independent approval claimed.
 
 - Input validation is upstream of the only production permission mutation.
 - The CLI rejects root/sudo invocation, wrong host/account and an unexpected
@@ -32,7 +32,12 @@ Status: self-reviewed source only; NOT_RUN. No independent approval claimed.
   directory; it is not part of the production helper.
 - Existing Runner/admin-token source and manifest files are not modified.
 
-Blocking release gap: no Python execution, unit log/rc, packaged ZIP or server
-guard result is available because the workspace execution service is offline.
-The actual PASS_REGISTRATION_CHECK receipt applies to the unchanged Runner v1.2,
-not to this candidate. Publishing a Draft source change does not close this gap.
+Execution update: the workspace connection recovered. All 20 regression methods
+passed in the actual local Python run saved as validation/unit.log and unit.rc.
+This closes the temporary local execution gap; server execution of this guard
+and independent approval remain pending. The actual PASS_REGISTRATION_CHECK
+receipt belongs to the unchanged Runner v1.2 and is not a server guard test.
+
+The only code change after that first successful local run removes the obsolete
+candidate-only module docstring; the packaged source is tested again with its log
+captured. No filesystem behavior is changed for packaging.

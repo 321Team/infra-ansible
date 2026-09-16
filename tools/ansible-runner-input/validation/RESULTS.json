@@ -1,13 +1,24 @@
 {
-  "status": "NOT_RUN",
-  "reason": "WORKSPACE_EXECUTION_SERVICE_OFFLINE",
-  "test_methods_defined": 20,
-  "tests_executed": 0,
-  "tests_passed": null,
+  "status": "PASS_LOCAL",
+  "tests_executed": 20,
+  "tests_passed": 20,
+  "command": [
+    "python3",
+    "-I",
+    "-B",
+    "test_safe_input.py"
+  ],
+  "exit_code": 0,
+  "unit_log_sha256": "4fff41be4a6dbfa29d7405da1be947a8a2427aee780073ed09f32acfc2288375",
   "static_self_review": "COMPLETED",
   "independent_review": "PENDING",
-  "packaged": false,
-  "server_execution": "NOT_RUN",
-  "runner_v1_2_changed": false,
-  "admin_token_v1_1_1_changed": false
+  "server_input_guard_execution": "NOT_RUN",
+  "server_registration_check": "PASS_REGISTRATION_CHECK_PRE_GUARD",
+  "github_actions": "NOT_RUN",
+  "runtime_files_preserved": {
+    "tools/ansible-runner/": 24,
+    "tools/ansible-admin-token/": 11
+  },
+  "temporary_execution_service_outage": "RECOVERED_BEFORE_FINAL_VALIDATION",
+  "validated_at_utc": "2026-09-16T17:44:33.967883+00:00"
 }

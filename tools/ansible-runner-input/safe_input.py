@@ -1,7 +1,4 @@
-"""Review candidate: validate a token file before descriptor-only chmod.
-
-Do not use on a server until test_safe_input.py has actually passed.
-"""
+"""Validate a token file before descriptor-only chmod; never chmod input paths."""
 import argparse
 import ctypes
 import datetime as dt
