@@ -1,13 +1,39 @@
-# Actions 정상·고의 결함 인수 준비
+# Actions 정상·고의 결함 인수 기준과 현재 상태
 
-상태: 준비물 / 실제 Actions NOT_RUN. PR17·PR19의 최신 HEAD 독립 검토 후 활성화 변경을 별도로 검토한다.
+2026-09-17 갱신. 기존 시험 전용 source의 정상·count 결함 실제 Actions 증적은 인수했다.
+그 뒤 artifact export 진단 수정 `a9785da3485ffd61840a82a3e9bd14ceb4edb50b`는 LOCAL 58/58 PASS이며,
+수정 코드를 포함한 새 source의 실제 Actions는 NOT_RUN이다. 일반 Workflow 활성화·독립 승인·병합은 별도다.
 사전 검토: [ACCEPTANCE_DEEP_REVIEW.md](ACCEPTANCE_DEEP_REVIEW.md).
 
-## 검토할 패치
+## 인수한 실제 시험과 변경 후 검증
 
-기준 source는 `5ed6d3947a15d59cf6c360c0419f961b8143c707`이다.
-이 문서·patch 추가 commit은 운영 소스나 실행기의 동작을 변경하지 않는다.
-실제 활성화 commit은 아직 만들지 않았으므로 정상/결함 실행 SHA도 아직 확정하지 않는다.
+| 항목 | 정상 시험 | count 고의결함 시험 |
+|---|---|---|
+| source | `2750634766862d7fe19479acacc4259ee8315061` | `c50a6b3316fabba08d5211933e3733f8026e2d95` |
+| PR / Run / Attempt | #20 / 35139314896 / 2 | #21 / 35173018935 / 1 |
+| Job / Check ID | 104963520513 | 105048547807 |
+| 실제 결과 | CI_RESULT PASS, Job/Check success | CI_RESULT FAIL, Job/Check failure; 기대 count 결함 탐지 PASS |
+| syntax / unit | 32/32 rc0 / 57 OK | 32/32 rc0 / 57 OK |
+| 후속 fixture | guard14/14, contract58/58, DNS 양 엔진 rc0 | 엔진별 baseline PASS9/FAIL5/ERROR0; contract/DNS NOT_RUN |
+| Runner / 정리 | ID5 / 로컬 정리 및 수집 시점 원격 부재 확인 | ID6 / 로컬 정리 및 수집 시점 원격 부재 확인 |
+| Artifact ID / 내부 manifest | 10470072587 / 831/831 | 10478742095 / 592/592 |
+
+[고정된 원본 인수 기록](https://github.com/321Team/fds-project-evidence/tree/8223fdff0c3e52e17c13311107624578bb35542d/evidence/infra-ansible-followup/actions-acceptance-20260917)에 source/Run/Attempt/Job/Check, Runtime, 원본 hash를 보존했다.
+두 세션은 Runner v1.3·격리18/18·SELinux Enforcing·IPC 및 runner/proxy/workspace 정리를 확인했다.
+정상 source는 수정 전 PR17 `9b019ad4213539e9a6edf2409e1d0bd0d4ef46f6`의 68개 파일을 포함한다.
+이 성적을 이후 수정된 실행기의 직접 CI 결과로 승계하지 않는다. TEST ONLY PR #20/#21은 병합하지 않는다.
+
+`a9785da...`는 export 실패 시 메모리 결과를 FAIL로 만들고 쓰기 가능한 CI_RESULT를 best-effort로 갱신한다.
+manifest 쓰기 장애 회귀시험 1개를 추가했다. 해당 commit의 LOCAL 58/58 결과와 수정안 통합 LOCAL/MOCK 157/157을 구분한다.
+지속 저장 장애에서 파일 재기록이 불가능한 한계는 알려진 제한이다. 별도로 합의되지 않은 새 병합 차단 AC로 추가하지 않는다.
+실행기 rc·Job/Check·완전한 manifest·source/attempt 대조는 계속 필수다.
+새 코드의 구체적 준비 범위는 [artifact export 수정 후 격리 CI 계획](ARTIFACT_EXPORT_CI_PLAN.md)을 따른다.
+
+## 일반 활성화용 비활성 패치
+
+아래 patch를 처음 작성한 기준 source는 `5ed6d3947a15d59cf6c360c0419f961b8143c707`이다.
+이 기준은 과거 작성 이력이며 현재 실행 대상 SHA가 아니다. 일반 활성화 patch는 계속 비활성이다.
+이미 수행한 PR #20/#21은 별도의 제한된 격리 Workflow를 사용했다.
 
 | 파일 | 승인 후 변경 | 현재 게시 상태 |
 |---|---|---|
@@ -30,20 +56,26 @@
 기준 이후 바뀐 소스는 diff를 검토하고 새 SHA로 재고정한다. 임의 `--3way`/강제 적용은 하지 않는다.
 Workflow 대상이 이미 있거나 patch 충돌이 있으면 중단하여 검토한다. 사용자 홈에 직접 patch를 적용하지 않는다.
 
-## 승인 후 수행 순서
+## 일반 활성화 검토 및 새 시험 수행 순서
+
+이 절차의 일반 Workflow 활성화 통제와 테스트 전용 격리 실행을 구분한다.
+기존 [격리 시험 착수 기준](https://github.com/321Team/infra-ansible/blob/2750634766862d7fe19479acacc4259ee8315061/docs/ci/ISOLATED_ACTIONS_ENTRY.md)은
+명시적으로 요청된 제한된 격리 시험에 사전 딥리뷰·실행 시 격리 검사를 적용했다.
+모든 격리 시험 준비 전에 독립 승인을 일괄 요구하는 것으로 확대하지 않는다.
+일반 자동 실행 활성화·최종 인수·병합의 독립 검토 통제는 유지한다.
 
 1. PR17/19와 증적 PR13의 최신 HEAD·독립 검토 결과를 고정한다. 이번 자체 준비를 승인으로 간주하지 않는다.
 2. 정상 후보용 새 브랜치에서 활성화 patch만 적용한다. diff가 Workflow 추가 한 파일인지 확인하고
    별도 활성화 변경으로 검토한다. main 병합 없이 동일 저장소의 main 대상 PR로 인수를 준비할 수 있다.
 3. 승인된 고정 라벨과 설정을 확인한다. ANSIBLE_CI_RUNNER_LABELS는
    `["self-hosted","Linux","X64","fds-ci","ansible-isolated"]`, enabled는 승인된 시점에 true로 설정한다.
-   아직 설정·권한·serve를 변경한 사실은 없다. 비활성/불일치 라벨의 skipped는 정상 인수 PASS가 아니다.
+   현재 저장소 변수의 값은 이번 문서 갱신에서 조회·변경하지 않았다. 비활성/불일치 라벨의 skipped는 정상 인수 PASS가 아니다.
 4. 정상 후보의 전체 HEAD와 Workflow blob을 기록하고 1-job ephemeral Runner에서 실제 PR Job을 실행한다.
    serve 완료만으로 Job 성공을 판정하지 말고 아래 API·artifact 증적을 대조한다.
 5. 정상 후보에서 파생한 별도 임시 브랜치에 결함 patch 한 개만 적용하고, 정상 대비 한 줄 diff와 새 전체 HEAD를 기록한다.
    검토된 결함 PR을 실제로 실행한다. 두 실행에 같은 Workflow blob을 사용한다.
 6. 정상/결함 세션 각각 종료·정리·그때의 Runner ID 또는 정확한 이름의 API 부재를 확인한다.
-   기존 ID3 정리 증적을 새 세션에 재사용하지 않는다. 결함 PR은 병합하지 않고 증적 인수 후 닫는다.
+   기존 ID3/ID5/ID6 정리 증적을 새 세션에 재사용하지 않는다. 결함 PR은 병합하지 않고 최종 인수·검토 후 종결을 별도로 판단한다.
 7. 실제 결과를 독립 검토한 뒤 Issue #5 AC와 수동 병합 여부를 판단한다. 자동 병합은 없다.
 
 수동 workflow_dispatch를 쓸 경우 Workflow가 기본 브랜치에 있어야 하는 조건을 별도로 확인한다.
@@ -78,7 +110,8 @@ API 요청과 artifact 다운로드는 기존 관리자 인증으로 수집하�
 - 이름·Run ID·attempt·source를 대조한 artifact ID의 ZIP 및 API digest 보존
 
 artifact 목록은 Run 범위이므로 attempt는 이름과 CI_RESULT 내부 값으로 추가 확인한다.
-보존기간14일 이내 원본을 확보하고 검토 후 증적 저장소에 편입한다.
+Workflow는 14일 보존을 요청하지만 실제 적용 기간은 Artifact API의 expires_at으로 확인한다.
+기존 정상 artifact에는 7일이 적용됐으며 원본은 이미 별도로 확보했다. 새 artifact도 실제 만료 전에 원본을 확보한다.
 운영자 수집 파일은 기존 로그인 홈에 새 전용 디렉터리를 만들어 저장한다.
 홈·토큰 경로에 chmod를 호출하거나 임의 절대경로를 재귀 삭제하는 절차는 없다.
 서버에서 새 토큰을 다룰 때는 기존 입력 보호 도구를 먼저 사용한다.
@@ -98,11 +131,12 @@ matrix는 고의 결함 source에서 baseline 불일치 외에 내부 mutation �
 kit는 guards 실패 후 중단하므로 결함 실행의 뒤쪽 callback/DNS 미실행은 실패 위치와 함께 기록한다.
 정상 실행에서는 두 엔진 전체가 완료되어야 한다.
 
-## 이번 로컬 검증의 한계
+## 로컬 검증과 실제 CI의 경계
 
-패치 적용/역적용과 source 보존, 생성기 전제조건, 2.16.19 public CLI의 정상/결함 차이를 검증한다.
-이는 2.21.3 전체 Runtime, 실제 GitHub scheduler·checkout·artifact 업로드, 최신 commit 전체 CI, 독립 승인을 대신하지 않는다.
-2.21.3 실제 Actions 결과와 새 Runner 정리는 승인 후 인수할 항목으로 남는다.
+기존 정상·결함 시험은 2.16.19/2.21.3 실제 Actions와 세션별 정리까지 인수했다.
+이후 수정안의 저장 장애·변조·대조 모형은 LOCAL/MOCK이다. 타임아웃 반복은 실제 로컬 Python 자식 대상이다.
+이 결과는 수정 코드의 실제 GitHub scheduler·checkout·양 엔진·artifact 업로드 통합, 새 Runner 정리 또는 독립 승인을 대신하지 않는다.
+문서만 추가로 바뀐 HEAD는 runtime/test blob 동일성으로 기존 로컬 성적과 연결하되, 그 HEAD에서 새 시험을 수행했다고 표기하지 않는다.
 
 ## 공식 계약
 
