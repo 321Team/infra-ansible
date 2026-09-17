@@ -28,7 +28,7 @@
       check_mode: false
       failed_when: >-
         p1_managed_key_count.rc not in [0, 1]
-        or (p1_managed_key_count.stdout | int) != 1
+        or (p1_managed_key_count.stdout | int) != 2
 
     - name: Preserve original authorized keys
       ansible.builtin.copy:
