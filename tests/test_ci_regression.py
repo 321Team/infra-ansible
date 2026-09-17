@@ -178,6 +178,23 @@ class CIGateTests(unittest.TestCase):
             self.assertEqual(result['status'], 'FAIL')
             self.assertIn('dirty source', (out/'artifact/CI_RESULT.json').read_text())
 
+    def test_artifact_export_failure_marks_writable_results_failed(self):
+        original = Path.write_text
+        def fail_manifest(path, text, *args, **kwargs):
+            if path.name == 'SHA256SUMS' and path.parent.name == 'artifact':
+                raise OSError(28, 'SYNTHETIC_STORAGE_FAULT')
+            return original(path, text, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / 'run'
+            with patch.object(Path, 'write_text', fail_manifest):
+                result, _, _ = self.run_fake(out)
+            self.assertEqual(result['status'], 'FAIL')
+            self.assertEqual(result['artifact_export']['status'], 'FAILED')
+            self.assertEqual(result['artifact_export']['errno'], 28)
+            for path in (out / 'CI_RESULT.json', out / 'artifact/CI_RESULT.json'):
+                self.assertEqual(json.loads(path.read_text())['status'], 'FAIL')
+            self.assertFalse((out / 'artifact/SHA256SUMS').exists())
+
     def test_cli_exit_status_tracks_failure(self):
         for status, code in [('PASS',0),('FAIL',1)]:
             with patch('sys.argv',['run-ansible-ci.py','--commit',CODE,'--output','/fake']), \

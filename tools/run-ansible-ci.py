@@ -81,35 +81,51 @@ def execute(repo, commit, output, wheels=None):
     except Exception as exc:
         record['error'] = str(exc)
     finally:
-        record['finished_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
-        (output / 'CI_RESULT.json').write_bytes(kit.encoded(record))
-        # Keep only evidence/configs, not venvs, cached modules, source packs or credentials.
-        roots = [output / 'CI_RESULT.json', output / 'syntax-ansible.cfg']
-        roots += sorted(output.glob('syntax-*'))
-        roots += [output / 'fixtures/KIT_RUN.json', output / 'fixtures/guards-results/MATRIX.json',
-                  output / 'fixtures/contract-results/MATRIX.json', runtime / 'RUNTIME.json'] if 'runtime' in locals() else []
-        if 'runtime' in locals(): roots += sorted(runtime.glob('install-*'))
-        if (output / 'fixtures').exists():
-            roots.append(output / 'fixtures')
-        artifact = output / 'artifact'; artifact.mkdir()
-        copied, excluded = set(), []
-        for root in roots:
-            paths = [root] if root.is_file() else sorted(root.rglob('*')) if root.is_dir() else []
-            for path in paths:
-                if not path.is_file() or path.is_symlink(): continue
-                relative = path.relative_to(output)
-                if str(relative) in copied: continue
-                if any(part.startswith('ansible-local') or part == 'tmp' for part in relative.parts):
-                    excluded.append({'path': relative.as_posix(), 'sha256': kit.sha(path.read_bytes()), 'reason': 'module cache'})
-                    continue
-                copied.add(str(relative))
-                target = artifact / relative; target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(path.read_bytes())
-        (artifact / 'ARTIFACT_SCOPE.json').write_bytes(kit.encoded({'source_commit': commit,
-            'included_files': len(copied), 'excluded_cache_files': excluded,
-            'note': 'Artifact SHA256SUMS covers included bytes; original fixture manifests may also reference excluded cache files.'}))
-        (artifact / 'SHA256SUMS').write_text(''.join(kit.sha(p.read_bytes()) + '  ' + p.relative_to(artifact).as_posix() + '\n'
-            for p in sorted(artifact.rglob('*')) if p.is_file()), encoding='utf-8')
+        try:
+            record['finished_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
+            (output / 'CI_RESULT.json').write_bytes(kit.encoded(record))
+            # Keep only evidence/configs, not venvs, cached modules, source packs or credentials.
+            roots = [output / 'CI_RESULT.json', output / 'syntax-ansible.cfg']
+            roots += sorted(output.glob('syntax-*'))
+            roots += [output / 'fixtures/KIT_RUN.json', output / 'fixtures/guards-results/MATRIX.json',
+                      output / 'fixtures/contract-results/MATRIX.json', runtime / 'RUNTIME.json'] if 'runtime' in locals() else []
+            if 'runtime' in locals(): roots += sorted(runtime.glob('install-*'))
+            if (output / 'fixtures').exists():
+                roots.append(output / 'fixtures')
+            artifact = output / 'artifact'; artifact.mkdir()
+            copied, excluded = set(), []
+            for root in roots:
+                paths = [root] if root.is_file() else sorted(root.rglob('*')) if root.is_dir() else []
+                for path in paths:
+                    if not path.is_file() or path.is_symlink(): continue
+                    relative = path.relative_to(output)
+                    if str(relative) in copied: continue
+                    if any(part.startswith('ansible-local') or part == 'tmp' for part in relative.parts):
+                        excluded.append({'path': relative.as_posix(), 'sha256': kit.sha(path.read_bytes()), 'reason': 'module cache'})
+                        continue
+                    copied.add(str(relative))
+                    target = artifact / relative; target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(path.read_bytes())
+            (artifact / 'ARTIFACT_SCOPE.json').write_bytes(kit.encoded({'source_commit': commit,
+                'included_files': len(copied), 'excluded_cache_files': excluded,
+                'note': 'Artifact SHA256SUMS covers included bytes; original fixture manifests may also reference excluded cache files.'}))
+            (artifact / 'SHA256SUMS').write_text(''.join(kit.sha(p.read_bytes()) + '  ' + p.relative_to(artifact).as_posix() + '\n'
+                for p in sorted(artifact.rglob('*')) if p.is_file()), encoding='utf-8')
+        except Exception as export_error:
+            # Fail closed on evidence export errors; never report a successful CLI.
+            # Storage can remain unavailable, so updates are explicitly best-effort.
+            record['status'] = 'FAIL'
+            record['artifact_export'] = {'status': 'FAILED',
+                'error_type': type(export_error).__name__,
+                'errno': getattr(export_error, 'errno', None)}
+            print('ARTIFACT_EXPORT_FAILED: ' + type(export_error).__name__, file=sys.stderr)
+            for target in (output / 'CI_RESULT.json', output / 'artifact/CI_RESULT.json'):
+                try:
+                    if target.parent.is_dir():
+                        target.write_bytes(kit.encoded(record))
+                except Exception:
+                    pass
+            # Partial artifacts/manifests remain invalid and must not be accepted.
     return record
 
 def main():
