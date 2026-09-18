@@ -85,10 +85,12 @@ Check Mode를 지원하지 않는 모듈은 별도 검토하며, 실제 적용�
 ## 변경 관리 절차
 
 1. 티켓 번호를 포함한 작업 브랜치를 생성합니다.
-2. 변경 전후에 Inventory, Syntax Check 및 Check Mode를 수행합니다.
+2. 변경 영향에 맞는 검증을 수행합니다. 자동화·Inventory 변경은 관련 Syntax Check 및 지원되는 Check Mode를 확인하고, 문서 변경은 내용·링크·근거를 확인합니다.
 3. 민감정보와 환경 종속 절대경로 포함 여부를 검사합니다.
-4. `infra-reviewers` 검토 후 `infra-maintainers`가 병합합니다.
-5. 직접 `main` 변경은 피하고 Pull Request 이력을 남깁니다.
+4. 코드·실행 설정·혼합 PR은 작성자 외 적격 검토자의 현재 HEAD 독립 리뷰 후 `infra-maintainers`가 책임 Lead 판단에 따라 병합합니다. 문서·증적만 변경하면 책임 Lead 검토로 판단합니다.
+5. 직접 `main` push·force push·자동 병합을 금지하고 작업 브랜치와 Pull Request 이력을 남깁니다. 실행·인수·종결은 책임 Lead가 AC와 실제 증적을 확인해 판단합니다.
+
+상세 기준은 [리뷰·Lead 정책](docs/REVIEW_POLICY.md)을 따릅니다. `fds-project-evidence`의 모든 PR은 독립 리뷰를 유지합니다. CR 승인 식별자, 대상·복구·보안 및 실제 검증 조건은 그대로 유지합니다.
 
 ## 팀 접근 모델
 
