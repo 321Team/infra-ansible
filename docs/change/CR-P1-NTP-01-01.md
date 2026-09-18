@@ -1,7 +1,15 @@
 # CR-P1-NTP-01-01 — Internal single-source NTP (control01)
 
-2026-09-18 draft, unapplied. K8S 6/6 join reported complete by the K8S owner
-(하영), but this change has not been reviewed or run yet.
+2026-09-18 deployment review: **RUNTIME HOLD / read-only collection permitted**.
+K8S 6/6 join was reported complete by the K8S owner (하영); this document
+update does not independently verify the current cluster or deploy NTP.
+The R1–R7 remediation in [PR #25](https://github.com/321Team/infra-ansible/pull/25)
+was [approved by hayeounglee](https://github.com/321Team/infra-ansible/pull/25#pullrequestreview-5246933227)
+at 19:46:01 KST on exact HEAD `ca987b8a879418173a50d0cf7753063ebbb4a201`
+and merged into this PR's candidate branch at 20:01:28 KST as
+`73da49bf1f35c5891a59390b87df0e4d2a7dc3a4`. Both commits have tree
+`f9475d664286e43e3bda1262aad83020b53407dc`. This is not a main merge or
+runtime apply. The original review and later remediation remain separate records.
 
 ## Decision basis
 
@@ -20,10 +28,16 @@ Lead Decision, [fds-project-baseline#10](https://github.com/321Team/fds-project-
 The dns01/dns02 relay proposal ([fds-project-baseline#14](https://github.com/321Team/fds-project-baseline/issues/14#issuecomment-5697384866))
 was rejected — out of Baseline AC scope, not on technical grounds.
 
-Firewall side is already merged in `infra-kubernetes` PR #7
-([`01-bootstrap-allow.yaml`](https://github.com/321Team/infra-kubernetes/blob/p1-k8s-01/p1-sec-01-revision/manifests/calico/01-bootstrap-allow.yaml)):
-UDP/123 both directions between the 5 client nodes and control01. This CR
-only needs chronyd itself to actually listen/request across that path.
+**Firewall prerequisite correction (2026-09-18):** the earlier claim that
+`infra-kubernetes` PR #7 was already merged was incorrect. The deployment
+review observed [PR #7](https://github.com/321Team/infra-kubernetes/pull/7)
+as Open / merged=false at HEAD `7a840cf013be61e5891c4848f8732d4358208423`.
+A proposed manifest, or a code merge alone, does not prove an active UDP/123
+path. Before this CR's runtime apply, establish the current effective
+firewalld/HEP policy and the approved client-to-control01 UDP/123 path.
+Do not require the whole SEC PR rollout as a new blanket prerequisite:
+use the actual approved host-protection state. This CR manages chronyd
+only and does not apply HEP/GNP or modify firewall rules.
 
 ## What this CR does NOT do
 
@@ -52,6 +66,9 @@ and folded into this CR before `apply`.
 
 ## Run order
 
+The following source/clients/rollback commands are the procedure for a
+future approved runtime window, **not permission to run them while HOLD**.
+
 1. `precheck` — all 6 nodes, read-only. Surfaces the blocker above if it's
    still present.
 2. `source` — **control01 only**, adds the `allow` drop-in. Must run before
@@ -76,8 +93,8 @@ Rollback one node: `CR_CHANGE_APPROVED=CR-P1-NTP-01-01 ./scripts/cr-p1-ntp-01-01
 ## PR #24 review remediation
 
 The seven findings on `e9b628af2923d2dc1346923295fa8361f752b8f9` are addressed
-by this proposal; this is not evidence of a production apply or an independent
-approval of the proposal.
+by the integrated PR #25 remediation. Its independent approval is linked
+above; neither the code review nor its branch merge proves a production apply.
 
 | Review finding | Code change | Regression coverage |
 |---|---|---|
@@ -124,8 +141,11 @@ The local validation record is [review-fix-validation](CR-P1-NTP-01-01-review-fi
 
 ## Not covered by this CR / still needed before real apply
 
-- Independent review of `roles/ntp_source` and this doc (same pattern as
-  SEC-06/PR #7 — no self-approval).
+- Confirm the integrated PR #24 disposition and merge scope. PR #25's
+  independent approval is already recorded; do not request it again for
+  unchanged code. Runtime decisions follow the current
+  [Lead delegation policy](https://github.com/321Team/fds-project-baseline/blob/main/governance/REVIEW_AUTHORITY_POLICY.md),
+  while code-change merge review remains required.
 - Confirming the precheck blocker above against live hosts.
 - control01's own upstream, as its own separately tracked/approved item.
 - The 60s x 6 continuous-measurement and 5-minute failure/reboot-resync
