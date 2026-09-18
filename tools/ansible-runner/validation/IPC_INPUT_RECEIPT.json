@@ -1,0 +1,11 @@
+{
+  "source_pr": 19,
+  "source_head": "2fae52a9e09e33b8c8bff6c653b8533d8b52dc47",
+  "host_archive_sha256": "dc2cd0c482e4a913e2824d90fad05b8c5e392c1c83f3a120fb2e5b16fdf2e02b",
+  "artifact_id": 10465860514,
+  "artifact_zip_sha256": "e678eead880bd62a47b6c41428ad519646c54f66b315eb552890b82240eeb1a3",
+  "artifact_files": 397,
+  "artifact_manifest_rows": 396,
+  "fixture_manifest_rows": 231,
+  "review_before_code": "IPC_FAILURE_REVIEW.md"
+}

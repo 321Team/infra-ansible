@@ -1,0 +1,52 @@
+test_cleanup_failure_preserves_workspace_and_fails (__main__.CleanupTests.test_cleanup_failure_preserves_workspace_and_fails) ... ok
+test_exact_cids_only_removed_then_workspace_deleted (__main__.CleanupTests.test_exact_cids_only_removed_then_workspace_deleted) ... ok
+test_secret_not_in_command_records (__main__.CleanupTests.test_secret_not_in_command_records) ... STAGE=container
+ok
+test_started_without_cid_is_failure (__main__.CleanupTests.test_started_without_cid_is_failure) ... ok
+test_commands_enforce_isolation (__main__.PolicyTests.test_commands_enforce_isolation) ... ok
+test_dns_private_mixed_and_empty_denied (__main__.PolicyTests.test_dns_private_mixed_and_empty_denied) ... ok
+test_dns_public_preserved (__main__.PolicyTests.test_dns_public_preserved) ... ok
+test_manifest_mutations_rejected (__main__.PolicyTests.test_manifest_mutations_rejected) ... ok
+test_manifest_rejects_linked_directory_even_if_empty (__main__.PolicyTests.test_manifest_rejects_linked_directory_even_if_empty) ... ok
+test_proxy_allowed_targets (__main__.PolicyTests.test_proxy_allowed_targets) ... ok
+test_proxy_rejected_targets (__main__.PolicyTests.test_proxy_rejected_targets) ... ok
+test_token_file_mode_owner_and_links (__main__.PolicyTests.test_token_file_mode_owner_and_links) ... ok
+test_token_only_config_child_env (__main__.PolicyTests.test_token_only_config_child_env) ... ok
+test_token_packet_valid_and_rejections (__main__.PolicyTests.test_token_packet_valid_and_rejections) ... ok
+test_controller_commands_use_dedicated_run_cwd (__main__.PreflightDiagnosticsTests.test_controller_commands_use_dedicated_run_cwd) ... STAGE=podman-info
+ok
+test_credential_modes_never_export_raw_output (__main__.PreflightDiagnosticsTests.test_credential_modes_never_export_raw_output) ... STAGE=container
+STAGE=container
+ok
+test_home_collector_accepts_fixed_bounded_result (__main__.PreflightDiagnosticsTests.test_home_collector_accepts_fixed_bounded_result) ... ok
+test_home_collector_rejects_symlink_archive (__main__.PreflightDiagnosticsTests.test_home_collector_rejects_symlink_archive) ... ok
+test_json_stdout_not_contaminated_by_stderr_warning (__main__.PreflightDiagnosticsTests.test_json_stdout_not_contaminated_by_stderr_warning) ... STAGE=podman-info
+ok
+test_launcher_child_cwd_is_explicit (__main__.PreflightDiagnosticsTests.test_launcher_child_cwd_is_explicit) ... /tmp/tmpvqgfghc1/dedicated
+ok
+test_linked_diagnostics_not_followed (__main__.PreflightDiagnosticsTests.test_linked_diagnostics_not_followed) ... ok
+test_missing_container_result_does_not_become_pass (__main__.PreflightDiagnosticsTests.test_missing_container_result_does_not_become_pass) ... ok
+test_prepare_rejects_secret_payload (__main__.PreflightDiagnosticsTests.test_prepare_rejects_secret_payload) ... ok
+test_rc1_stderr_survives_cleanup_and_archive (__main__.PreflightDiagnosticsTests.test_rc1_stderr_survives_cleanup_and_archive) ... STAGE=podman-info
+ok
+test_spawn_failure_record_preserved (__main__.PreflightDiagnosticsTests.test_spawn_failure_record_preserved) ... STAGE=podman-info
+ok
+test_tail_bounded_and_truncation_recorded (__main__.PreflightDiagnosticsTests.test_tail_bounded_and_truncation_recorded) ... STAGE=podman-info
+ok
+test_timeout_has_nonzero_rc_and_diagnostics (__main__.PreflightDiagnosticsTests.test_timeout_has_nonzero_rc_and_diagnostics) ... STAGE=podman-info
+ok
+test_dns_denial_never_opens_upstream (__main__.ProtocolTests.test_dns_denial_never_opens_upstream) ... ok
+test_invalid_pre_tunnel_payload_and_oversized_headers_rejected (__main__.ProtocolTests.test_invalid_pre_tunnel_payload_and_oversized_headers_rejected) ... ok
+test_public_connect_uses_validated_ip_without_reresolution (__main__.ProtocolTests.test_public_connect_uses_validated_ip_without_reresolution) ... ok
+test_export_discards_unknown_fields_and_tokens (__main__.ResultTests.test_export_discards_unknown_fields_and_tokens) ... ok
+test_home_result_requires_cleanup_and_binding (__main__.ResultTests.test_home_result_requires_cleanup_and_binding) ... ok
+test_network_probe_completeness (__main__.ResultTests.test_network_probe_completeness) ... ok
+test_prepare_requires_all_conditions (__main__.ResultTests.test_prepare_requires_all_conditions) ... ok
+test_prepared_binding_rejects_wrong_bundle_or_image (__main__.ResultTests.test_prepared_binding_rejects_wrong_bundle_or_image) ... ok
+test_registration_requires_removal_and_identity (__main__.ResultTests.test_registration_requires_removal_and_identity) ... ok
+test_serve_is_not_ci_success (__main__.ResultTests.test_serve_is_not_ci_success) ... ok
+
+----------------------------------------------------------------------
+Ran 37 tests in 0.471s
+
+OK

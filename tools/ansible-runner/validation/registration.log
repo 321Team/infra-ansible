@@ -1,0 +1,18 @@
+test_bom_and_plain_utf8_keep_exact_identity (__main__.IdentityTests.test_bom_and_plain_utf8_keep_exact_identity) ... ok
+test_bounded_regular_file_enforced (__main__.IdentityTests.test_bounded_regular_file_enforced) ... ok
+test_malformed_json_and_encoding_rejected (__main__.IdentityTests.test_malformed_json_and_encoding_rejected) ... ok
+test_old_read_text_json_path_rejects_bom (__main__.IdentityTests.test_old_read_text_json_path_rejects_bom) ... ok
+test_wrong_identity_and_invalid_ids_rejected (__main__.IdentityTests.test_wrong_identity_and_invalid_ids_rejected) ... ok
+test_bom_registration_configure_identity_remove_pass (__main__.RegistrationFlowTests.test_bom_registration_configure_identity_remove_pass) ... ok
+test_broken_json_recovery_remove_stays_fail_with_diagnostics (__main__.RegistrationFlowTests.test_broken_json_recovery_remove_stays_fail_with_diagnostics) ... ok
+test_configure_failure_does_not_invent_identity_or_remove (__main__.RegistrationFlowTests.test_configure_failure_does_not_invent_identity_or_remove) ... ok
+test_ipc_failure_prevents_registration (__main__.RegistrationFlowTests.test_ipc_failure_prevents_registration) ... ok
+test_only_fixed_diagnostics_exported (__main__.RegistrationFlowTests.test_only_fixed_diagnostics_exported) ... ok
+test_plain_registration_pass (__main__.RegistrationFlowTests.test_plain_registration_pass) ... ok
+test_remove_failure_stays_fail_and_preserves_exact_id (__main__.RegistrationFlowTests.test_remove_failure_stays_fail_and_preserves_exact_id) ... ok
+test_wrong_repository_recovery_does_not_accept_identity (__main__.RegistrationFlowTests.test_wrong_repository_recovery_does_not_accept_identity) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.021s
+
+OK

@@ -1,0 +1,31 @@
+{
+  "recorded_at_utc": "2026-09-16T19:56:26.246481+00:00",
+  "python_syntax_files": 11,
+  "shell_syntax_files": 4,
+  "unit_tests": 37,
+  "registration_tests": 13,
+  "ipc_boundary_tests": 7,
+  "total_unit_tests": 57,
+  "local_python_fork_spawn_probe": "PASS_IPC",
+  "wrong_environment_checks": [
+    {
+      "entry": "01-admin-absence.sh",
+      "rc": 1,
+      "stderr": "STOP: wrong login account; use the original normal login",
+      "phase": "before API/sudo/staging"
+    },
+    {
+      "entry": "02-prepare.sh",
+      "rc": 1,
+      "stderr": "STOP: wrong login account; use the original normal login",
+      "phase": "before API/sudo/staging"
+    }
+  ],
+  "host_podman_v1_3": "NOT_RUN",
+  "github_actions_v1_3": "NOT_RUN",
+  "previous_actions_run": 35139314896,
+  "previous_actions_attempt": 1,
+  "previous_actions_verdict": "FAIL_ENVIRONMENT_READONLY_SHM",
+  "production_apply": false,
+  "merged": false
+}

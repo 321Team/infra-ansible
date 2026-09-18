@@ -1,0 +1,99 @@
+{
+  "input_name": "ansible-actions-runner-evidence.tar.gz",
+  "input_bytes": 3779,
+  "input_sha256": "fe7e908018bc38f192154a429673150ba5e4c07cbdf73b322f651c9c3820bdaa",
+  "outer_and_inner_manifest_exact_coverage": true,
+  "outer_regular_files": 14,
+  "inner_regular_files": 4,
+  "observed_host": {
+    "status": "FAIL",
+    "mode": "prepare",
+    "account": "ansible-verify",
+    "uid": 1001,
+    "started_at": "2026-09-16T14:26:51.233715+00:00",
+    "repository": "321Team/infra-ansible",
+    "runner_name": "ansible-ci-3cb0be1a7f5848b485c9bad61fe5de07",
+    "github_actions_verdict": "NOT_RUN",
+    "production_apply": false,
+    "engine_transition": false,
+    "runner_registration_attempted": false,
+    "bundle_sha256": "9006c07bd04fce3ff12f8d2a7bd3289059cea0e870632c494e8b0dfb14132907",
+    "error_type": "RuntimeError",
+    "prepare_error": "Command failed: podman-info",
+    "container_cleanup": "REMOVED",
+    "ended_at": "2026-09-16T14:26:51.247377+00:00"
+  },
+  "observed_home": {
+    "status": "FAIL",
+    "mode": "prepare",
+    "started_at": "2026-09-16T14:26:51.039873+00:00",
+    "login_account": "server01_cicd-runner",
+    "dedicated_run": "/home/ansible-verify/ansible-actions-1f3bbfdd163a49e58c6db74c1e94bd50",
+    "host_rc": 1,
+    "github_actions_verdict": "NOT_ASSESSED",
+    "production_apply": false,
+    "engine_transition": false,
+    "bundle_sha256": "9006c07bd04fce3ff12f8d2a7bd3289059cea0e870632c494e8b0dfb14132907",
+    "ended_at": "2026-09-16T14:26:51.296215+00:00"
+  },
+  "commands": [
+    {
+      "stage": "selinux",
+      "command": [
+        "getenforce"
+      ],
+      "rc": 0
+    },
+    {
+      "stage": "podman-info",
+      "command": [
+        "podman",
+        "info",
+        "--format=json"
+      ],
+      "rc": 1
+    }
+  ],
+  "cleanup": {
+    "runner": "NOT_CREATED",
+    "proxy": "NOT_CREATED",
+    "workspace": "REMOVED"
+  },
+  "account_identity": {
+    "check": "resume-identity",
+    "record": {
+      "name": "ansible-verify",
+      "uid": 1001,
+      "gid": 1002,
+      "home": "/home/ansible-verify",
+      "shell": "/bin/bash",
+      "groups": [
+        1002
+      ],
+      "home_uid": 1001,
+      "home_gid": 1002,
+      "home_mode": 448,
+      "home_directory": true,
+      "home_linked": false,
+      "password_locked": true,
+      "credential_paths_present": []
+    },
+    "errors": []
+  },
+  "sudo_policy": {
+    "check": "sudo-policy",
+    "command": [
+      "sudo",
+      "-n",
+      "-ll",
+      "-U",
+      "ansible-verify"
+    ],
+    "rc": 0,
+    "stdout": "User ansible-verify is not allowed to run sudo on cicd-runner01.\n",
+    "stderr": "",
+    "denial_confirmed": true
+  },
+  "diagnostic_limit": "podman-info stdout/stderr absent; direct cause not established",
+  "new_kit_server_result": "NOT_RUN"
+}

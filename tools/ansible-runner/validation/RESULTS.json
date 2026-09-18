@@ -1,0 +1,51 @@
+{
+  "created_at": "2026-09-16T16:05:31.651969+00:00",
+  "kit_version": "1.2",
+  "status": "PASS_LOCAL_UNIT_AND_MOCK",
+  "unit": {
+    "existing_tests": 37,
+    "registration_regression_tests": 12,
+    "total_tests": 49,
+    "rc": 0,
+    "logs": [
+      "unit.log",
+      "registration.log"
+    ]
+  },
+  "syntax": {
+    "python_ast_files": 9,
+    "bash_rc": 0
+  },
+  "environment": {
+    "uid": 0,
+    "podman": null
+  },
+  "prior_v1_1_server_registration": "FAIL_CONFIGURE0_REMOVE0_IDENTITY_NOT_PRESERVED",
+  "actual_prior_exception": "UNKNOWN",
+  "bom_defect": "REPRODUCED_LOCALLY",
+  "new_kit_server_prepare": "NOT_RUN",
+  "new_kit_server_registration": "NOT_RUN",
+  "github_runner_api_absence": "NOT_VERIFIED",
+  "github_actions": "NOT_RUN",
+  "independent_review": "NOT_APPROVED_BY_THIS_RECORD",
+  "merge": false,
+  "production_apply": false,
+  "files_sha256": {
+    "CODE_REVIEW.md": "b066ef9040cbc70cb4f880484e3e646de357400361a4016c48c931a2c0583aac",
+    "DEEP_REVIEW.md": "cceb659cc95c818487bf896e338306f19d82e2818ede8969dc853465fc1f649b",
+    "PREPARE_FAILURE_REVIEW.md": "66337780aeded998b529387345cabaf37a975163451a084347350c99d4b35911",
+    "README.md": "a3f17c67c5aaf69831cce3ce12212bfe86b65dfa34d71abc0599a8c21fc2e1ab",
+    "REGISTRATION_FAILURE_REVIEW.md": "8d920c59bc8221434521573ab1a2a4589835df3a1cc361a19916ff4020ecbb04",
+    "admin-token.py": "dff27d40a4f1869cee837814aa74e61a10428e65060669cacd3adfe054cdd9b0",
+    "build/Containerfile": "f09a0f16716b99872d4b03159137ca846b25ae0eac6d107b35ca42e54d616eea",
+    "common.py": "1cf7cbc14b3a861a74d7eb014ad13495dd4781ef186a9c7e00c9e43a62af0811",
+    "container.py": "0fbd8db3ef5155eb65aba37f67e5056cd542d241f9773982823d6239422c4727",
+    "launch.py": "1f43441890d999ad6a75b8ea7683d6fc4427782f2bbc5771f928f37d0408d1ec",
+    "proxy.py": "4860c78d0b519b97ccba94db8d51c56978e811a7b3448f7a7273cb9387c10dc0",
+    "run.sh": "fbaf54eb713c41329653955bf8e81aaff566252748ddea2181657531b020a731",
+    "runner.py": "d9222e956f219aeef8bc43eb5daec064fc487385f267fcae4315b3f9ac7f3c0e",
+    "support/check-account.py": "831ecf851812c0f14c7bcd268ab34f7790f4848ce0eb4ef6a5a678105e75c974",
+    "test-kit.py": "ee9f7c3360aeab7fbac9efe32744a17e993d6158ac991493d65ca8d43b1d5270",
+    "test-registration.py": "21eaa95c71b6ccb5ecfac67240230d2fba9ae005c437638d5aaa73d768860831"
+  }
+}

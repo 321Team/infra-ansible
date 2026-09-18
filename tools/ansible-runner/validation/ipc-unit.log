@@ -1,0 +1,12 @@
+test_all_modes_require_ipc_success_and_shm_checks (__main__.IPCBoundaries.test_all_modes_require_ipc_success_and_shm_checks) ... ok
+test_hardened_bounded_mount_accepts (__main__.IPCBoundaries.test_hardened_bounded_mount_accepts) ... ok
+test_ipc_gate_precedes_token_read_and_registration (__main__.IPCBoundaries.test_ipc_gate_precedes_token_read_and_registration) ... ok
+test_probe_rejects_failure_fake_success_and_timeout (__main__.IPCBoundaries.test_probe_rejects_failure_fake_success_and_timeout) ... ok
+test_readonly_and_unbounded_or_different_size_reject (__main__.IPCBoundaries.test_readonly_and_unbounded_or_different_size_reject) ... ok
+test_runner_only_uses_private_bounded_tmpfs (__main__.IPCBoundaries.test_runner_only_uses_private_bounded_tmpfs) ... ok
+test_unsafe_or_missing_mounts_reject (__main__.IPCBoundaries.test_unsafe_or_missing_mounts_reject) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.002s
+
+OK
