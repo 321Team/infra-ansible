@@ -40,7 +40,8 @@ case "${action}" in
     run_playbook "source_apply" \
       -e "cr_ntp_change_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-ntp-01-01-apply-source.yml"
-    run_playbook "source_idempotency" \
+    run_playbook "source_idempotency" --check --diff \
+      -e '{"cr_ntp_require_no_change":true}' \
       -e "cr_ntp_change_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-ntp-01-01-apply-source.yml"
     ;;
@@ -52,7 +53,8 @@ case "${action}" in
     run_playbook "clients_apply" \
       -e "cr_ntp_change_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-ntp-01-01-apply-clients.yml"
-    run_playbook "clients_idempotency" \
+    run_playbook "clients_idempotency" --check --diff \
+      -e '{"cr_ntp_require_no_change":true}' \
       -e "cr_ntp_change_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-ntp-01-01-apply-clients.yml"
     ;;

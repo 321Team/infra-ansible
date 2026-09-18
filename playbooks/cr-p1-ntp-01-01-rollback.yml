@@ -32,56 +32,14 @@
           Set cr_ntp_rollback_approved={{ cr_ntp_change_id }} for the
           selected rollback host.
 
-    - name: Read preserved original drop-in state
-      ansible.builtin.slurp:
-        src: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
-      register: cr_ntp_original_state_file
-
-    - name: Decode preserved original drop-in state
-      ansible.builtin.set_fact:
-        cr_ntp_original_state: >-
-          {{ cr_ntp_original_state_file.content | b64decode | from_json }}
-
-    - name: Validate preserved state ownership
-      ansible.builtin.assert:
-        that:
-          - cr_ntp_original_state.change_id == cr_ntp_change_id
-          - cr_ntp_original_state.inventory_hostname == inventory_hostname
-        fail_msg: >-
-          Preserved NTP drop-in state does not belong to this change and host.
+    - name: Read and validate the immutable CR baseline
+      ansible.builtin.include_tasks: ../roles/ntp_source/tasks/_read_original.yml
 
   tasks:
-    - name: Remove drop-in that did not exist before this change
-      ansible.builtin.file:
-        path: "{{ cr_ntp_dropin_path }}"
-        state: absent
-      when: not cr_ntp_original_state.dropin_existed
-
-    - name: Restore drop-in that existed before this change
-      ansible.builtin.copy:
-        dest: "{{ cr_ntp_dropin_path }}"
-        content: "{{ cr_ntp_original_state.dropin_content_b64 | b64decode }}"
-        owner: root
-        group: root
-        mode: "0644"
-      when: cr_ntp_original_state.dropin_existed
-
-    - name: Restart chronyd after rollback
-      ansible.builtin.systemd:
-        name: chronyd
-        state: restarted
-
-    - name: Wait for chronyd to report active after rollback
-      ansible.builtin.command:
-        argv:
-          - systemctl
-          - is-active
-          - chronyd.service
-      register: cr_ntp_active_after_rollback
-      changed_when: false
-      retries: 5
-      delay: 2
-      until: cr_ntp_active_after_rollback.stdout == "active"
+    - name: Restore the original CR baseline
+      ansible.builtin.include_tasks: ../roles/ntp_source/tasks/_restore_dropin.yml
+      vars:
+        cr_ntp_restore_state: "{{ cr_ntp_original_state }}"
 
     - name: Read post-rollback chronyc sources
       ansible.builtin.command:
@@ -91,6 +49,7 @@
           - sources
       register: cr_ntp_rollback_sources
       changed_when: false
+      when: not ansible_check_mode
 
     - name: Print rollback verdict
       ansible.builtin.debug:
@@ -100,3 +59,4 @@
           dropin_state: RESTORED
           chronyd: active
           sources: "{{ cr_ntp_rollback_sources.stdout_lines }}"
+      when: not ansible_check_mode

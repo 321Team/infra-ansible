@@ -1,0 +1,74 @@
+"""Test-only controller action: no subprocess, network, service or clock access."""
+import json
+from pathlib import Path
+
+from ansible.plugins.action import ActionBase
+
+
+class ActionModule(ActionBase):
+    def run(self, tmp=None, task_vars=None):
+        super().run(tmp, task_vars)
+        root = Path(task_vars['fixture_root'])
+        scenario = task_vars['fixture_scenario']
+        state_file = root / 'events.json'
+        state = json.loads(state_file.read_text()) if state_file.exists() else {
+            'events': [], 'restarts': 0, 'synced': False}
+        args = self._task.args
+        state['events'].append(args)
+        rc, stdout = 0, ''
+        if args['kind'] == 'systemd':
+            assert args['options'] == {'name': 'chronyd', 'state': 'restarted'}
+            state['restarts'] += 1
+            state['synced'] = False
+            if (scenario.get('restart_fail') and state['restarts'] == 1 or
+                    scenario.get('restore_fail') and state['restarts'] == 2):
+                rc, stdout = 1, 'FIXTURE_SERVICE_FAILURE'
+        else:
+            argv = args['options']['argv']
+            if argv == ['rpm', '-q', 'chrony']:
+                stdout = 'chrony-fixture'
+            elif argv[:2] == ['systemctl', 'show']:
+                stdout = 'loaded\nactive'
+            elif argv == ['systemctl', 'is-active', 'chronyd.service']:
+                stdout = 'active'
+            elif argv[:2] == ['chronyc', 'waitsync']:
+                # Model documented waitsync outcome, NOT real elapsed time.
+                assert argv == ['chronyc', 'waitsync', '30', '0.1', '0', '10'], argv
+                assert self._task.timeout == 300
+                state['polls'] = 30 if scenario.get('wait_fail') else 3
+                state['synced'] = not scenario.get('wait_fail', False)
+                rc = 0 if state['synced'] else 1
+                stdout = 'MODEL_POLLS=' + str(state['polls'])
+            elif argv == ['chronyc', 'tracking']:
+                system = scenario.get('system_time', '0.000001')
+                last = scenario.get('last_offset', '0.000001')
+                leap = scenario.get('leap', 'Normal')
+                if state['restarts'] and not state['synced']:
+                    leap = 'Not synchronised'
+                stdout = ('Reference ID : 0A015D66 (10.1.93.102)\nStratum : 3\n'
+                          f'System time : {system} seconds slow of NTP time\n'
+                          f'Last offset : {last} seconds\nLeap status : {leap}\n')
+                if scenario.get('missing_system'):
+                    stdout = '\n'.join(x for x in stdout.splitlines()
+                                       if not x.startswith('System time'))
+                if scenario.get('duplicate_system'):
+                    stdout += f'System time : {system} seconds slow of NTP time\n'
+            elif argv in (['chronyc', '-n', 'sources', '-a'], ['chronyc', '-c', 'sources']):
+                address = scenario.get('address', '10.1.93.102')
+                if scenario.get('drift') and not state['synced']:
+                    address = '192.0.2.123'
+                stdout = ('MS Name/IP address Stratum Poll Reach LastRx Last sample\n'
+                          '================================================================\n'
+                          f'^* {address} 3 6 377 23 -1234ns[ -1234ns] +/- 1ms\n')
+                if scenario.get('extra_source'):
+                    stdout += '^? 192.0.2.124 3 6 0 0 0ns[ 0ns] +/- 1ms\n'
+                if scenario.get('unresolved_source'):
+                    stdout += '^? ID#1234567890 0 0 0 - +0ns[ +0ns] +/- 0ns\n'
+            elif argv == ['chronyc', 'clients']:
+                stdout = 'FIXTURE_CLIENTS'
+            else:
+                raise AssertionError('Unmodelled command: ' + repr(argv))
+        state_file.write_text(json.dumps(state, indent=2) + '\n')
+        return dict(changed=args['kind'] == 'systemd' and rc == 0,
+                    failed=rc != 0, rc=rc, stdout=stdout,
+                    stdout_lines=stdout.splitlines(), stderr='')

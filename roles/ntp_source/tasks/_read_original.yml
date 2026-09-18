@@ -1,0 +1,29 @@
+---
+- name: Inspect the preserved baseline
+  ansible.builtin.stat:
+    path: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
+  register: cr_ntp_original_stat
+
+- name: Require a protected regular baseline file
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_original_stat.stat.exists
+      - cr_ntp_original_stat.stat.isreg | default(false)
+      - not (cr_ntp_original_stat.stat.islnk | default(false))
+      - cr_ntp_original_stat.stat.nlink | default(0) == 1
+      - cr_ntp_original_stat.stat.uid == 0
+      - cr_ntp_original_stat.stat.mode == '0600'
+
+- name: Read preserved original drop-in state
+  ansible.builtin.slurp:
+    src: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
+  register: cr_ntp_original_state_file
+
+- name: Decode preserved original drop-in state
+  ansible.builtin.set_fact:
+    cr_ntp_original_state: "{{ cr_ntp_original_state_file.content | b64decode | from_json }}"
+
+- name: Validate preserved state
+  ansible.builtin.include_tasks: _validate_state.yml
+  vars:
+    cr_ntp_restore_state: "{{ cr_ntp_original_state }}"

@@ -59,7 +59,8 @@ and folded into this CR before `apply`.
 3. `clients` — the other 5 nodes, replaces their active source with
    `server 10.1.93.102 iburst`, one host at a time (`serial: 1`), automatic
    rollback of that host's drop-in on restart/validation failure.
-4. `verify` — all 6 nodes. Asserts Leap=Normal, offset <=100ms, and exactly
+4. `verify` — all 6 nodes. Asserts Leap=Normal, current system correction
+   and last offset <=100ms, and exactly
    one configured/selected source (control01) on each client.
 
 ```bash
@@ -71,6 +72,55 @@ CR_CHANGE_APPROVED=CR-P1-NTP-01-01 ./scripts/cr-p1-ntp-01-01-run.sh clients
 ```
 
 Rollback one node: `CR_CHANGE_APPROVED=CR-P1-NTP-01-01 ./scripts/cr-p1-ntp-01-01-run.sh rollback k8s-worker02`.
+
+## PR #24 review remediation
+
+The seven findings on `e9b628af2923d2dc1346923295fa8361f752b8f9` are addressed
+by this proposal; this is not evidence of a production apply or an independent
+approval of the proposal.
+
+| Review finding | Code change | Regression coverage |
+|---|---|---|
+| R1 backup expression fails at runtime | One valid Jinja dictionary, JSON serialization after capture | Real copy/slurp for absent and existing drop-ins |
+| R2 invalid include detection | Active `confdir DIR` or `include DIR/*.conf`, bound to the managed directory; comments excluded | Both layouts, case/space, four comment forms, competing directives |
+| R3 check-mode checks unapplied runtime | Template predicts diff in check mode; runtime validation only after real apply | Drift dry-run leaves files, baseline and service unchanged |
+| R4 restart races synchronisation | `chronyc waitsync 30 0.1 0 10` (at 100ms AC), task timeout 300s, then strict verify | Modelled delayed convergence, exhausted wait, restart and restore failures |
+| R5 current correction omitted | Parse System time and Last offset, reject malformed/missing/duplicate/non-finite values; both <=100ms | Boundary, 500ms correction, malformed values, wrong/multiple sources |
+| R6 rerun always changes | Stable templates; second wrapper pass is check/diff plus explicit zero-change assertion | Second real apply changed=0, drift rejected by idempotency check |
+| R7 wrapper not executable | Git executable bit 100755 | Shell syntax and mode check |
+
+The source-row parser also excludes chronyc's `====` separator, includes
+unresolved sources via `sources -a`, and escapes the expected IP before
+comparison. A passing include check is deliberately
+limited to the two supported main-config layouts; nested/multiple-directory
+layouts need review, and the main config is never rewritten by this role.
+Active client `server`, `pool`, `peer`, and `sourcedir` directives are blockers.
+
+Automatic rescue restores the **current invocation's** drop-in snapshot,
+including uid/gid/mode, only when that invocation changed the drop-in.
+An unchanged apply that fails runtime verification stops without rolling back
+an earlier successful change. Explicit manual CR rollback uses the immutable
+`original-ntp-dropin.json` baseline. Both paths validate schema, CR, host,
+role and destination before restoring. Existing legacy/mismatched baselines
+are preserved and rejected; do not delete/recreate one to bypass validation.
+Symlink and multiply linked drop-ins are rejected. A failed restore stops
+the batch and requires operator recovery; service-active after restoration
+alone does not prove NTP convergence or AC acceptance.
+
+Local regression command (in an environment with ansible-core and PyYAML):
+
+```bash
+python3 tests/ntp_source/test_ntp_source.py --ansible-playbook "$(command -v ansible-playbook)"
+python3 tests/ntp_source/test_wrapper.py
+```
+
+The fixture executes real Ansible control flow and temporary-file modules.
+Host commands, service changes, and the chronyd parser are modelled. It is
+LOCAL/MOCK coverage, not CI or RUNTIME acceptance. Validate installed chrony
+configuration parsing, real convergence latency, SELinux/permissions, and
+UDP/123 reachability on the approved target stage. The bounded apply wait
+does not establish the separate reboot or 60s x 6 continuous-measurement AC.
+The local validation record is [review-fix-validation](CR-P1-NTP-01-01-review-fix-validation.md).
 
 ## Not covered by this CR / still needed before real apply
 
