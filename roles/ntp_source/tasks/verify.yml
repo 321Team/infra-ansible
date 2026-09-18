@@ -10,39 +10,51 @@
       - chronyc
       - tracking
   register: cr_ntp_tracking_after
+  environment:
+    LC_ALL: C
   changed_when: false
   check_mode: false
 
-- name: Extract Leap status from chronyc tracking
+- name: Parse tracking fields without substituting missing values with zero
   ansible.builtin.set_fact:
-    cr_ntp_leap_status: >-
+    cr_ntp_leap_matches: >-
       {{ cr_ntp_tracking_after.stdout
-         | regex_search('Leap status\s*:\s*(\S+)', '\1')
-         | first | default('', true) }}
-
-- name: Extract last offset (seconds) from chronyc tracking
-  ansible.builtin.set_fact:
-    cr_ntp_last_offset_s: >-
+         | regex_findall('(?m)^Leap status[ \t]*:[ \t]*([^\r\n]+)$') }}
+    cr_ntp_last_offset_matches: >-
       {{ cr_ntp_tracking_after.stdout
-         | regex_search('Last offset\s*:\s*([+-]?[0-9.eE+-]+)\s*seconds', '\1')
-         | first | default('', true) }}
-
-- name: Extract stratum from chronyc tracking
-  ansible.builtin.set_fact:
-    cr_ntp_stratum: >-
+         | regex_findall('(?m)^Last offset[ \t]*:[ \t]*([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:[eE][+-]?[0-9]+)?)[ \t]+seconds[ \t]*$') }}
+    cr_ntp_system_time_matches: >-
       {{ cr_ntp_tracking_after.stdout
-         | regex_search('Stratum\s*:\s*(\d+)', '\1')
-         | first | default('', true) }}
+         | regex_findall('(?m)^System time[ \t]*:[ \t]*([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:[eE][+-]?[0-9]+)?)[ \t]+seconds[ \t]+(?:fast|slow) of NTP time[ \t]*$') }}
+    cr_ntp_stratum_matches: >-
+      {{ cr_ntp_tracking_after.stdout
+         | regex_findall('(?m)^Stratum[ \t]*:[ \t]*([0-9]+)[ \t]*$') }}
 
 - name: Assert tracking fields were found
   ansible.builtin.assert:
     that:
-      - cr_ntp_leap_status | length > 0
-      - cr_ntp_last_offset_s | length > 0
+      - cr_ntp_leap_matches | length == 1
+      - cr_ntp_last_offset_matches | length == 1
+      - cr_ntp_system_time_matches | length == 1
+      - cr_ntp_stratum_matches | length == 1
     fail_msg: >-
       Could not parse `chronyc tracking` output on {{ inventory_hostname }};
       its format may have changed. Raw output:
       {{ cr_ntp_tracking_after.stdout }}
+
+- name: Reject non-finite tracking numbers
+  ansible.builtin.assert:
+    that:
+      - (cr_ntp_last_offset_matches[0] | float | abs) <= 1.7976931348623157e308
+      - (cr_ntp_system_time_matches[0] | float | abs) <= 1.7976931348623157e308
+    fail_msg: Tracking values must be finite numbers.
+
+- name: Set parsed tracking values
+  ansible.builtin.set_fact:
+    cr_ntp_leap_status: "{{ cr_ntp_leap_matches | first | trim }}"
+    cr_ntp_last_offset_s: "{{ cr_ntp_last_offset_matches | first }}"
+    cr_ntp_system_time_s: "{{ cr_ntp_system_time_matches | first }}"
+    cr_ntp_stratum: "{{ cr_ntp_stratum_matches | first }}"
 
 - name: Assert leap status is Normal
   ansible.builtin.assert:
@@ -52,13 +64,15 @@
       Leap status on {{ inventory_hostname }} is "{{ cr_ntp_leap_status }}",
       not Normal.
 
-- name: Assert last offset is within the approved threshold
+- name: Assert current system correction and last offset meet the threshold
   ansible.builtin.assert:
     that:
       - (cr_ntp_last_offset_s | float | abs) <= (cr_ntp_offset_max_ms | int / 1000.0)
+      - (cr_ntp_system_time_s | float | abs) <= (cr_ntp_offset_max_ms | int / 1000.0)
     fail_msg: >-
-      Last offset on {{ inventory_hostname }} is {{ cr_ntp_last_offset_s }}s,
-      exceeding the approved {{ cr_ntp_offset_max_ms }}ms threshold.
+      Last offset={{ cr_ntp_last_offset_s }}s and current system correction=
+      {{ cr_ntp_system_time_s }}s on {{ inventory_hostname }} must both be
+      within the approved {{ cr_ntp_offset_max_ms }}ms threshold.
   when:
     - cr_ntp_phase in ['apply', 'verify']
     - not (cr_ntp_is_source | bool)
@@ -77,7 +91,10 @@
       - chronyc
       - -n
       - sources
+      - -a
   register: cr_ntp_sources_after
+  environment:
+    LC_ALL: C
   changed_when: false
   check_mode: false
 
@@ -85,7 +102,7 @@
   ansible.builtin.set_fact:
     cr_ntp_source_rows: >-
       {{ cr_ntp_sources_after.stdout_lines
-         | select('match', '^[\^=#]')
+         | select('match', '^[\^=#][*+?x~-]\s+')
          | list }}
 
 - name: Assert the approved source is selected on client nodes
@@ -93,7 +110,7 @@
     that:
       - >-
         cr_ntp_source_rows
-        | select('match', '^\^\*\s+' ~ cr_ntp_source_ip ~ '(\s|$)')
+        | select('match', '^\^\*\s+' ~ (cr_ntp_source_ip | regex_escape) ~ '(\s|$)')
         | list | length == 1
     fail_msg: >-
       {{ cr_ntp_source_ip }} ({{ cr_ntp_source_host }}) is not the selected
@@ -168,6 +185,7 @@
       role: "{{ (cr_ntp_is_source | bool) | ternary('source', 'client') }}"
       leap_status: "{{ cr_ntp_leap_status }}"
       last_offset_s: "{{ cr_ntp_last_offset_s }}"
+      system_time_s: "{{ cr_ntp_system_time_s }}"
       stratum: "{{ cr_ntp_stratum }}"
       sources_before: "{{ cr_ntp_sources_before.stdout_lines | default([]) }}"
       sources_after: "{{ cr_ntp_source_rows }}"

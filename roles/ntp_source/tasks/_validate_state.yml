@@ -1,0 +1,24 @@
+---
+- name: Validate restore state identity and schema before any mutation
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_restore_state is mapping
+      - cr_ntp_restore_state.schema_version | default(0) == 1
+      - cr_ntp_restore_state.change_id | default('') == cr_ntp_change_id
+      - cr_ntp_restore_state.inventory_hostname | default('') == inventory_hostname
+      - cr_ntp_restore_state.dropin_path | default('') == cr_ntp_dropin_path
+      - cr_ntp_restore_state.role | default('') == ((inventory_hostname == cr_ntp_source_host) | ternary('source', 'client'))
+      - cr_ntp_restore_state.dropin_existed is defined
+      - cr_ntp_restore_state.dropin_existed is boolean
+      - cr_ntp_restore_state.dropin_content_b64 is string
+      - (cr_ntp_restore_state.dropin_content_b64 | b64decode | b64encode) == cr_ntp_restore_state.dropin_content_b64
+      - cr_ntp_restore_state.dropin_existed or cr_ntp_restore_state.dropin_content_b64 == ''
+      - cr_ntp_restore_state.uid is integer
+      - cr_ntp_restore_state.uid >= 0
+      - cr_ntp_restore_state.gid is integer
+      - cr_ntp_restore_state.gid >= 0
+      - cr_ntp_restore_state.mode is string
+      - cr_ntp_restore_state.mode is match('^[0-7]{4}$')
+    fail_msg: >-
+      Invalid or mismatched rollback state. Stop and preserve it for review;
+      do not delete or recreate a legacy baseline to bypass this check.
