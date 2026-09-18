@@ -129,6 +129,36 @@ baseline captured at the first apply are left untouched — and both the
 ever calling `firewall-cmd --reload`, so no other rule (ours or anyone
 else's) is transiently dropped.
 
+Recovery state is retained after rollback. A later apply with changed inputs
+will still be refused: rollback alone does not create a fresh baseline.
+After verified restoration, preserve the JSON, original backup and execution
+evidence together in an approved archive before beginning a new change cycle.
+Do not delete or overwrite a partial baseline or an orphan original backup;
+first reconcile it against independent pre-change evidence. A missing original
+rule list is not an empty rule list and must stop both apply and rollback.
+
+Rollback invalidates `active-config.sha1` before its first service/configuration
+change and leaves it absent. An interrupted rollback therefore cannot leave a
+managed-config success marker that suppresses a later reload. The next apply
+records the marker only after its own start/reload succeeds. Original firewall
+rules must still be present before the play reports `ROLLED_BACK`.
+
+Local recovery regression (in an isolated checkout with no operational keys):
+
+```bash
+/PATH/TO/venv/bin/python -B tests/run-egress-recovery.py \
+  --ansible-bin /PATH/TO/venv/bin --output /NEW/OUTSIDE/CHECKOUT/egress-results
+```
+
+Run separately with pinned 2.16.19 and 2.21.3 environments. This exercises the
+real inventory CLI and extracted assert/copy/file tasks on localhost; the
+interruption case models the process state. It does not validate Squid,
+firewalld, Alertmanager source addresses, or operational rollback acceptance.
+Schema version/hash binding, verify input binding, native input typing,
+named systemd properties, complete service/config restoration checks and
+candidate-vs-live diff remain separate hardening items from this focused
+post-merge recovery fix. Code tests do not release the operational HOLD.
+
 ## 7. Finalize evidence
 
 ```bash
