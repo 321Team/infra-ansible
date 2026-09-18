@@ -1,0 +1,12 @@
+diff --git a/playbooks/harden_svc_ansible_key.yml b/playbooks/harden_svc_ansible_key.yml
+--- a/playbooks/harden_svc_ansible_key.yml
++++ b/playbooks/harden_svc_ansible_key.yml
+@@ -28,7 +28,7 @@
+       check_mode: false
+       failed_when: >-
+         p1_managed_key_count.rc not in [0, 1]
+-        or (p1_managed_key_count.stdout | int) != 1
++        or (p1_managed_key_count.stdout | int) != 2
+ 
+     - name: Preserve original authorized keys
+       ansible.builtin.copy:

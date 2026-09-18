@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 import yaml
+from regression_expectations import CONTRACT_CLI_CASES, EVENT_MUTATIONS, complete_contract
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
@@ -73,8 +74,7 @@ def make_play(case, python, metadata):
 
 def corruptions(events):
     """Derived negative fixtures retain a reference to the original CLI stream."""
-    for case in ('missing_complete', 'missing_node', 'duplicate_node', 'wrong_node', 'missing_marker',
-                 'duplicate_result', 'sequence_gap', 'wrong_code', 'wrong_engine', 'wrong_stage'):
+    for case in EVENT_MUTATIONS:
         rows = copy.deepcopy(events)
         if case == 'missing_complete':
             rows.pop()
@@ -123,9 +123,7 @@ def main():
     config.write_text('[defaults]\nhost_key_checking=True\nretry_files_enabled=False\n', encoding='utf-8')
     env['ANSIBLE_CONFIG'] = str(config)
     runs, comparisons = [], []
-    cases = ('baseline', 'wording', 'serial', 'ssh_proof', 'ssh_proof_wrong_count',
-             'expected_negative', 'expected_expression', 'failure', 'ignored', 'rescued',
-             'expression', 'hidden_rc', 'changed', 'transport_error', 'limited_nodes', 'timeout')
+    cases = CONTRACT_CLI_CASES
     for engine, python in zip(ENGINES, (args.python216.absolute(), args.python221.absolute())):
         inventory = output / (engine + '-inventory.json')
         write_json(inventory, {'all': {'children': {'fixtures': {'hosts': {n: {'ansible_connection': 'local',
@@ -180,9 +178,9 @@ def main():
                     good = derived['status'] == ('PASS' if mutation == 'whitespace' else 'REVIEW_REQUIRED')
                     runs.append({'engine': engine, 'case': 'derived-' + mutation, 'passed': good,
                                  'status': derived['status'], 'origin': 'mutated callback fixture', 'source_sha256': digest(stream)})
-    same = len(comparisons) == 2 and comparisons[0] == comparisons[1]
+    same = len(comparisons) == len(ENGINES) and all(row == comparisons[0] for row in comparisons)
     source_matches = source_sha(ROOT) == code
-    passed = source_matches and same and len(runs) == 58 and all(run['passed'] for run in runs)
+    passed = source_matches and same and complete_contract(runs)
     write_json(output / 'MATRIX.json', {'schema_version': 1, 'code_sha': code, 'scope': 'six LOCAL aliases; no operational SSH',
                'status': 'PASS' if passed else 'FAIL', 'same_baseline_results': same, 'runs': runs})
     files = sorted(p for p in output.rglob('*') if p.is_file())
