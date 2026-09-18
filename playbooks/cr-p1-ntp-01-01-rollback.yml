@@ -1,0 +1,102 @@
+---
+- name: CR-P1-NTP-01-01 rollback one failed node
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Require an explicit rollback target
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_host is defined
+        fail_msg: Provide cr_ntp_rollback_host with exactly one k8s_nodes host.
+
+    - name: Validate the rollback target exists in inventory
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_host in groups['k8s_nodes']
+        fail_msg: >-
+          {{ cr_ntp_rollback_host }} is not a member of k8s_nodes.
+
+    - name: End non-target hosts without changing them
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != cr_ntp_rollback_host
+
+    - name: Validate rollback approval token
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_approved | default('') == cr_ntp_change_id
+        fail_msg: >-
+          Set cr_ntp_rollback_approved={{ cr_ntp_change_id }} for the
+          selected rollback host.
+
+    - name: Read preserved original drop-in state
+      ansible.builtin.slurp:
+        src: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
+      register: cr_ntp_original_state_file
+
+    - name: Decode preserved original drop-in state
+      ansible.builtin.set_fact:
+        cr_ntp_original_state: >-
+          {{ cr_ntp_original_state_file.content | b64decode | from_json }}
+
+    - name: Validate preserved state ownership
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_original_state.change_id == cr_ntp_change_id
+          - cr_ntp_original_state.inventory_hostname == inventory_hostname
+        fail_msg: >-
+          Preserved NTP drop-in state does not belong to this change and host.
+
+  tasks:
+    - name: Remove drop-in that did not exist before this change
+      ansible.builtin.file:
+        path: "{{ cr_ntp_dropin_path }}"
+        state: absent
+      when: not cr_ntp_original_state.dropin_existed
+
+    - name: Restore drop-in that existed before this change
+      ansible.builtin.copy:
+        dest: "{{ cr_ntp_dropin_path }}"
+        content: "{{ cr_ntp_original_state.dropin_content_b64 | b64decode }}"
+        owner: root
+        group: root
+        mode: "0644"
+      when: cr_ntp_original_state.dropin_existed
+
+    - name: Restart chronyd after rollback
+      ansible.builtin.systemd:
+        name: chronyd
+        state: restarted
+
+    - name: Wait for chronyd to report active after rollback
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - chronyd.service
+      register: cr_ntp_active_after_rollback
+      changed_when: false
+      retries: 5
+      delay: 2
+      until: cr_ntp_active_after_rollback.stdout == "active"
+
+    - name: Read post-rollback chronyc sources
+      ansible.builtin.command:
+        argv:
+          - chronyc
+          - -c
+          - sources
+      register: cr_ntp_rollback_sources
+      changed_when: false
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ cr_ntp_change_id }}"
+          host: "{{ inventory_hostname }}"
+          dropin_state: RESTORED
+          chronyd: active
+          sources: "{{ cr_ntp_rollback_sources.stdout_lines }}"

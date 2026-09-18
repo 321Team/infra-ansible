@@ -1,0 +1,9 @@
+# {{ cr_ntp_change_id }} — managed by ansible, do not edit by hand.
+# Rendered: {{ ansible_date_time.iso8601 }}
+#
+# Single internal NTP source per Lead Decision
+# (fds-project-baseline#10, 2026-09-16: NTP_SINGLE_SOURCE_CONFIRMED(control01),
+# RELAY_REJECTED_OUT_OF_SCOPE). This node syncs exclusively to
+# {{ cr_ntp_source_host }} ({{ cr_ntp_source_ip }}); no pool/public source is
+# used.
+server {{ cr_ntp_source_ip }} iburst

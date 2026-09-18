@@ -1,0 +1,12 @@
+---
+- name: CR-P1-NTP-01-01 NTP precheck on all Kubernetes nodes
+  hosts: k8s_nodes
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    cr_ntp_phase: precheck
+
+  roles:
+    - role: ntp_source

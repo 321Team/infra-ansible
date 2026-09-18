@@ -1,0 +1,15 @@
+# {{ cr_ntp_change_id }} — managed by ansible, do not edit by hand.
+# Rendered: {{ ansible_date_time.iso8601 }}
+#
+# Lets the 5 other cluster nodes sync to this host (k8s-control01) as the
+# single internal NTP source, per Lead Decision
+# (fds-project-baseline#10, 2026-09-16: NTP_SINGLE_SOURCE_CONFIRMED(control01),
+# RELAY_REJECTED_OUT_OF_SCOPE).
+#
+# This file intentionally does NOT set this host's own upstream `server`/
+# `pool` directive. Where control01 itself gets time from is still
+# PENDING_REVIEW (not a Lead Decision) and must not be set here until it is
+# approved through its own change record.
+{% for ip in cr_ntp_client_ips %}
+allow {{ ip }}/32
+{% endfor %}

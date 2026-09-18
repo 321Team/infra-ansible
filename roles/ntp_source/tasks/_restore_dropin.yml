@@ -1,0 +1,47 @@
+---
+# Shared rollback-on-failure helper. Requires cr_ntp_state_dir/original-ntp-dropin.json
+# to already exist from the apply run in this same batch (written before the
+# drop-in was ever rendered), so a failure right after the first render can
+# still be undone.
+
+- name: Read preserved original drop-in state
+  ansible.builtin.slurp:
+    src: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
+  register: cr_ntp_original_state_file
+
+- name: Decode preserved original drop-in state
+  ansible.builtin.set_fact:
+    cr_ntp_original_state: >-
+      {{ cr_ntp_original_state_file.content | b64decode | from_json }}
+
+- name: Remove drop-in that did not exist before this change
+  ansible.builtin.file:
+    path: "{{ cr_ntp_dropin_path }}"
+    state: absent
+  when: not cr_ntp_original_state.dropin_existed
+
+- name: Restore drop-in that existed before this change
+  ansible.builtin.copy:
+    dest: "{{ cr_ntp_dropin_path }}"
+    content: "{{ cr_ntp_original_state.dropin_content_b64 | b64decode }}"
+    owner: root
+    group: root
+    mode: "0644"
+  when: cr_ntp_original_state.dropin_existed
+
+- name: Restart chronyd after restoring the original drop-in
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+
+- name: Wait for chronyd to report active after restore
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - chronyd.service
+  register: cr_ntp_active_after_restore
+  changed_when: false
+  retries: 5
+  delay: 2
+  until: cr_ntp_active_after_restore.stdout == "active"

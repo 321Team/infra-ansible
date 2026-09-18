@@ -1,0 +1,275 @@
+---
+- name: Validate CR NTP execution phase and variables
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_phase in ['precheck', 'apply', 'verify']
+      - cr_ntp_source_ip | length > 0
+      - cr_ntp_client_ips | length == 5
+      - cr_ntp_client_ips | unique | length == 5
+      - cr_ntp_offset_max_ms | int > 0
+    fail_msg: >-
+      Invalid {{ cr_ntp_change_id }} NTP inputs or phase.
+
+- name: Require explicit approval token for NTP changes
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_change_approved | default('') == cr_ntp_change_id
+    fail_msg: >-
+      Set cr_ntp_change_approved={{ cr_ntp_change_id }} only for an approved
+      apply run.
+  when: cr_ntp_phase == 'apply'
+
+- name: Determine this host's NTP role
+  ansible.builtin.set_fact:
+    cr_ntp_is_source: "{{ inventory_hostname == cr_ntp_source_host }}"
+
+- name: Verify chronyd is installed
+  ansible.builtin.command:
+    argv:
+      - rpm
+      - -q
+      - chrony
+  register: cr_ntp_chrony_pkg
+  changed_when: false
+  check_mode: false
+  failed_when: cr_ntp_chrony_pkg.rc != 0
+
+- name: Read pre-change chronyd service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - chronyd.service
+  register: cr_ntp_chronyd_before
+  changed_when: false
+  check_mode: false
+
+- name: Assert chronyd is active before any change
+  ansible.builtin.assert:
+    that:
+      - "'active' in cr_ntp_chronyd_before.stdout_lines"
+    fail_msg: >-
+      chronyd is not active on {{ inventory_hostname }}; refusing to layer an
+      NTP change on top of an already-broken time service.
+
+- name: Read existing chrony main config
+  ansible.builtin.slurp:
+    src: /etc/chrony.conf
+  register: cr_ntp_main_conf_before
+
+- name: Determine whether /etc/chrony.d is included
+  ansible.builtin.set_fact:
+    cr_ntp_confdir_included: >-
+      {{
+        '!includedir /etc/chrony.d/' in (cr_ntp_main_conf_before.content | b64decode)
+        or 'includedir /etc/chrony.d/' in (cr_ntp_main_conf_before.content | b64decode)
+      }}
+
+- name: Stop on unexpected chrony.conf layout
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_confdir_included | bool
+    fail_msg: >-
+      /etc/chrony.conf on {{ inventory_hostname }} does not include
+      /etc/chrony.d/. This role only manages a drop-in file there; it does
+      not edit /etc/chrony.conf directly. Confirm the real layout and update
+      this role before proceeding, rather than assuming the RHEL default.
+
+- name: Extract active server/pool directives from the main config
+  ansible.builtin.set_fact:
+    cr_ntp_main_conf_sources: >-
+      {{
+        (cr_ntp_main_conf_before.content | b64decode).splitlines()
+        | select('match', '^\s*(server|pool)\s+')
+        | list
+      }}
+
+- name: Detect whether the main config includes a DHCP-fed sourcedir
+  ansible.builtin.set_fact:
+    cr_ntp_main_conf_has_dhcp_sourcedir: >-
+      {{ 'sourcedir' in (cr_ntp_main_conf_before.content | b64decode) and
+         '/run/chrony-dhcp' in (cr_ntp_main_conf_before.content | b64decode) }}
+
+- name: Stop on unhandled competing sources for client nodes
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_main_conf_sources | length == 0
+      - not (cr_ntp_main_conf_has_dhcp_sourcedir | bool)
+    fail_msg: >-
+      /etc/chrony.conf on {{ inventory_hostname }} still has
+      {{ cr_ntp_main_conf_sources }} and/or a DHCP-fed sourcedir
+      (/run/chrony-dhcp present: {{ cr_ntp_main_conf_has_dhcp_sourcedir }}).
+      Adding this role's drop-in on top of that would leave more than one
+      active source, which the verify step (exactly 1 source) and the
+      Lead Decision's single-source design both reject. Comment out the
+      existing server/pool line(s) and disable the DHCP NTP hint (e.g. via
+      the NetworkManager connection profile, mirroring how dns_resolver
+      handles ipv4.ignore-auto-dns) in a reviewed follow-up before this role
+      can apply here. Do not silently override this check.
+  when:
+    - not (cr_ntp_is_source | bool)
+
+- name: Read pre-change chronyc tracking
+  ansible.builtin.command:
+    argv:
+      - chronyc
+      - tracking
+  register: cr_ntp_tracking_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Read pre-change chronyc sources
+  ansible.builtin.command:
+    argv:
+      - chronyc
+      - -n
+      - sources
+  register: cr_ntp_sources_before
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Check for the managed drop-in file
+  ansible.builtin.stat:
+    path: "{{ cr_ntp_dropin_path }}"
+  register: cr_ntp_dropin_before
+
+- name: Read existing drop-in content when present
+  ansible.builtin.slurp:
+    src: "{{ cr_ntp_dropin_path }}"
+  register: cr_ntp_dropin_content_before
+  when: cr_ntp_dropin_before.stat.exists
+
+- name: Create protected CR rollback state directory
+  ansible.builtin.file:
+    path: "{{ cr_ntp_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when:
+    - cr_ntp_phase == 'apply'
+    - not ansible_check_mode
+
+- name: Preserve original drop-in state once
+  ansible.builtin.copy:
+    dest: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"
+    owner: root
+    group: root
+    mode: "0600"
+    force: false
+    content: >-
+      {{
+        {
+          'change_id': cr_ntp_change_id,
+          'captured_at': ansible_date_time.iso8601,
+          'inventory_hostname': inventory_hostname,
+          'role': (cr_ntp_is_source | bool) | ternary('source', 'client'),
+          'dropin_existed': cr_ntp_dropin_before.stat.exists,
+          'dropin_content_b64': >-
+            {{
+              cr_ntp_dropin_content_before.content
+              if cr_ntp_dropin_before.stat.exists else ''
+            }}
+        } | to_nice_json
+      }}
+  when:
+    - cr_ntp_phase == 'apply'
+    - not ansible_check_mode
+
+# --- Source role (control01): add `allow` for the 5 clients only.
+# control01's own upstream (where IT gets time from) is deliberately left
+# untouched here. Lead Decision (fds-project-baseline#10, 2026-09-16)
+# confirmed control01 as the single internal source for the other 5 nodes,
+# but control01's own upstream is still PENDING a separate approval and must
+# not be set by this role.
+- name: Render source drop-in (control01 only)
+  ansible.builtin.template:
+    src: chrony-source-allow.conf.j2
+    dest: "{{ cr_ntp_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "chronyd -p -f %s"
+  register: cr_ntp_source_render
+  when:
+    - cr_ntp_phase == 'apply'
+    - cr_ntp_is_source | bool
+    - not ansible_check_mode
+
+# --- Client role (the other 5 nodes): point exclusively at control01,
+# replacing whatever pool/server directives currently apply via the
+# drop-in (main chrony.conf's own pool line, if any, is left in place but
+# should be reviewed separately — this role only adds/replaces the
+# managed drop-in, per the same non-destructive convention as dns_resolver).
+- name: Render client drop-in (the other 5 nodes)
+  ansible.builtin.template:
+    src: chrony-client-source.conf.j2
+    dest: "{{ cr_ntp_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "chronyd -p -f %s"
+  register: cr_ntp_client_render
+  when:
+    - cr_ntp_phase == 'apply'
+    - not (cr_ntp_is_source | bool)
+    - not ansible_check_mode
+
+- name: Restart chronyd to apply the drop-in with automatic failure rollback
+  when:
+    - cr_ntp_phase == 'apply'
+    - not ansible_check_mode
+    - (cr_ntp_source_render.changed | default(false)) or (cr_ntp_client_render.changed | default(false))
+  block:
+    - name: Restart chronyd
+      ansible.builtin.systemd:
+        name: chronyd
+        state: restarted
+      register: cr_ntp_restart
+
+    - name: Wait for chronyd to report active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - chronyd.service
+      register: cr_ntp_active_after_restart
+      changed_when: false
+      retries: 5
+      delay: 2
+      until: cr_ntp_active_after_restart.stdout == "active"
+
+  rescue:
+    - name: Restore original drop-in file after failed restart
+      ansible.builtin.include_tasks: _restore_dropin.yml
+
+    - name: Stop the batch after automatic rollback
+      ansible.builtin.fail:
+        msg: >-
+          chronyd restart failed on {{ inventory_hostname }} after applying
+          the {{ cr_ntp_change_id }} drop-in. The original drop-in state was
+          restored and the serial batch was stopped.
+
+- name: Verify post-run NTP state
+  block:
+    - name: Run CR NTP post-run verification tasks
+      ansible.builtin.include_tasks: verify.yml
+
+  rescue:
+    - name: Restore original drop-in after validation failure
+      ansible.builtin.include_tasks: _restore_dropin.yml
+      when:
+        - cr_ntp_phase == 'apply'
+        - not ansible_check_mode
+
+    - name: Stop the batch after post-run validation failure
+      ansible.builtin.fail:
+        msg: >-
+          Post-run NTP validation failed on {{ inventory_hostname }}. If this
+          run changed the node, its original drop-in state was restored
+          before stopping the batch.
