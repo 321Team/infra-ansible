@@ -1,0 +1,585 @@
+{
+  "status": "PASS_LOCAL_FOCUSED",
+  "base_commit": "e5446288c1c646f41c9ec9c890bf85e7509503ec",
+  "base_tree": "eeb9ce9f9493ae900b6d0258a4e1ccae6aaff1e1",
+  "tests": {
+    "rollout": {
+      "passed": 62,
+      "total": 62,
+      "scope": "Actual Rollout.run(), Git checks, subprocess handling, local locks, receipts, checksums and archives; controller identity/Ansible/host outcomes are fixtures."
+    },
+    "wrapper": {
+      "passed": 19,
+      "total": 19,
+      "scope": "Actual shell wrapper and lock helper; fake host identity/Git/ansible-playbook; helper OS-home locator isolated to a temporary path."
+    },
+    "serial": {
+      "passed": 1,
+      "total": 1,
+      "scope": "Actual Ansible 2.16.19 client playbook serial/fatal behavior with real local pair module+chronyd4.8 parser; service/chronyc mocked. First two apply; third restores original pair; last two issue zero fixture host commands."
+    },
+    "probe": {
+      "total": 46,
+      "passed": 46,
+      "host_observation_mock_cases": 43,
+      "real_chrony48_loopback_cases": 3,
+      "scope": "43 mocked host/service checks plus 3 actual chrony4.8 loopback protocol tests"
+    }
+  },
+  "source_sha256": {
+    "tests/ntp_source/test_rollout.py": "5122377f22cc36e96b1ffff482699f70d22aabb0542de97facba8ec1a354d5f0",
+    "tests/ntp_source/test_wrapper.py": "0e5b9b7426db6b04017a2e3c332f7900d4f6cc2a2878fd0ce3caf329090639b5",
+    "tests/ntp_source/test_rollout_serial.py": "c2dd6685ab27ad5c5d6474e98d00cd7c44fccc618eabf46fa128a3ea7cecc3e4",
+    "tools/ntp-rollout.py": "419d52206dae52e8fc6db596661c7a1f198f67fc0fd249986b0c4495b2de8598",
+    "tools/ntp-workflow-lock.py": "91b7e14272c8bc470ba4d403d1d32aad889aeca8dd14760230da16955b10d218",
+    "scripts/cr-p1-ntp-01-01-run.sh": "c95929999f0fea727844dd779b985b5dadeec42853b6b82539becfff4a58b3ba",
+    "library/fds_ntp_probe.py": "b44e24a8def1aae34afc78c8b2d52b0b044e31511f855d34c8405bac2ec5e586",
+    "tests/ntp_source/test_probe.py": "fabbf0cfe77ce340971170e9d04bfc86307ae89e7a1e1602684976dcd14d8a8a",
+    "playbooks/cr-p1-ntp-01-01-diagnose.yml": "396438702db2bbe7f32b4c025d67213a4455778ea2613277cf1781e6612e4089",
+    "playbooks/cr-p1-ntp-01-01-pathcheck.yml": "e1b95bcc1051269da6f18312fd155505a36838aefaf7f6e4f8479511c8a4dcba"
+  },
+  "raw_report_sha256": {
+    "rollout": "b5a8ef77ef5b34a596d6acc01f4624ec23ef6c80e8e698cb0790ca2253c20bb9",
+    "wrapper": "d05dca9077d8fece957a369c52edde08b27db3c5e25c3b5f0bccd74daf5c26b7",
+    "serial": "a58b6df53bb3b89553efdfd5e0a8d21d6298bb4770cbc1452b1fd1940ad786b8",
+    "probe": "a3002e9933c9c967639ede4cc260a5990a7bd5850d26b2a8d75e4cc6240929b6"
+  },
+  "test_cases": {
+    "rollout": [
+      {
+        "name": "lock_exclusive_and_released",
+        "passed": true
+      },
+      {
+        "name": "lock_inherited_fd_retains_ownership",
+        "passed": true
+      },
+      {
+        "name": "lock_wrong_or_invalid_fd_rejected",
+        "passed": true
+      },
+      {
+        "name": "lock_home_and_evidence_cannot_split_namespace",
+        "passed": true
+      },
+      {
+        "name": "lock_symlink_rejected",
+        "passed": true
+      },
+      {
+        "name": "lock_hardlink_rejected",
+        "passed": true
+      },
+      {
+        "name": "lock_mode_rejected",
+        "passed": true
+      },
+      {
+        "name": "lock_parent_rejected",
+        "passed": true
+      },
+      {
+        "name": "lock_lasts_until_last_inherited_process_exits",
+        "passed": true
+      },
+      {
+        "name": "diagnose_only_never_applies",
+        "passed": true
+      },
+      {
+        "name": "full_gated_rollout_order",
+        "passed": true
+      },
+      {
+        "name": "missing_upstreams_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "wrong_reviewed_head_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "dirty_checkout_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "apply_requires_existing_approval",
+        "passed": true
+      },
+      {
+        "name": "git_environment_cannot_redirect_source",
+        "passed": true
+      },
+      {
+        "name": "dirty_real_checkout_rejected_despite_clean_foreign_git",
+        "passed": true
+      },
+      {
+        "name": "inventory_missing_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "inventory_address_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "inventory_upstreams_prevents_apply",
+        "passed": true
+      },
+      {
+        "name": "precheck_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "diagnose_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "source_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "clients_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "verify_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "finalize_failure_stops_and_retains_evidence",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failed_k8s-control02",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failed_k8s-control03",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failed_k8s-worker01",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failed_k8s-worker02",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_failed_k8s-worker03",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_missing",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_stale_run",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_wrong_head",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_wrong_input",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_wrong_host",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_wrong_ip",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_schema",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_errors",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_observations",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_partial_probes",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_wrong_target",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_sample_rejected",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_bad_offset",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_nan_offset",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_probe_rc",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_probe_timeout",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_unexpected_host",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_duplicate_probe",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_typed_check_missing",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_receipt_typed_check_false",
+        "passed": true
+      },
+      {
+        "name": "diagnose_partial_public_responses_prevents_source",
+        "passed": true
+      },
+      {
+        "name": "bound_input_mutation_stops_before_clients",
+        "passed": true
+      },
+      {
+        "name": "bound_input_mutation_during_finalize_fails",
+        "passed": true
+      },
+      {
+        "name": "dirty_during_source_stops_before_clients",
+        "passed": true
+      },
+      {
+        "name": "head_change_during_source_preserves_original_binding",
+        "passed": true
+      },
+      {
+        "name": "unexpected_exception_finalizes",
+        "passed": true
+      },
+      {
+        "name": "package_failure_retains_logs_and_releases_lock",
+        "passed": true
+      },
+      {
+        "name": "sigint_stops_child_group_finalizes_and_unlocks",
+        "passed": true
+      },
+      {
+        "name": "sigterm_stops_child_group_finalizes_and_unlocks",
+        "passed": true
+      },
+      {
+        "name": "timeout_stops_child_group_and_preserves_output",
+        "passed": true
+      }
+    ],
+    "wrapper": [
+      {
+        "name": "bash_syntax",
+        "passed": true
+      },
+      {
+        "name": "executable_bit",
+        "passed": true
+      },
+      {
+        "name": "source_sequence",
+        "passed": true
+      },
+      {
+        "name": "clients_sequence",
+        "passed": true
+      },
+      {
+        "name": "check_stops_apply",
+        "passed": true
+      },
+      {
+        "name": "apply_stops_idempotency",
+        "passed": true
+      },
+      {
+        "name": "idempotency_failure_propagated",
+        "passed": true
+      },
+      {
+        "name": "approval_still_required",
+        "passed": true
+      },
+      {
+        "name": "migration_source_sequence",
+        "passed": true
+      },
+      {
+        "name": "source_check_failure_stops_apply",
+        "passed": true
+      },
+      {
+        "name": "source_apply_failure_stops_idempotency",
+        "passed": true
+      },
+      {
+        "name": "source_idempotency_failure_propagated",
+        "passed": true
+      },
+      {
+        "name": "migration_clients_sequence",
+        "passed": true
+      },
+      {
+        "name": "migration_precheck",
+        "passed": true
+      },
+      {
+        "name": "migration_verify",
+        "passed": true
+      },
+      {
+        "name": "migration_rollback",
+        "passed": true
+      },
+      {
+        "name": "migration_not_approval",
+        "passed": true
+      },
+      {
+        "name": "invalid_migration_mode",
+        "passed": true
+      },
+      {
+        "name": "explicit_legacy_mode",
+        "passed": true
+      }
+    ],
+    "serial": [
+      {
+        "name": "five_clients_third_failure_restores_and_stops",
+        "passed": true
+      }
+    ],
+    "probe": [
+      {
+        "name": "diagnose_k8s-control01",
+        "passed": true
+      },
+      {
+        "name": "diagnose_k8s-control02",
+        "passed": true
+      },
+      {
+        "name": "diagnose_k8s-control03",
+        "passed": true
+      },
+      {
+        "name": "diagnose_k8s-worker01",
+        "passed": true
+      },
+      {
+        "name": "diagnose_k8s-worker02",
+        "passed": true
+      },
+      {
+        "name": "diagnose_k8s-worker03",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-control01",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-control02",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-control03",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-worker01",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-worker02",
+        "passed": true
+      },
+      {
+        "name": "pathcheck_k8s-worker03",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_00",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_01",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_02",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_03",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_04",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_05",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_06",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_07",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_08",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_09",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_10",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_11",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_12",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_13",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_14",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_15",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_16",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_17",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_18",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_19",
+        "passed": true
+      },
+      {
+        "name": "reject_observation_20",
+        "passed": true
+      },
+      {
+        "name": "reject_failed_plan",
+        "passed": true
+      },
+      {
+        "name": "reject_250ms_probe",
+        "passed": true
+      },
+      {
+        "name": "reject_nonfinite_probe",
+        "passed": true
+      },
+      {
+        "name": "optional_environment_file_absent",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_00",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_01",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_02",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_03",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_04",
+        "passed": true
+      },
+      {
+        "name": "reject_binding_05",
+        "passed": true
+      },
+      {
+        "name": "real_Q_good",
+        "passed": true
+      },
+      {
+        "name": "real_Q_bad_offset",
+        "passed": true
+      },
+      {
+        "name": "real_Q_unsynchronised",
+        "passed": true
+      }
+    ]
+  },
+  "ci": "NOT_RUN",
+  "production_apply": "NOT_RUN",
+  "public_endpoints": "UNSELECTED",
+  "limitations": [
+    "No SSH, managed-host modification, external NTP packet, real service convergence, firewall enforcement or operational acceptance.",
+    "Public address fixtures are syntax inputs, not selected NTP endpoints.",
+    "Probe protocol/real packet sampling is covered by the separate probe owner, not this orchestration fixture.",
+    "No previous migration baseline suite was rerun.",
+    "Systemd EnvironmentFiles/ExecStart/not-found output modeled from documented standard forms; live six-host diagnosis still required.",
+    "Actual -Q tests used local chrony4.8 build and loopback NTP mocks, not the production RPM.",
+    "-Q accepts LI=1; Leap Normal remains a separate source tracking check.",
+    "Packets and thresholds prove neither full firewall enforcement nor long-term NTP acceptance."
+  ],
+  "syntax": "ansible-core 2.16.19: both gate playbooks PASS",
+  "total_passed": 128,
+  "total_cases": 128
+}

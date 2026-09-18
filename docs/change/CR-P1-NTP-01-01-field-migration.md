@@ -1,6 +1,8 @@
 # Observed chrony main/drop-in migration
 
-Status: **review candidate; production apply NOT RUN**.
+Status: **PR #27 approved and merged into the PR #24 working branch; production apply NOT RUN**.
+The approval and single-entry workflow are recorded in
+[the persistent rollout instructions](CR-P1-NTP-01-01-rollout.md).
 Base: PR #24 HEAD `63797f3fcb7cfaa3ec8281b2ec6faa32948d84b3`, tree
 `49bd1495d874e82da1a477f599bd43b6005108a0`.
 
@@ -95,9 +97,10 @@ successful reruns; automatic failure recovery uses the current invocation's
 snapshot. An unchanged run that fails verification must not restore an older
 baseline and undo an earlier success.
 
-Run only one controller workflow per target host. A state-directory lock
-serializes the module's file commit/recovery, but it does not span the later
-Ansible service restart and runtime verification tasks.
+Run only one controller workflow per target host. The module retains its
+state-directory lock for file commit/recovery. The new rollout entry and
+standalone wrapper additionally share one controller-wide lock spanning
+service restart, runtime verification and finalization.
 
 The paired baseline is `original-ntp-pair.json` in the protected CR state
 directory. Schema version 2 binds the change ID, inventory host, source/client
@@ -136,37 +139,17 @@ firewalld zones alone do not establish the full nftables/HEP path. No
 firewall or Calico policy is applied by this role. The egress generator
 produces a review contract, not a backend-specific rule or proof of enforcement.
 
-For a later approved runtime window, from the dedicated clean checkout on
-`ansible01` as `server01_ansible`, set:
+Use the [single-entry rollout](CR-P1-NTP-01-01-rollout.md) after its exact
+HEAD is independently reviewed and merged. It accepts the endpoint list and
+existing policy/recovery references once. The workflow performs precheck and
+public NTP response diagnosis, applies the source, verifies all five internal
+NTP paths, then applies the clients and verifies all six hosts. Both mutation
+phases preserve check/diff → apply → zero-change check. Source/path evidence
+is checked programmatically before client mutation; phases do not require
+repeated approval prompts. Any failed prerequisite stops later mutation.
 
-```bash
-umask 077
-export ANSIBLE_PRIVATE_KEY_FILE=/home/server01_ansible/.ssh/p1_ansible_ed25519
-export CR_EVIDENCE_DIR="$(mktemp -d "$HOME/CR-P1-NTP-01-01-evidence.XXXXXXXX")"
-export CR_NTP_MIGRATE_MAIN=1
-```
-
-Run `precheck` first. Compare its effective upstream list and candidate hashes
-with the reviewed configuration and egress request before source apply.
-Then run `source` with the existing change approval, verify control01's
-three external responses, health, listener/ACL and actual NTP response from
-each of the five clients, and only
-then run `clients`. The source and client wrapper actions retain the sequence
-check/diff → apply → zero-change check. Clients remain serial with failure
-stopping the batch. Each wrapper action advances automatically when its
-internal check succeeds; it does not pause for a second diff approval.
-Do not combine source and clients into an unattended command
-that skips inspection of the source/path evidence.
-
-```bash
-./scripts/cr-p1-ntp-01-01-run.sh precheck
-# After reviewing prerequisites and the execution window:
-CR_CHANGE_APPROVED=CR-P1-NTP-01-01 ./scripts/cr-p1-ntp-01-01-run.sh source
-# After confirming source health and five-client NTP response evidence:
-CR_CHANGE_APPROVED=CR-P1-NTP-01-01 ./scripts/cr-p1-ntp-01-01-run.sh clients
-./scripts/cr-p1-ntp-01-01-run.sh verify
-./scripts/cr-p1-ntp-01-01-run.sh finalize
-```
+The individual wrapper actions remain for scoped diagnosis and recovery.
+Do not use a hand-written sequence to bypass the consolidated path gates.
 
 Keep migration mode selected for paired rollback, for example:
 

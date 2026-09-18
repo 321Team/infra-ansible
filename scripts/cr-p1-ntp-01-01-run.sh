@@ -2,8 +2,22 @@
 set -Eeuo pipefail
 umask 077
 
+# Local provenance must not be redirected to a different repository by Git
+# environment variables inherited from a controller shell.
+for git_env_name in "${!GIT_@}"; do
+  unset "${git_env_name}"
+done
+
 change_id="CR-P1-NTP-01-01"
-repo_root="$(git rev-parse --show-toplevel)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+test "$(git -C "${repo_root}" rev-parse --show-toplevel)" = "${repo_root}"
+# Keep the lock for this complete wrapper action, including restart/verify.
+# Rollout children reuse a verified inherited descriptor, never a boolean bypass.
+if [[ -z "${CR_NTP_WORKFLOW_LOCK_FD:-}" ]]; then
+  exec python3 -I -B "${repo_root}/tools/ntp-workflow-lock.py" --exec bash "$0" "$@"
+fi
+python3 -I -B "${repo_root}/tools/ntp-workflow-lock.py" \
+  --check-inherited "${CR_NTP_WORKFLOW_LOCK_FD}"
 evidence_root="${CR_EVIDENCE_DIR:-${repo_root}/docs/evidence/${change_id}}"
 action="${1:-}"
 timestamp="$(date '+%Y%m%dT%H%M%S%z')"
@@ -16,6 +30,44 @@ case "${CR_NTP_MIGRATE_MAIN:-0}" in
   1) ntp_mode_args=(-e '{"cr_ntp_migrate_main":true}') ;;
   *) echo "STOP: CR_NTP_MIGRATE_MAIN must be 0 or 1" >&2; exit 64 ;;
 esac
+
+runtime_vars_args=()
+runtime_vars_hash=""
+if [[ -n "${CR_NTP_RUNTIME_VARS_FILE:-}" ]]; then
+  runtime_vars_hash="$(python3 -I -B - "${CR_NTP_RUNTIME_VARS_FILE}" <<'PY'
+import hashlib, json, os, re, stat, sys
+path = sys.argv[1]
+info = os.lstat(path)
+if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o022:
+    raise SystemExit('STOP: unsafe runtime variables file')
+data = open(path, 'rb').read()
+value = json.loads(data)
+allowed = {'cr_ntp_migrate_main', 'cr_ntp_source_upstreams', 'cr_ntp_probe_evidence_dir',
+           'cr_ntp_probe_run_id', 'cr_ntp_probe_source_head', 'cr_ntp_probe_input_sha256'}
+if not isinstance(value, dict) or set(value) != allowed or value['cr_ntp_migrate_main'] is not True:
+    raise SystemExit('STOP: runtime variables contain unsupported keys or mode')
+if not isinstance(value['cr_ntp_source_upstreams'], list) or not isinstance(value['cr_ntp_probe_evidence_dir'], str):
+    raise SystemExit('STOP: malformed runtime variables')
+if not os.path.isabs(value['cr_ntp_probe_evidence_dir']):
+    raise SystemExit('STOP: probe evidence directory must be absolute')
+for key, pattern in [('cr_ntp_probe_run_id', r'[A-Za-z0-9_-]+'),
+                     ('cr_ntp_probe_source_head', r'[0-9a-f]{40}'),
+                     ('cr_ntp_probe_input_sha256', r'[0-9a-f]{64}')]:
+    if not isinstance(value[key], str) or not re.fullmatch(pattern, value[key]):
+        raise SystemExit('STOP: malformed runtime binding field: ' + key)
+print(hashlib.sha256(data).hexdigest())
+PY
+)"
+  runtime_vars_args=(-e "@${CR_NTP_RUNTIME_VARS_FILE}")
+fi
+
+verify_runtime_vars() {
+  if [[ -n "${runtime_vars_hash}" ]]; then
+    local current_vars_hash
+    current_vars_hash="$(sha256sum -- "${CR_NTP_RUNTIME_VARS_FILE}")"
+    test "${current_vars_hash%% *}" = "${runtime_vars_hash}"
+  fi
+}
 
 test "$(hostnamectl --static)" = "ansible01"
 test "$(id -un)" = "server01_ansible"
@@ -72,17 +124,19 @@ run_playbook() {
   local label="$1"
   shift
   bind_source || return 1
+  verify_runtime_vars || return 1
   local log_file run_rc=0
   log_file="$(mktemp "${evidence_root}/${timestamp}_${label}.XXXXXX.txt")"
   {
     printf 'SOURCE_HEAD=%s\n' "${bound_source_head}"
-    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "${ntp_mode_args[@]}" "$@"
+    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "${ntp_mode_args[@]}" "${runtime_vars_args[@]}" "$@"
   } 2>&1 | tee "${log_file}" || run_rc=$?
   if ! require_clean_source || [[ "${current_source_head}" != "${bound_source_head}" ]]; then
     printf 'STOP: source changed during execution; this evidence requires review\n' \
       | tee -a "${log_file}" > "${source_invalid_file}"
     return 1
   fi
+  verify_runtime_vars || return 1
   return "${run_rc}"
 }
 
