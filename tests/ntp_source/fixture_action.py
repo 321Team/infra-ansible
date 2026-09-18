@@ -1,8 +1,37 @@
 """Test-only controller action: no subprocess, network, service or clock access."""
+import glob
 import json
 from pathlib import Path
 
 from ansible.plugins.action import ActionBase
+
+
+def fixture_print_config(path):
+    """Model fixture include expansion only; NOT a real chronyd grammar test.
+
+    Only localhost test files are read. Actual parser coverage is recorded
+    separately by the chronyd 4.6.1 effective-configuration fixtures.
+    """
+    lines = []
+    for raw in Path(path).read_text().splitlines():
+        line = ' '.join(raw.split())
+        if not line or line[0] in '!#;%':
+            continue
+        fields = line.split()
+        directive = fields[0].lower()
+        if directive == 'confdir':
+            assert len(fields) == 2, 'Unmodelled fixture confdir layout'
+            for included in sorted(Path(fields[1]).glob('*.conf')):
+                lines.extend(fixture_print_config(included))
+        elif directive == 'include':
+            assert len(fields) == 2, 'Unmodelled fixture include layout'
+            matches = sorted(glob.glob(fields[1]))
+            assert matches, 'chronyd include requires at least one match'
+            for included in matches:
+                lines.extend(fixture_print_config(included))
+        else:
+            lines.append(line)
+    return lines
 
 
 class ActionModule(ActionBase):
@@ -25,7 +54,12 @@ class ActionModule(ActionBase):
                 rc, stdout = 1, 'FIXTURE_SERVICE_FAILURE'
         else:
             argv = args['options']['argv']
-            if argv == ['rpm', '-q', 'chrony']:
+            if argv[:3] == ['chronyd', '-p', '-f']:
+                assert len(argv) == 4, argv
+                path = root / 'chrony.conf' if argv[3] == '/etc/chrony.conf' else Path(argv[3])
+                assert path.resolve().is_relative_to(root.resolve()), path
+                stdout = '\n'.join(fixture_print_config(path)) + '\n'
+            elif argv == ['rpm', '-q', 'chrony']:
                 stdout = 'chrony-fixture'
             elif argv[:2] == ['systemctl', 'show']:
                 stdout = 'loaded\nactive'

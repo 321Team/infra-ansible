@@ -1,4 +1,9 @@
 ---
+- name: Require a protected state directory before reading the baseline
+  ansible.builtin.include_tasks: _check_state_dir.yml
+  vars:
+    cr_ntp_require_protected_state_dir: true
+
 - name: Inspect the preserved baseline
   ansible.builtin.stat:
     path: "{{ cr_ntp_state_dir }}/original-ntp-dropin.json"

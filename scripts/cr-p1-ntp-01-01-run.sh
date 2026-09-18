@@ -13,12 +13,68 @@ test "$(id -un)" = "server01_ansible"
 test -n "${ANSIBLE_PRIVATE_KEY_FILE:-}"
 test -r "${ANSIBLE_PRIVATE_KEY_FILE}"
 mkdir -p "${evidence_root}"
+source_head_file="${evidence_root}/SOURCE_HEAD"
+source_invalid_file="${evidence_root}/SOURCE_BINDING_INVALID"
+
+read_bound_source() {
+  if [[ ! -f "${source_head_file}" || -L "${source_head_file}" ]]; then
+    echo "STOP: evidence has no regular SOURCE_HEAD; preserve it and use a new evidence directory" >&2
+    return 1
+  fi
+  bound_source_head="$(cat "${source_head_file}")"
+  if [[ ! "${bound_source_head}" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+    echo "STOP: invalid evidence SOURCE_HEAD" >&2
+    return 1
+  fi
+  if [[ -e "${source_invalid_file}" ]]; then
+    echo "STOP: source changed during an earlier execution; preserve this evidence for review" >&2
+    return 1
+  fi
+}
+
+require_clean_source() {
+  current_source_head="$(git -C "${repo_root}" rev-parse --verify HEAD)" || return 1
+  local tracked_status
+  tracked_status="$(git -C "${repo_root}" status --porcelain --untracked-files=no --ignore-submodules=none)" || return 1
+  if [[ -n "${tracked_status}" ]]; then
+    echo "STOP: tracked source has uncommitted changes" >&2
+    return 1
+  fi
+}
+
+bind_source() {
+  require_clean_source || return 1
+  if [[ ! -e "${source_head_file}" && ! -L "${source_head_file}" ]]; then
+    if [[ -n "$(find "${evidence_root}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+      echo "STOP: existing evidence has no SOURCE_HEAD; preserve it and use a new evidence directory" >&2
+      return 1
+    fi
+    # Do not replace a marker written by another invocation.
+    (set -o noclobber; printf '%s\n' "${current_source_head}" > "${source_head_file}") || return 1
+  fi
+  read_bound_source || return 1
+  if [[ "${current_source_head}" != "${bound_source_head}" ]]; then
+    echo "STOP: this evidence directory belongs to another source HEAD; use a new evidence directory" >&2
+    return 1
+  fi
+}
 
 run_playbook() {
   local label="$1"
   shift
-  ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" \
-    2>&1 | tee "${evidence_root}/${timestamp}_${label}.txt"
+  bind_source || return 1
+  local log_file run_rc=0
+  log_file="$(mktemp "${evidence_root}/${timestamp}_${label}.XXXXXX.txt")"
+  {
+    printf 'SOURCE_HEAD=%s\n' "${bound_source_head}"
+    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@"
+  } 2>&1 | tee "${log_file}" || run_rc=$?
+  if ! require_clean_source || [[ "${current_source_head}" != "${bound_source_head}" ]]; then
+    printf 'STOP: source changed during execution; this evidence requires review\n' \
+      | tee -a "${log_file}" > "${source_invalid_file}"
+    return 1
+  fi
+  return "${run_rc}"
 }
 
 require_change_approval() {
@@ -72,13 +128,14 @@ case "${action}" in
       "${repo_root}/playbooks/cr-p1-ntp-01-01-rollback.yml"
     ;;
   finalize)
-    head_sha="$(git -C "${repo_root}" rev-parse --verify HEAD)"
+    # Finalization may happen from a later checkout; the observed run owns its HEAD.
+    read_bound_source
     {
       echo "# ${change_id} Evidence Index"
       echo
       echo "- Generated: ${timestamp}"
       echo "- Repository: 321Team/infra-ansible"
-      echo "- Commit: ${head_sha}"
+      echo "- Commit: ${bound_source_head}"
       echo
       echo "## Files"
       find "${evidence_root}" -maxdepth 1 -type f \

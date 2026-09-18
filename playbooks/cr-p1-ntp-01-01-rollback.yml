@@ -1,7 +1,9 @@
 ---
 - name: CR-P1-NTP-01-01 rollback one failed node
   hosts: k8s_nodes
-  gather_facts: true
+  # Select the one rollback host before any managed-host I/O. An unrelated
+  # offline node must not block this host's recovery during fact gathering.
+  gather_facts: false
   become: true
   serial: 1
   any_errors_fatal: true
