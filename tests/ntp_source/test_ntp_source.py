@@ -53,6 +53,12 @@ def instrument(tasks, directory):
             conditions = task['ansible.builtin.assert']['that']
             conditions[conditions.index('cr_ntp_original_stat.stat.uid == 0')] = (
                 f'cr_ntp_original_stat.stat.uid == {os.getuid()}')
+        if task.get('name') == 'Refuse an unsafe rollback state directory before mutation or read':
+            conditions = task['ansible.builtin.assert']['that']
+            for index, condition in enumerate(conditions):
+                conditions[index] = condition.replace(
+                    'cr_ntp_state_dir_stat.stat.uid | default(-1) == 0',
+                    f'cr_ntp_state_dir_stat.stat.uid | default(-1) == {os.getuid()}')
 
 
 def snapshot(path):
@@ -80,6 +86,9 @@ def run_case(case, output, executable):
     validate.chmod(0o700)
     confdir = directory / 'chrony.d'
     confdir.mkdir()
+    # Real chronyd include DIR/*.conf requires a match even before the new
+    # managed file exists. Keep the positive include-layout fixture valid.
+    (confdir / '00-fixture.conf').write_text('# fixture baseline\n')
     dropin = confdir / '50-cr-p1-ntp-01-01.conf'
     state_dir = directory / 'state'
     main = spec.get('layout', 'confdir {confdir}\n').format(confdir=confdir)

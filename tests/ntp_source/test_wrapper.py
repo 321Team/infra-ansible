@@ -14,7 +14,10 @@ import json, os, pathlib, sys
 name = pathlib.Path(sys.argv[0]).name
 if name == 'hostnamectl': print('ansible01')
 elif name == 'id': print('server01_ansible')
-elif name == 'git': print(os.environ['FIXTURE_REPO'])
+elif name == 'git':
+    if 'status' in sys.argv: pass
+    elif sys.argv[-1] == 'HEAD': print('a' * 40)
+    else: print(os.environ['FIXTURE_REPO'])
 elif name == 'ansible-playbook':
     p = pathlib.Path(os.environ['FIXTURE_CALLS'])
     calls = json.loads(p.read_text()) if p.exists() else []

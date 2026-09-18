@@ -139,6 +139,50 @@ UDP/123 reachability on the approved target stage. The bounded apply wait
 does not establish the separate reboot or 60s x 6 continuous-measurement AC.
 The local validation record is [review-fix-validation](CR-P1-NTP-01-01-review-fix-validation.md).
 
+## Deployment deep-review follow-up (review candidate)
+
+The deployment review of candidate `ca987b8a879418173a50d0cf7753063ebbb4a201`
+found four additional gaps, still present in base
+`945f3dcbf01e6be6f0d8d8369b826faa4a7f4f72`. This follow-up candidate does not
+change the earlier approval record or establish runtime acceptance.
+See [targeted validation and limitations](CR-P1-NTP-01-01-deep-review-validation.md).
+
+- Before mutation, parse the entire effective chrony config and the existing
+  managed fragment. Clients reject dynamic sourcedir entries and time sources
+  outside the fragment, including nested include/confdir entries. A managed
+  old source remains replaceable. Main config and source-node upstream are
+  never rewritten automatically.
+- Manual rollback selects the requested host before fact gathering or other
+  remote operations, so another node's failure cannot block that recovery.
+- Validate the rollback directory itself before chmod/chown or baseline read;
+  reject symlinks and another owner's directory. Baseline reads require 0700.
+- Capture SOURCE_HEAD when starting evidence, reject mixed-source appends and
+  dirty tracked files, and keep that recorded HEAD when finalizing from a
+  later checkout. Source changes observed during a run invalidate its binding.
+
+Use a dedicated checkout without concurrent edits and a fresh evidence
+directory for this candidate. For example, set the following once in the
+controller shell before the existing run order, then retain that path for
+all actions from the same source:
+
+```bash
+umask 077
+export CR_EVIDENCE_DIR="$(mktemp -d "$HOME/CR-P1-NTP-01-01-evidence.XXXXXXXX")"
+```
+
+Existing evidence without SOURCE_HEAD is preserved and rejected for reuse;
+do not add a guessed marker or delete old logs to bypass the guard. A new
+source uses a new directory. The wrapper checks tracked changes; it does not
+freeze the checkout or authenticate human approval. Runtime still uses the
+reviewed source/engine and existing execution decision.
+
+Before real apply, collect the six nodes' installed chrony versions and full
+effective configs. Confirm control01's approved current upstream and health,
+server socket/bind/ACL, then validate the approved five-client NTP path after
+source configuration. A service-active or UDP socket observation alone is
+not an NTP response/offset test. Keep the existing 60s x 6 and 5-minute
+loss/reboot criteria as separate runtime acceptance checks.
+
 ## Not covered by this CR / still needed before real apply
 
 - Confirm the integrated PR #24 disposition and merge scope. PR #25's

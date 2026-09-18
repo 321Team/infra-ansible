@@ -1,0 +1,26 @@
+---
+- name: Inspect the rollback state directory without following a symlink
+  ansible.builtin.stat:
+    path: "{{ cr_ntp_state_dir }}"
+    follow: false
+  register: cr_ntp_state_dir_stat
+
+- name: Refuse an unsafe rollback state directory before mutation or read
+  ansible.builtin.assert:
+    that:
+      - >-
+        not (cr_ntp_require_protected_state_dir | default(false) | bool) or
+        cr_ntp_state_dir_stat.stat.exists
+      - >-
+        not cr_ntp_state_dir_stat.stat.exists or
+        (cr_ntp_state_dir_stat.stat.isdir | default(false) and
+         not (cr_ntp_state_dir_stat.stat.islnk | default(false)) and
+         cr_ntp_state_dir_stat.stat.uid | default(-1) == 0)
+      - >-
+        not (cr_ntp_require_protected_state_dir | default(false) | bool) or
+        not cr_ntp_state_dir_stat.stat.exists or
+        cr_ntp_state_dir_stat.stat.mode | default('') == '0700'
+    fail_msg: >-
+      Refusing an unsafe rollback state directory. Preserve the path for
+      review; do not follow a symlink or take over another owner's directory.
+      Reading an existing baseline requires a root-owned 0700 directory.

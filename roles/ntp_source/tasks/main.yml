@@ -166,6 +166,63 @@
   register: cr_ntp_dropin_content_before
   when: cr_ntp_dropin_before.stat.exists
 
+- name: Parse the effective chrony configuration before mutation
+  ansible.builtin.command:
+    argv:
+      - chronyd
+      - -p
+      - -f
+      - /etc/chrony.conf
+  register: cr_ntp_effective_conf_before
+  environment:
+    LC_ALL: C
+  changed_when: false
+  check_mode: false
+
+- name: Parse the existing managed fragment for client source ownership
+  ansible.builtin.command:
+    argv:
+      - chronyd
+      - -p
+      - -f
+      - "{{ cr_ntp_dropin_path }}"
+  register: cr_ntp_managed_conf_before
+  environment:
+    LC_ALL: C
+  changed_when: false
+  check_mode: false
+  when:
+    - not (cr_ntp_is_source | bool)
+    - cr_ntp_dropin_before.stat.exists
+
+- name: Collect effective and managed client time-source directives
+  ansible.builtin.set_fact:
+    cr_ntp_effective_time_sources: >-
+      {{ cr_ntp_effective_conf_before.stdout_lines
+         | select('match', '^\s*(?i:server|pool|peer|refclock|initstepslew|local|manual)(\s|$)')
+         | map('trim') | map('regex_replace', '\s+', ' ') | sort | list }}
+    cr_ntp_managed_time_sources: >-
+      {{ cr_ntp_managed_conf_before.stdout_lines | default([])
+         | select('match', '^\s*(?i:server|pool|peer|refclock|initstepslew|local|manual)(\s|$)')
+         | map('trim') | map('regex_replace', '\s+', ' ') | sort | list }}
+  when: not (cr_ntp_is_source | bool)
+
+- name: Refuse unmanaged or dynamic effective sources on clients
+  ansible.builtin.assert:
+    that:
+      - >-
+        cr_ntp_effective_conf_before.stdout_lines
+        | select('match', '^\s*(?i:sourcedir)\s+') | list | length == 0
+      - cr_ntp_effective_time_sources == cr_ntp_managed_time_sources
+    fail_msg: >-
+      Client time-source directives must belong only to the existing managed
+      fragment, if any. Dynamic sourcedir entries are forbidden, even when
+      currently empty. Effective include/confdir files may add unmanaged
+      sources. Review their removal before applying; this role does not
+      rewrite those files. Effective={{ cr_ntp_effective_time_sources }},
+      managed={{ cr_ntp_managed_time_sources }}.
+  when: not (cr_ntp_is_source | bool)
+
 - name: Capture this invocation's drop-in state before mutation
   ansible.builtin.set_fact:
     cr_ntp_before_state: >-
@@ -183,6 +240,10 @@
         'gid': cr_ntp_dropin_before.stat.gid | default(0),
         'mode': cr_ntp_dropin_before.stat.mode | default('0644')
       } }}
+  when: cr_ntp_phase == 'apply'
+
+- name: Validate the rollback state directory before creating or changing it
+  ansible.builtin.include_tasks: _check_state_dir.yml
   when: cr_ntp_phase == 'apply'
 
 - name: Create protected CR rollback state directory
