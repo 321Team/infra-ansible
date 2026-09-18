@@ -1,0 +1,139 @@
+---
+- name: Validate paired migration phase and bounds
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_phase in ['precheck', 'apply', 'verify']
+      - cr_ntp_offset_max_ms | int > 0
+      - cr_ntp_offset_max_ms | int <= 100
+      - not (cr_ntp_require_no_change | default(false) | bool) or ansible_check_mode
+
+- name: Require the existing CR approval token for a migration apply
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_change_approved | default('') == cr_ntp_change_id
+  when: cr_ntp_phase == 'apply'
+
+- name: Determine this host's NTP role
+  ansible.builtin.set_fact:
+    cr_ntp_is_source: "{{ inventory_hostname == cr_ntp_source_host }}"
+
+- name: Verify chronyd is installed
+  ansible.builtin.command:
+    argv: [rpm, -q, chrony]
+  changed_when: false
+  check_mode: false
+
+- name: Read pre-change chronyd service state
+  ansible.builtin.command:
+    argv: [systemctl, show, --property=LoadState, --property=ActiveState, --value, chronyd.service]
+  register: cr_ntp_chronyd_before
+  changed_when: false
+  check_mode: false
+
+- name: Require an active service before migration
+  ansible.builtin.assert:
+    that:
+      - "'active' in cr_ntp_chronyd_before.stdout_lines"
+
+- name: Validate the exact observed or migrated pair without operational writes
+  fds_ntp_migration:
+    action: plan
+    main_path: "{{ cr_ntp_main_config_path | default('/etc/chrony.conf') }}"
+    dropin_path: "{{ cr_ntp_dropin_path }}"
+    state_dir: "{{ cr_ntp_state_dir }}"
+    change_id: "{{ cr_ntp_change_id }}"
+    inventory_hostname: "{{ inventory_hostname }}"
+    role: "{{ (cr_ntp_is_source | bool) | ternary('source', 'client') }}"
+    source_ip: "{{ cr_ntp_source_ip }}"
+    client_ips: "{{ cr_ntp_client_ips }}"
+    source_upstreams: "{{ cr_ntp_source_upstreams | default([]) }}"
+    chronyd_path: "{{ cr_ntp_chronyd_path | default('chronyd') }}"
+  register: cr_ntp_pair_plan
+
+- name: Report the resolved candidate for the egress evidence comparison
+  ansible.builtin.debug:
+    msg:
+      status: CANDIDATE_VALIDATED_NOT_APPLIED
+      role: "{{ (cr_ntp_is_source | bool) | ternary('source', 'client') }}"
+      source_upstreams: "{{ cr_ntp_source_upstreams | default([]) }}"
+      client_source_ip: "{{ cr_ntp_source_ip }}"
+      main_sha256: "{{ cr_ntp_pair_plan.main_sha256 }}"
+      dropin_sha256: "{{ cr_ntp_pair_plan.dropin_sha256 }}"
+      layout: "{{ cr_ntp_pair_plan.layout }}"
+      would_change: "{{ cr_ntp_pair_plan.would_change }}"
+
+- name: Require a migrated pair for explicit post-change verification
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_pair_plan.layout == 'migrated'
+      - not cr_ntp_pair_plan.would_change
+  when: cr_ntp_phase == 'verify'
+
+- name: Apply the paired configuration and verify the service
+  when: cr_ntp_phase == 'apply'
+  block:
+    - name: Commit the validated pair with an immutable baseline
+      fds_ntp_migration:
+        action: apply
+        main_path: "{{ cr_ntp_main_config_path | default('/etc/chrony.conf') }}"
+        dropin_path: "{{ cr_ntp_dropin_path }}"
+        state_dir: "{{ cr_ntp_state_dir }}"
+        change_id: "{{ cr_ntp_change_id }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        role: "{{ (cr_ntp_is_source | bool) | ternary('source', 'client') }}"
+        source_ip: "{{ cr_ntp_source_ip }}"
+        client_ips: "{{ cr_ntp_client_ips }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams | default([]) }}"
+        chronyd_path: "{{ cr_ntp_chronyd_path | default('chronyd') }}"
+      register: cr_ntp_pair_apply
+
+    - name: Require zero predicted changes during the paired idempotency check
+      ansible.builtin.assert:
+        that:
+          - not cr_ntp_pair_apply.changed
+      when: cr_ntp_require_no_change | default(false) | bool
+
+    - name: Restart and wait after a real pair change
+      when:
+        - not ansible_check_mode
+        - cr_ntp_pair_apply.changed
+      block:
+        - name: Restart chronyd
+          ansible.builtin.systemd:
+            name: chronyd
+            state: restarted
+        - name: Wait at most 300 seconds for chronyd synchronisation
+          ansible.builtin.command:
+            argv: [chronyc, waitsync, '30', "{{ (cr_ntp_offset_max_ms | int / 1000.0) | string }}", '0', '10']
+          environment:
+            LC_ALL: C
+          changed_when: false
+          timeout: 300
+
+    - name: Verify applied runtime state only after a real migration
+      ansible.builtin.include_tasks: verify.yml
+      when: not ansible_check_mode
+
+  rescue:
+    - name: Restore the invocation pair after service or verification failure
+      ansible.builtin.include_tasks: _restore_pair.yml
+      vars:
+        cr_ntp_pair_restore_action: restore
+        cr_ntp_pair_restore_snapshot: "{{ cr_ntp_pair_apply.snapshot }}"
+      when:
+        - not ansible_check_mode
+        - cr_ntp_pair_apply.changed | default(false)
+        - cr_ntp_pair_apply.snapshot is defined
+
+    - name: Stop the serial batch after a migration failure
+      ansible.builtin.fail:
+        msg: >-
+          Paired NTP migration failed on {{ inventory_hostname }}. A completed
+          changed commit restores its invocation snapshot after service or
+          verification failure. Module write failures attempt their own pair
+          restoration. A reported restoration failure requires recovery from
+          the immutable baseline; this result is not NTP acceptance.
+
+- name: Verify current runtime for precheck and explicit verify
+  ansible.builtin.include_tasks: verify.yml
+  when: cr_ntp_phase in ['precheck', 'verify']

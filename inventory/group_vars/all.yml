@@ -55,12 +55,14 @@ cr_mon_proxy_allowed_clients:
   - 10.1.93.107
   - 10.1.93.108
 
-# CR-P1-NTP-01-01: internal single-source NTP, chrony `allow`/`server` drop-in
-# only. Values confirmed by Lead Decision (fds-project-baseline#10,
+# CR-P1-NTP-01-01: internal single-source NTP, chrony `allow`/`server` drop-in.
+# An explicitly selected field migration also manages the observed main
+# config together with that drop-in; it is disabled by default.
+# Values confirmed by Lead Decision (fds-project-baseline#10,
 # 2026-09-16): NTP_SINGLE_SOURCE_CONFIRMED(control01) /
-# RELAY_REJECTED_OUT_OF_SCOPE. control01's OWN upstream is deliberately not
-# set here — still PENDING_REVIEW, tracked separately (see
-# roles/ntp_source/templates/chrony-source-allow.conf.j2).
+# RELAY_REJECTED_OUT_OF_SCOPE. The later public-upstream proposal retains
+# this internal topology but changes the external-egress policy. Addresses
+# are not selected by this code and require the recorded execution decision.
 cr_ntp_change_id: CR-P1-NTP-01-01
 cr_ntp_source_host: k8s-control01
 cr_ntp_source_ip: 10.1.93.102
@@ -72,6 +74,12 @@ cr_ntp_client_ips:
   - 10.1.93.108  # k8s-worker03
 cr_ntp_dropin_path: /etc/chrony.d/50-cr-p1-ntp-01-01.conf
 cr_ntp_state_dir: /var/lib/fds-change/CR-P1-NTP-01-01
+cr_ntp_migrate_main: false
+# Exactly three distinct public IPv4 addresses for the opt-in source migration.
+# Empty deliberately fails source migration until the endpoints, consistent
+# leap-second policy and narrowly scoped egress are selected and reviewed.
+# Default drop-in-only mode continues to leave control01's upstream untouched.
+cr_ntp_source_upstreams: []
 # Lead Decision numeric AC (fds-project-baseline#10, 2026-09-16): offset
 # <=100ms. Measurement cadence/count (60s x 6) and the 5-minute
 # sync-lost/reboot-resync conditions are operational test procedure, not

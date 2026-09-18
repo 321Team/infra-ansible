@@ -94,6 +94,18 @@ class ActionModule(ActionBase):
                 stdout = ('MS Name/IP address Stratum Poll Reach LastRx Last sample\n'
                           '================================================================\n'
                           f'^* {address} 3 6 377 23 -1234ns[ -1234ns] +/- 1ms\n')
+                if task_vars.get('cr_ntp_migrate_main') and task_vars.get('cr_ntp_is_source'):
+                    # Local fixture addresses are never queried over the network.
+                    upstreams = task_vars['cr_ntp_source_upstreams']
+                    selected = scenario.get('address', upstreams[0])
+                    first_state = '?' if scenario.get('source_no_selected') else '*'
+                    other_state = '*' if scenario.get('source_two_selected') else '+'
+                    other_upstreams = upstreams[1:2] if scenario.get('source_missing') else upstreams[1:]
+                    stdout = ('MS Name/IP address Stratum Poll Reach LastRx Last sample\n'
+                              '================================================================\n'
+                              f'^{first_state} {selected} 2 6 377 23 -1234ns[ -1234ns] +/- 1ms\n' +
+                              ''.join(f'^{other_state} {ip} 2 6 377 23 -1234ns[ -1234ns] +/- 1ms\n'
+                                      for ip in other_upstreams))
                 if scenario.get('extra_source'):
                     stdout += '^? 192.0.2.124 3 6 0 0 0ns[ 0ns] +/- 1ms\n'
                 if scenario.get('unresolved_source'):

@@ -75,7 +75,7 @@
       within the approved {{ cr_ntp_offset_max_ms }}ms threshold.
   when:
     - cr_ntp_phase in ['apply', 'verify']
-    - not (cr_ntp_is_source | bool)
+    - not (cr_ntp_is_source | bool) or (cr_ntp_migrate_main | default(false) | bool)
 
 # `chronyc -n sources` (numeric, no DNS lookups) tabular output, e.g.:
 #   MS Name/IP address         Stratum Poll Reach LastRx Last sample
@@ -141,6 +141,23 @@
   changed_when: false
   check_mode: false
   when: cr_ntp_is_source | bool
+
+- name: Require exactly the three approved upstreams on a migrated source
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_source_rows | length == 3
+      - >-
+        cr_ntp_sources_after.stdout
+        | regex_findall('(?m)^[\^=#][*+?x~-][ \t]+([0-9.]+)[ \t]+') | sort
+        == cr_ntp_source_upstreams | sort
+      - cr_ntp_source_rows | select('match', '^\^\*\s+') | list | length == 1
+    fail_msg: >-
+      The migrated source must expose exactly the approved three upstream
+      addresses with one selected server; current rows={{ cr_ntp_source_rows }}.
+  when:
+    - cr_ntp_migrate_main | default(false) | bool
+    - cr_ntp_is_source | bool
+    - cr_ntp_phase in ['apply', 'verify']
 
 - name: Read post-run chronyd service state
   ansible.builtin.command:

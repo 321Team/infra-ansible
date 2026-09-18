@@ -1,6 +1,11 @@
 # CR-P1-NTP-01-01 — Internal single-source NTP (control01)
 
 2026-09-18 deployment review: **RUNTIME HOLD / read-only collection permitted**.
+The field receipt collected at 21:14:44–21:15:00 KST confirmed the layout
+blocker on all six nodes (changed=0). The opt-in paired migration candidate
+is described in [field migration](CR-P1-NTP-01-01-field-migration.md).
+It requires review of its own HEAD; earlier PR #25/#26 approvals do not
+approve this new main-config change.
 K8S 6/6 join was reported complete by the K8S owner (하영); this document
 update does not independently verify the current cluster or deploy NTP.
 The R1–R7 remediation in [PR #25](https://github.com/321Team/infra-ansible/pull/25)
@@ -39,10 +44,10 @@ Do not require the whole SEC PR rollout as a new blanket prerequisite:
 use the actual approved host-protection state. This CR manages chronyd
 only and does not apply HEP/GNP or modify firewall rules.
 
-## What this CR does NOT do
+## Original scope and later upstream proposal
 
-control01's own upstream (where control01 gets time from) is **out of
-scope** here and deliberately left untouched by `roles/ntp_source`. That
+In the original drop-in-only mode, control01's own upstream (where control01
+gets time from) was **out of scope** and remains untouched. That
 value is still `PENDING_REVIEW` per the `infra-kubernetes` PR #7 review
 thread ([Deep Review 6276ade](https://github.com/321Team/infra-kubernetes/pull/7#issuecomment-5708114417),
 [GWONUK reply](https://github.com/321Team/infra-kubernetes/pull/7)) —
@@ -50,24 +55,40 @@ someone proposed `ansible01` as upstream but it was pulled back out for not
 having its own Lead Decision. Do not add it to `chrony-source-allow.conf.j2`
 until that's separately approved and tracked here.
 
+The user's later request adopts the Kubernetes owner's proposal for review:
+control01 alone uses a fixed set of public NTP endpoints. The new opt-in
+migration supports exactly three explicit public IPv4 addresses and removes
+the original pool/DHCP source on control01 as well as the clients. This is a
+proposed amendment to the earlier **no new external egress** decision, not
+evidence that the older decision already allowed it. The address list is
+empty by default and source migration fails closed until it is populated.
+See the [migration contract](CR-P1-NTP-01-01-field-migration.md) and
+[egress review](CR-P1-NTP-01-01-egress-review.md).
+
 ## Known precheck blocker — verify before running `precheck`
 
 `docs/change/ICR-D-NET-01-01/NTP_DECISION_PROPOSAL.md` (infra-kubernetes,
 2026-09-10) recorded that all 6 nodes' `/etc/chrony.conf` used
 `pool 2.centos.pool.ntp.org` plus a DHCP-fed `sourcedir /run/chrony-dhcp`.
-`roles/ntp_source` only adds a drop-in file under `/etc/chrony.d/`; it does
-not edit the main config. If that `pool` line or the DHCP sourcedir is still
+The default, drop-in-only mode only adds a file under `/etc/chrony.d/`; it
+does not edit the main config. If that `pool` line or the DHCP sourcedir is still
 present on the client nodes, the role's own precheck assertion
 ("Stop on unhandled competing sources for client nodes") will fail closed
 rather than silently ending up with two active sources. Confirm the current
 `/etc/chrony.conf` on all 6 nodes (this may have changed since 2026-09-10)
 and, if the pool/DHCP source is still active, get that disablement reviewed
-and folded into this CR before `apply`.
+and folded into this CR before `apply`. The 2026-09-18 field receipt now
+confirms both directives and the missing include on all six hosts. Do not
+remove them manually to pass this guard. The candidate paired migration
+preserves and recovers main plus drop-in together.
 
 ## Run order
 
 The following source/clients/rollback commands are the procedure for a
 future approved runtime window, **not permission to run them while HOLD**.
+They default to the existing drop-in-only mode. For the newly observed
+layout, use the explicitly selected migration procedure linked above after
+review and resolution of the recorded upstream/path prerequisites.
 
 1. `precheck` — all 6 nodes, read-only. Surfaces the blocker above if it's
    still present.
@@ -75,7 +96,8 @@ future approved runtime window, **not permission to run them while HOLD**.
    step 3: the other 5 nodes will be refused until control01 allows them.
 3. `clients` — the other 5 nodes, replaces their active source with
    `server 10.1.93.102 iburst`, one host at a time (`serial: 1`), automatic
-   rollback of that host's drop-in on restart/validation failure.
+  rollback of that host's managed configuration on restart/validation failure
+  (drop-in only in the default mode; the pair in migration mode).
 4. `verify` — all 6 nodes. Asserts Leap=Normal, current system correction
    and last offset <=100ms, and exactly
    one configured/selected source (control01) on each client.
@@ -150,8 +172,9 @@ See [targeted validation and limitations](CR-P1-NTP-01-01-deep-review-validation
 - Before mutation, parse the entire effective chrony config and the existing
   managed fragment. Clients reject dynamic sourcedir entries and time sources
   outside the fragment, including nested include/confdir entries. A managed
-  old source remains replaceable. Main config and source-node upstream are
-  never rewritten automatically.
+  old source remains replaceable. This default mode does not rewrite the
+  main config. The later opt-in field migration changes only the observed
+  main layout and preserves the source-node upstream directives.
 - Manual rollback selects the requested host before fact gathering or other
   remote operations, so another node's failure cannot block that recovery.
 - Validate the rollback directory itself before chmod/chown or baseline read;
@@ -190,7 +213,8 @@ loss/reboot criteria as separate runtime acceptance checks.
   unchanged code. Runtime decisions follow the current
   [Lead delegation policy](https://github.com/321Team/fds-project-baseline/blob/main/governance/REVIEW_AUTHORITY_POLICY.md),
   while code-change merge review remains required.
-- Confirming the precheck blocker above against live hosts.
+- Review and merge the paired migration for the blocker now confirmed by
+  the 2026-09-18 field receipt; obtain a fresh read-only check before runtime.
 - control01's own upstream, as its own separately tracked/approved item.
 - The 60s x 6 continuous-measurement and 5-minute failure/reboot-resync
   criteria are procedural checks to run around `verify`, not something the

@@ -35,13 +35,21 @@ def main():
     syntax = subprocess.run(['bash', '-n', str(SCRIPT)], capture_output=True, text=True)
     results = [dict(name='bash_syntax', passed=syntax.returncode == 0),
                dict(name='executable_bit', passed=bool(SCRIPT.stat().st_mode & 0o111))]
-    for name, action, fail_at, approval, expected_calls, expected_ok in (
-        ('source_sequence', 'source', 0, True, 3, True),
-        ('clients_sequence', 'clients', 0, True, 3, True),
-        ('check_stops_apply', 'clients', 1, True, 1, False),
-        ('apply_stops_idempotency', 'clients', 2, True, 2, False),
-        ('idempotency_failure_propagated', 'clients', 3, True, 3, False),
-        ('approval_still_required', 'source', 0, False, 0, False),
+    for name, action, fail_at, approval, mode, expected_calls, expected_ok in (
+        ('source_sequence', 'source', 0, True, None, 3, True),
+        ('clients_sequence', 'clients', 0, True, None, 3, True),
+        ('check_stops_apply', 'clients', 1, True, None, 1, False),
+        ('apply_stops_idempotency', 'clients', 2, True, None, 2, False),
+        ('idempotency_failure_propagated', 'clients', 3, True, None, 3, False),
+        ('approval_still_required', 'source', 0, False, None, 0, False),
+        ('migration_source_sequence', 'source', 0, True, '1', 3, True),
+        ('migration_clients_sequence', 'clients', 0, True, '1', 3, True),
+        ('migration_precheck', 'precheck', 0, False, '1', 1, True),
+        ('migration_verify', 'verify', 0, False, '1', 1, True),
+        ('migration_rollback', 'rollback', 0, True, '1', 1, True),
+        ('migration_not_approval', 'source', 0, False, '1', 0, False),
+        ('invalid_migration_mode', 'source', 0, True, 'yes', 0, False),
+        ('explicit_legacy_mode', 'clients', 0, True, '0', 3, True),
     ):
         case = output / name
         binaries = case / 'bin'
@@ -60,18 +68,29 @@ def main():
                    CR_EVIDENCE_DIR=str(case / 'evidence'))
         if approval:
             env['CR_CHANGE_APPROVED'] = 'CR-P1-NTP-01-01'
-        run = subprocess.run([str(SCRIPT), action], env=env, cwd=ROOT,
+        if mode is not None:
+            env['CR_NTP_MIGRATE_MAIN'] = mode
+        command = [str(SCRIPT), action]
+        if action == 'rollback':
+            command.append('k8s-worker02')
+        run = subprocess.run(command, env=env, cwd=ROOT,
                              capture_output=True, text=True, timeout=30)
         calls = json.loads(calls_path.read_text()) if calls_path.exists() else []
         errors = []
         if (run.returncode == 0) != expected_ok or len(calls) != expected_calls:
             errors.append('incorrect exit status or playbook sequence length')
-        if calls and not {'--check', '--diff'} <= set(calls[0]):
+        if calls and action in ('source', 'clients') and not {'--check', '--diff'} <= set(calls[0]):
             errors.append('first run is not dry-run/diff')
         if len(calls) > 1 and '--check' in calls[1]:
             errors.append('apply was not reached')
         if len(calls) > 2 and not {'--check', '--diff', '{"cr_ntp_require_no_change":true}'} <= set(calls[2]):
             errors.append('idempotency pass lacks explicit zero-change check')
+        for call in calls:
+            has_migration = '{"cr_ntp_migrate_main":true}' in call
+            if has_migration != (mode == '1'):
+                errors.append('migration mode did not reach every playbook invocation')
+        if action == 'rollback' and calls and 'cr_ntp_rollback_host=k8s-worker02' not in calls[0]:
+            errors.append('rollback target not preserved')
         (case / 'output.log').write_text(run.stdout + run.stderr)
         results.append(dict(name=name, passed=not errors, errors=errors, rc=run.returncode))
     report = dict(scope='LOCAL/MOCK wrapper only; no managed host execution', results=results,

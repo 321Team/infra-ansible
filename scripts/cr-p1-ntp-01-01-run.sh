@@ -8,6 +8,15 @@ evidence_root="${CR_EVIDENCE_DIR:-${repo_root}/docs/evidence/${change_id}}"
 action="${1:-}"
 timestamp="$(date '+%Y%m%dT%H%M%S%z')"
 
+# Explicitly select the reviewed paired migration; an unset variable keeps
+# the existing drop-in-only procedure. Apply approval remains separate.
+ntp_mode_args=()
+case "${CR_NTP_MIGRATE_MAIN:-0}" in
+  0) ;;
+  1) ntp_mode_args=(-e '{"cr_ntp_migrate_main":true}') ;;
+  *) echo "STOP: CR_NTP_MIGRATE_MAIN must be 0 or 1" >&2; exit 64 ;;
+esac
+
 test "$(hostnamectl --static)" = "ansible01"
 test "$(id -un)" = "server01_ansible"
 test -n "${ANSIBLE_PRIVATE_KEY_FILE:-}"
@@ -67,7 +76,7 @@ run_playbook() {
   log_file="$(mktemp "${evidence_root}/${timestamp}_${label}.XXXXXX.txt")"
   {
     printf 'SOURCE_HEAD=%s\n' "${bound_source_head}"
-    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@"
+    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "${ntp_mode_args[@]}" "$@"
   } 2>&1 | tee "${log_file}" || run_rc=$?
   if ! require_clean_source || [[ "${current_source_head}" != "${bound_source_head}" ]]; then
     printf 'STOP: source changed during execution; this evidence requires review\n' \
