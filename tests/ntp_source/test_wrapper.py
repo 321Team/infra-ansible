@@ -43,6 +43,9 @@ def main():
         ('idempotency_failure_propagated', 'clients', 3, True, None, 3, False),
         ('approval_still_required', 'source', 0, False, None, 0, False),
         ('migration_source_sequence', 'source', 0, True, '1', 3, True),
+        ('source_check_failure_stops_apply', 'source', 1, True, '1', 1, False),
+        ('source_apply_failure_stops_idempotency', 'source', 2, True, '1', 2, False),
+        ('source_idempotency_failure_propagated', 'source', 3, True, '1', 3, False),
         ('migration_clients_sequence', 'clients', 0, True, '1', 3, True),
         ('migration_precheck', 'precheck', 0, False, '1', 1, True),
         ('migration_verify', 'verify', 0, False, '1', 1, True),
@@ -52,6 +55,20 @@ def main():
         ('explicit_legacy_mode', 'clients', 0, True, '0', 3, True),
     ):
         case = output / name
+        fixture_repo = case / 'repo'
+        fixture_tools = fixture_repo / 'tools'
+        fixture_tools.mkdir(parents=True)
+        fixture_script = fixture_repo / 'scripts' / SCRIPT.name
+        fixture_script.parent.mkdir()
+        fixture_script.write_bytes(SCRIPT.read_bytes())
+        fixture_script.chmod(0o700)
+        # Isolate only the OS home locator. The copied helper's secure path,
+        # flock, FD handoff, and CLI re-entry behavior remain unchanged.
+        helper = (ROOT / 'tools/ntp-workflow-lock.py').read_text()
+        locator = 'return Path(pwd.getpwuid(os.geteuid()).pw_dir) / ".local/state/fds-ntp/CR-P1-NTP-01-01.lock"'
+        assert helper.count(locator) == 1
+        helper = helper.replace(locator, 'return Path(' + repr(str(case / 'controller.lock')) + ')')
+        (fixture_tools / 'ntp-workflow-lock.py').write_text(helper)
         binaries = case / 'bin'
         binaries.mkdir(parents=True)
         for executable in ('git', 'id', 'hostnamectl', 'ansible-playbook'):
@@ -63,14 +80,14 @@ def main():
         calls_path = case / 'calls.json'
         env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'CR_', 'FIXTURE_'))}
         env.update(PATH=str(binaries) + os.pathsep + os.environ['PATH'],
-                   FIXTURE_REPO=str(ROOT), FIXTURE_CALLS=str(calls_path),
+                   FIXTURE_REPO=str(fixture_repo), FIXTURE_CALLS=str(calls_path),
                    FIXTURE_FAIL_AT=str(fail_at), ANSIBLE_PRIVATE_KEY_FILE=str(key),
                    CR_EVIDENCE_DIR=str(case / 'evidence'))
         if approval:
             env['CR_CHANGE_APPROVED'] = 'CR-P1-NTP-01-01'
         if mode is not None:
             env['CR_NTP_MIGRATE_MAIN'] = mode
-        command = [str(SCRIPT), action]
+        command = [str(fixture_script), action]
         if action == 'rollback':
             command.append('k8s-worker02')
         run = subprocess.run(command, env=env, cwd=ROOT,

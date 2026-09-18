@@ -1,0 +1,60 @@
+---
+- name: Read-only bound NTP rollout diagnosis on all six hosts
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require the exact six-host diagnostic scope
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | sort == ['k8s-control01', 'k8s-control02', 'k8s-control03', 'k8s-worker01', 'k8s-worker02', 'k8s-worker03']
+          - cr_ntp_migrate_main | bool
+          - cr_ntp_probe_evidence_dir is match('^/.+')
+
+    - name: Validate each host's paired migration without operational writes
+      fds_ntp_migration:
+        action: plan
+        main_path: /etc/chrony.conf
+        dropin_path: "{{ cr_ntp_dropin_path }}"
+        state_dir: "{{ cr_ntp_state_dir }}"
+        change_id: "{{ cr_ntp_change_id }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        role: "{{ (inventory_hostname == cr_ntp_source_host) | ternary('source', 'client') }}"
+        source_ip: "{{ cr_ntp_source_ip }}"
+        client_ips: "{{ cr_ntp_client_ips }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams }}"
+      register: cr_ntp_diagnostic_plan
+      failed_when: false
+
+    - name: Collect service configuration and source public NTP packet observations
+      fds_ntp_probe:
+        gate: diagnose
+        run_id: "{{ cr_ntp_probe_run_id }}"
+        source_head: "{{ cr_ntp_probe_source_head }}"
+        input_sha256: "{{ cr_ntp_probe_input_sha256 }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        ansible_host: "{{ ansible_host }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams }}"
+        migration_plan:
+          validated: "{{ cr_ntp_diagnostic_plan.layout is defined and cr_ntp_diagnostic_plan.main_sha256 is defined }}"
+          layout: "{{ cr_ntp_diagnostic_plan.layout | default('invalid') }}"
+          main_sha256: "{{ cr_ntp_diagnostic_plan.main_sha256 | default('') }}"
+          dropin_sha256: "{{ cr_ntp_diagnostic_plan.dropin_sha256 | default('') }}"
+          would_change: "{{ cr_ntp_diagnostic_plan.would_change | default(false) }}"
+          message: "{{ cr_ntp_diagnostic_plan.msg | default('') }}"
+      register: cr_ntp_probe_result
+
+    - name: Preserve this host's complete diagnostic receipt on the controller
+      ansible.builtin.copy:
+        content: "{{ cr_ntp_probe_result.receipt | to_nice_json }}\n"
+        dest: "{{ cr_ntp_probe_evidence_dir }}/diagnose--{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      check_mode: false
+
+    - name: Stop before configuration changes when diagnosis fails
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_probe_result.receipt.gate_pass | bool
+        fail_msg: "Read-only NTP diagnosis failed: {{ cr_ntp_probe_result.receipt.errors }}"

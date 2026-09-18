@@ -1,11 +1,15 @@
 # CR-P1-NTP-01-01 — Internal single-source NTP (control01)
 
-2026-09-18 deployment review: **RUNTIME HOLD / read-only collection permitted**.
-The field receipt collected at 21:14:44–21:15:00 KST confirmed the layout
-blocker on all six nodes (changed=0). The opt-in paired migration candidate
-is described in [field migration](CR-P1-NTP-01-01-field-migration.md).
-It requires review of its own HEAD; earlier PR #25/#26 approvals do not
-approve this new main-config change.
+2026-09-18 status: the observed-layout migration in PR #27 was approved on
+exact HEAD `52e9a7450aca411e44be221b99840aeb372bacb3` and merged into the
+PR #24 working branch as `e5446288c1c646f41c9ec9c890bf85e7509503ec`.
+Production apply remains NOT RUN. The field receipt at 21:14:44–21:15:00 KST
+identified the original layout blocker on all six nodes (changed=0).
+See [field migration](CR-P1-NTP-01-01-field-migration.md) for the paired fix and
+[the persistent single-entry instructions](CR-P1-NTP-01-01-rollout.md) for
+diagnosis, conditional apply, verification and evidence collection. The new
+execution code needs its own exact-HEAD review; PR #27's approval does not
+automatically approve it. Missing endpoint/network inputs still stop apply.
 K8S 6/6 join was reported complete by the K8S owner (하영); this document
 update does not independently verify the current cluster or deploy NTP.
 The R1–R7 remediation in [PR #25](https://github.com/321Team/infra-ansible/pull/25)
@@ -84,8 +88,9 @@ preserves and recovers main plus drop-in together.
 
 ## Run order
 
-The following source/clients/rollback commands are the procedure for a
-future approved runtime window, **not permission to run them while HOLD**.
+For the observed main-file layout, use the single-entry workflow linked above.
+The following individual actions document the legacy interface and remain
+available for scoped diagnosis/recovery in an approved runtime window.
 They default to the existing drop-in-only mode. For the newly observed
 layout, use the explicitly selected migration procedure linked above after
 review and resolution of the recorded upstream/path prerequisites.
