@@ -39,6 +39,7 @@ def main():
             tasks = yaml.safe_load(path.read_text())
             instrument(tasks, output)
             path.write_text(yaml.safe_dump(tasks, sort_keys=False))
+        shutil.copytree(ROOT / 'module_utils', output / 'module_utils')
         library = output / 'library'
         shutil.copytree(ROOT / 'library', library)
         plugins = output / 'action_plugins'
@@ -74,7 +75,8 @@ def main():
         config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n')
         env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'PYTHON'))}
         env.update(ANSIBLE_CONFIG=str(config), ANSIBLE_NOCOLOR='1', LANG='C.UTF-8', LC_ALL='C.UTF-8',
-                   ANSIBLE_LIBRARY=str(library), ANSIBLE_ACTION_PLUGINS=str(plugins))
+                   ANSIBLE_LIBRARY=str(library), ANSIBLE_ACTION_PLUGINS=str(plugins),
+                   ANSIBLE_MODULE_UTILS=str(output / 'module_utils'))
         command = [args.ansible_playbook, '-i', str(inventory_path), str(play_path)]
         process = subprocess.run(command, env=env, cwd=output, capture_output=True, text=True, timeout=120)
         (output / 'stdout.log').write_text(process.stdout)

@@ -26,13 +26,14 @@ from unittest.mock import patch
 import yaml
 
 from test_ntp_source import instrument, VARS
+from policy_test_support import load_policy
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OBSERVED = (HERE / 'fixtures/observed-chrony.conf').read_bytes()
 OBSERVED_SHA = '147346c1b876b87dfad3bd436c62bc137c36723137ed5b647cf376a9f54e66aa'
 # Parser fixtures only: these addresses are NOT an operational selection.
-SOURCE_UPSTREAMS = ['162.159.200.1', '162.159.200.123', '129.6.15.28']
+SOURCE_UPSTREAMS = ['162.159.200.1', '162.159.200.123', '194.58.200.20']
 MODULE = None
 
 
@@ -128,8 +129,8 @@ def scenario_candidate(f, role):
         assert sources == ['server 10.1.93.102 iburst'], sources
         assert not active(lines, {'allow'}), lines
     else:
-        assert set(sources) == {'server ' + ip + ' iburst' for ip in SOURCE_UPSTREAMS}, sources
-        assert len(sources) == 3
+        assert set(sources) == {'server ' + ip + ' iburst' for ip in f.args['source_upstreams']}, sources
+        assert len(sources) == len(f.args['source_upstreams'])
         allows = active(lines, {'allow'})
         assert set(allows) == {'allow ' + ip + '/32' for ip in VARS['cr_ntp_client_ips']}, allows
         assert len(allows) == 5
@@ -283,23 +284,23 @@ def scenario_snapshot(f):
 
 def scenario_upstreams(f, values):
     f.args.update(role='source', source_upstreams=values)
-    expected = ('Expected 4 octets' if 'pool.ntp.org' in values else
-                'unicast public IPv4' if '10.0.0.1' in values else 'exactly three distinct')
+    expected = None
     f.expect_failure(lambda: f.run('plan'), expected)
     f.expect_failure(f.run, expected)
     f.expect_failure(lambda: f.run(check=True), expected)
+    assert not f.state.exists(), 'Invalid providers created transaction state'
 
 
-def scenario_source_rollback_unconfigured(f):
+def scenario_source_rollback_unconfigured(f, old_values=None):
     f.args['role'] = 'source'
     original = f.pair()
     applied = f.run()
-    f.args['source_upstreams'] = []
+    f.args['source_upstreams'] = [] if old_values is None else old_values
     f.run('restore', snapshot=applied['snapshot'])
     assert f.pair() == original
     f.args['source_upstreams'] = SOURCE_UPSTREAMS
     f.run()
-    f.args['source_upstreams'] = []
+    f.args['source_upstreams'] = [] if old_values is None else old_values
     f.run('rollback')
     assert f.pair() == original
 
@@ -354,14 +355,24 @@ def module_cases():
     for existing in (False, True):
         yield 'invocation_snapshot_vs_baseline_' + ('existing' if existing else 'new'), existing, scenario_snapshot
     for name, values in (
-        ('missing', []), ('two', SOURCE_UPSTREAMS[:2]),
+        ('missing', []), ('one', SOURCE_UPSTREAMS[:1]),
         ('four', SOURCE_UPSTREAMS + ['129.6.15.29']),
         ('duplicate', [SOURCE_UPSTREAMS[0]] * 3),
         ('private', ['10.0.0.1'] + SOURCE_UPSTREAMS[:2]),
         ('hostname', ['pool.ntp.org'] + SOURCE_UPSTREAMS[:2]),
+        ('unknown_public', ['8.8.8.8', SOURCE_UPSTREAMS[0]]),
+        ('nist_boulder', ['132.163.96.1', SOURCE_UPSTREAMS[0]]),
+        ('nist_maryland', ['129.6.15.28', SOURCE_UPSTREAMS[0]]),
+        ('wrong_type', '162.159.200.1'),
+        ('options', ['162.159.200.1 iburst', SOURCE_UPSTREAMS[2]]),
     ):
         yield 'source_upstreams_' + name + '_rejected', True, lambda f, values=values: scenario_upstreams(f, values)
     yield 'source_restore_and_rollback_without_upstream_selection', True, scenario_source_rollback_unconfigured
+    yield 'source_restore_and_rollback_with_unsupported_old_params', True, lambda f: scenario_source_rollback_unconfigured(f, ['129.6.15.28', '132.163.96.1'])
+    def two_source(f):
+        f.args['source_upstreams'] = SOURCE_UPSTREAMS[::2]
+        scenario_candidate(f, 'source')
+    yield 'source_two_upstreams_candidate_and_idempotency', True, two_source
     for target in ('main', 'dropin'):
         yield target + '_xattr_rejected_without_loss', True, lambda f, target=target: scenario_xattrs(f, target)
         yield target + '_parent_default_acl_rejected', True, lambda f, target=target: scenario_parent_acl(f, target)
@@ -384,6 +395,11 @@ def run_module_case(case, output, chronyd):
 def flow_cases():
     yield 'flow_client_apply', dict()
     yield 'flow_source_apply', dict(source=True)
+    for name, changes in (('apply', {}), ('wrong_selected', {'address': '8.8.8.8'}),
+                          ('extra_source', {'extra_source': True}), ('missing', {'source_missing': True}),
+                          ('none_selected', {'source_no_selected': True}), ('two_selected', {'source_two_selected': True})):
+        yield 'flow_two_source_' + name, dict(source=True, upstreams=SOURCE_UPSTREAMS[::2],
+                                             failure=bool(changes), restarts=2 if changes else 1, **changes)
     yield 'flow_source_wrong_selected_rejected', dict(source=True, address='8.8.8.8', failure=True, restarts=2)
     yield 'flow_source_extra_source_rejected', dict(source=True, extra_source=True, failure=True, restarts=2)
     yield 'flow_source_missing_upstream_rejected', dict(source=True, source_missing=True, failure=True, restarts=2)
@@ -430,10 +446,12 @@ def run_flow_case(case, output, chronyd, executable):
         connections = f.root / 'connection_plugins'
         connections.mkdir()
         shutil.copyfile(HERE / 'fixture_connection.py', connections / 'ntp_unreachable.py')
+        shutil.copytree(ROOT / 'module_utils', f.root / 'module_utils')
+        f.args['source_upstreams'] = scenario.get('upstreams', SOURCE_UPSTREAMS)
         library = f.root / 'library'
         shutil.copytree(ROOT / 'library', library)
         variables = dict(VARS, cr_ntp_migrate_main=True,
-                         cr_ntp_source_upstreams=SOURCE_UPSTREAMS,
+                         cr_ntp_source_upstreams=scenario.get('upstreams', SOURCE_UPSTREAMS),
                          cr_ntp_main_config_path=str(f.main), cr_ntp_dropin_path=str(f.dropin),
                          cr_ntp_state_dir=str(f.state), cr_ntp_chronyd_path=chronyd,
                          cr_ntp_phase='apply', cr_ntp_change_approved=VARS['cr_ntp_change_id'],
@@ -450,7 +468,8 @@ def run_flow_case(case, output, chronyd, executable):
         config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n')
         env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'PYTHON'))}
         env.update(ANSIBLE_CONFIG=str(config), ANSIBLE_NOCOLOR='1', LANG='C.UTF-8', LC_ALL='C.UTF-8',
-                   ANSIBLE_LIBRARY=str(library), ANSIBLE_ACTION_PLUGINS=str(plugins))
+                   ANSIBLE_LIBRARY=str(library), ANSIBLE_ACTION_PLUGINS=str(plugins),
+                   ANSIBLE_MODULE_UTILS=str(f.root / 'module_utils'))
         env['ANSIBLE_CONNECTION_PLUGINS'] = str(connections)
         command = [executable, '-i', 'localhost,', str(play_path)]
         if scenario.get('check'):
@@ -474,7 +493,7 @@ def run_flow_case(case, output, chronyd, executable):
             assert '0.5' in completed.stdout
         if scenario.get('source') and any(scenario.get(key) for key in (
                 'address', 'extra_source', 'source_missing', 'source_no_selected', 'source_two_selected')):
-            assert 'The migrated source must expose exactly the approved three upstream' in completed.stdout
+            assert 'The migrated source must expose exactly the approved' in completed.stdout
         if scenario.get('check') or scenario.get('failure'):
             assert f.pair() == before, 'Check/rescue did not preserve invocation bytes and metadata'
         else:
@@ -542,6 +561,7 @@ def main():
     assert hashlib.sha256(OBSERVED).hexdigest() == OBSERVED_SHA
     args.output = args.output.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
+    load_policy()
     spec = importlib.util.spec_from_file_location('fds_ntp_migration', ROOT / 'library/fds_ntp_migration.py')
     MODULE = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(MODULE)

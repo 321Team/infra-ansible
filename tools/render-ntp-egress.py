@@ -6,7 +6,7 @@ An address passing syntax checks is not an approved/publicly usable NTP server.
 """
 import argparse
 import hashlib
-import ipaddress
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -21,14 +21,12 @@ SOURCE_IP = '10.1.93.102'
 CLIENT_IPS = ('10.1.93.103', '10.1.93.104', '10.1.93.105',
               '10.1.93.107', '10.1.93.108')
 MAX_INPUT_BYTES = 1024 * 1024
-# Conservative exclusions keep the contract stable on Python versions whose
-# is_global classifications differ for special-purpose address assignments.
-SPECIAL_PURPOSE = tuple(ipaddress.IPv4Network(value) for value in (
-    '0.0.0.0/8', '10.0.0.0/8', '100.64.0.0/10', '127.0.0.0/8',
-    '169.254.0.0/16', '172.16.0.0/12', '192.0.0.0/24', '192.0.2.0/24',
-    '192.88.99.0/24', '192.168.0.0/16', '198.18.0.0/15',
-    '198.51.100.0/24', '203.0.113.0/24', '224.0.0.0/4', '240.0.0.0/4',
-))
+# Load the exact file Ansible bundles as ansible.module_utils.fds_ntp_policy;
+# a missing or broken policy file must fail rather than select a fallback.
+_policy_spec = importlib.util.spec_from_file_location(
+    'fds_ntp_shared_policy', ROOT / 'module_utils/fds_ntp_policy.py')
+POLICY = importlib.util.module_from_spec(_policy_spec)
+_policy_spec.loader.exec_module(POLICY)
 
 
 class ContractError(ValueError):
@@ -58,27 +56,10 @@ UniqueKeyLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
 
 
 def public_upstreams(value):
-    if not isinstance(value, list) or len(value) != 3:
-        raise ContractError('cr_ntp_source_upstreams must contain exactly three '
-                            'approved fixed public IPv4 addresses; selection is PENDING')
-    validated = []
-    for item in value:
-        if not isinstance(item, str):
-            raise ContractError('each upstream must be a literal IPv4 string')
-        try:
-            address = ipaddress.IPv4Address(item)
-        except ipaddress.AddressValueError as exc:
-            raise ContractError('upstreams must be IPv4 literals, not DNS names, '
-                                'CIDRs, or inline chrony options') from exc
-        if (str(address) != item or not address.is_global or address.is_multicast
-                or address.is_reserved or any(address in network
-                                              for network in SPECIAL_PURPOSE)):
-            raise ContractError('upstreams must be canonical global unicast IPv4 '
-                                'addresses outside special-purpose ranges')
-        validated.append(str(address))
-    if len(set(validated)) != 3:
-        raise ContractError('the three fixed upstream addresses must be distinct')
-    return validated
+    try:
+        return POLICY.validate_public_upstreams(value)
+    except ValueError as exc:
+        raise ContractError(str(exc)) from exc
 
 
 def load_vars(path):
@@ -117,6 +98,12 @@ def build_contract(variables, input_sha256):
             'source_host': SOURCE_HOST,
             'source_before_snat': SOURCE_IP + '/32',
             'destination_cidrs': [address + '/32' for address in upstreams],
+            'address_count': len(upstreams),
+            'operator_count': len({POLICY.UPSTREAM_CATALOG[address]['operator']
+                                   for address in upstreams}),
+            'operators': {address: POLICY.UPSTREAM_CATALOG[address]['operator']
+                          for address in upstreams},
+            'catalog_membership_is_service_approval': False,
             'ip_family': 'IPv4',
             'protocol': 'udp',
             'destination_port': 123,

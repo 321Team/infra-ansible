@@ -1,0 +1,504 @@
+{
+  "generated_at_kst": "2026-09-19T02:06:52.150812+09:00",
+  "repo": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+  "source_head": "eeaa0de522dc8a7b3d03063edb58c619834f422d",
+  "target": "Uncommitted PR28 follow-up code, exact source SHA256 below; not a committed-head review",
+  "stage": "LOCAL/MOCK and STATIC only",
+  "total": 301,
+  "passed": 301,
+  "syntax": {
+    "total": 7,
+    "passed": 7,
+    "executions": [
+      {
+        "name": "syntax-cr-p1-ntp-01-01-apply-clients",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-apply-clients.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:06.077498+00:00",
+        "ended_at": "2026-09-18T17:03:06.577360+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-apply-source",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-apply-source.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:06.577664+00:00",
+        "ended_at": "2026-09-18T17:03:06.964907+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-diagnose",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-diagnose.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:06.965231+00:00",
+        "ended_at": "2026-09-18T17:03:07.330408+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-pathcheck",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-pathcheck.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:07.330675+00:00",
+        "ended_at": "2026-09-18T17:03:07.641328+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-precheck",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-precheck.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:07.404788+00:00",
+        "ended_at": "2026-09-18T17:03:07.835099+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-rollback",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-rollback.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:07.641767+00:00",
+        "ended_at": "2026-09-18T17:03:08.095437+00:00",
+        "returncode": 0
+      },
+      {
+        "name": "syntax-cr-p1-ntp-01-01-verify",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--syntax-check",
+          "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup/playbooks/cr-p1-ntp-01-01-verify.yml"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:03:07.835365+00:00",
+        "ended_at": "2026-09-18T17:03:08.195774+00:00",
+        "returncode": 0
+      }
+    ]
+  },
+  "suites": [
+    {
+      "name": "egress",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_egress_contract.py"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:02:59.672402+00:00",
+      "ended_at": "2026-09-18T17:03:00.099879+00:00",
+      "returncode": 0,
+      "total": 11,
+      "passed": 11,
+      "raw_directory": "/workspace/scratch/aaee18a1e95d/validation/egress"
+    },
+    {
+      "name": "migration",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_migration.py",
+        "--chronyd",
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/tmp/ntp-pr28-verified-w1wc2q31/migration"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:04:32.606189+00:00",
+      "ended_at": "2026-09-18T17:04:46.458425+00:00",
+      "returncode": 0,
+      "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/migration",
+      "total": 81,
+      "passed": 81,
+      "result_file": "migration.RESULTS.json",
+      "raw_result_sha256": "4a387dd8695d422c839c942cef23921d5247d4a615a8a5bcc9474c236d3130d6",
+      "raw_directory": "/tmp/ntp-pr28-verified-w1wc2q31/migration"
+    },
+    {
+      "name": "legacy-role",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_ntp_source.py",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/legacy-role"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:02:59.673057+00:00",
+      "ended_at": "2026-09-18T17:03:34.944938+00:00",
+      "returncode": 0,
+      "total": 48,
+      "passed": 48,
+      "result_file": "legacy-role.RESULTS.json",
+      "raw_result_sha256": "153835b420f6fe44af48bbb18c822b6329b566a386e5a6a3839613cfa02309b8",
+      "raw_directory": "/workspace/scratch/aaee18a1e95d/validation/legacy-role"
+    },
+    {
+      "name": "probe",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_probe.py",
+        "--chronyd",
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/probe"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:02:59.673583+00:00",
+      "ended_at": "2026-09-18T17:03:08.189809+00:00",
+      "returncode": 0,
+      "total": 68,
+      "passed": 68,
+      "result_file": "probe.RESULTS.json",
+      "raw_result_sha256": "c63df7feb8e76fb38f95ae234dfde6781358de3002b68753c07e8b2f43213413",
+      "raw_directory": "/workspace/scratch/aaee18a1e95d/validation/probe"
+    },
+    {
+      "name": "rollout",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_rollout.py",
+        "--output",
+        "/tmp/ntp-pr28-verified-w1wc2q31/rollout"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:04:32.606545+00:00",
+      "ended_at": "2026-09-18T17:04:50.782723+00:00",
+      "returncode": 0,
+      "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/rollout",
+      "total": 71,
+      "passed": 71,
+      "result_file": "rollout.RESULTS.json",
+      "raw_result_sha256": "142c8b7f66f74e6b855ddb2e83e5d8e6c1ed92b4f73d9a1b0b572e7d2405e101",
+      "raw_directory": "/tmp/ntp-pr28-verified-w1wc2q31/rollout"
+    },
+    {
+      "name": "wrapper",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_wrapper.py",
+        "/tmp/ntp-pr28-verified-w1wc2q31/wrapper"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:04:32.607359+00:00",
+      "ended_at": "2026-09-18T17:04:39.667245+00:00",
+      "returncode": 0,
+      "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/wrapper",
+      "total": 19,
+      "passed": 19,
+      "result_file": "wrapper.RESULTS.json",
+      "raw_result_sha256": "d05dca9077d8fece957a369c52edde08b27db3c5e25c3b5f0bccd74daf5c26b7",
+      "raw_directory": "/tmp/ntp-pr28-verified-w1wc2q31/wrapper"
+    },
+    {
+      "name": "serial",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_rollout_serial.py",
+        "--chronyd",
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/tmp/ntp-pr28-verified-w1wc2q31/serial"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:04:32.607761+00:00",
+      "ended_at": "2026-09-18T17:04:36.936124+00:00",
+      "returncode": 0,
+      "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/serial",
+      "total": 1,
+      "passed": 1,
+      "result_file": "serial.RESULTS.json",
+      "raw_result_sha256": "2b9bc74c4278de3618046e67c8de666b2645c20e243038515708e6f082e36ebe",
+      "raw_directory": "/tmp/ntp-pr28-verified-w1wc2q31/serial"
+    },
+    {
+      "name": "module-transport",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_module_transport.py",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/module-transport"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:03:04.851747+00:00",
+      "ended_at": "2026-09-18T17:03:06.077211+00:00",
+      "returncode": 0,
+      "total": 2,
+      "passed": 2,
+      "result_file": "module-transport.RESULTS.json",
+      "raw_result_sha256": "dd79ba06f4b5759453bed8b19546f776ced63bc2d988f370d4e7d11275a4b155",
+      "raw_directory": "/workspace/scratch/aaee18a1e95d/validation/module-transport"
+    }
+  ],
+  "limitations": [
+    "CI not executed",
+    "No SSH or production host connection",
+    "No external NTP packets; three real chronyd -Q checks redirected to loopback UDP server with random destination ports",
+    "No operating service, host clock, firewall or production file changes",
+    "Service/chronyc observations mocked; real file transactions, chronyd -p parser, Ansible module transport and Ansible serial/rescue control flow exercised",
+    "UID ownership observations are explicitly mocked when current user namespace cannot represent non-root owner; calls.json retains markers",
+    "No field acceptance, independent review, merge, publication, or runtime authorization established by this verification"
+  ],
+  "environment": {
+    "ansible_core": "2.16.19",
+    "chronyd": "4.8",
+    "fixture_directory": "/tmp/ntp-pr28-verified-w1wc2q31",
+    "workspace_mode": "0o777",
+    "tmp_mode": "0o1777",
+    "fixture_mode": "0o700",
+    "ansible_playbook_executable": "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+    "chronyd_executable": "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+    "ansible_playbook_executable_sha256": "1f24d530f876d91bb4d76215211152431145e97201a43b2480c13f449f92a70b",
+    "chronyd_executable_sha256": "4bbea9015df39385b6f025fed43ed5a630906de8846d92114fce2833b0fdb914"
+  },
+  "first_attempt_guard_failures": [
+    {
+      "name": "migration",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_migration.py",
+        "--chronyd",
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/migration"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:02:59.672613+00:00",
+      "ended_at": "2026-09-18T17:03:07.404467+00:00",
+      "returncode": 1,
+      "passed": 14,
+      "total": 81,
+      "cause": "Test fixture path /workspace has mode 0777; existing secure path/evidence/lock guards reject writable ancestor. Corrected fixture placement to root-owned /tmp temporary directory without changing any production guard or system directory mode.",
+      "retry_execution": {
+        "name": "migration",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+          "-B",
+          "tests/ntp_source/test_migration.py",
+          "--chronyd",
+          "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+          "--ansible-playbook",
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--output",
+          "/tmp/ntp-pr28-verified-w1wc2q31/migration"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:04:32.606189+00:00",
+        "ended_at": "2026-09-18T17:04:46.458425+00:00",
+        "returncode": 0,
+        "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/migration"
+      }
+    },
+    {
+      "name": "rollout",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_rollout.py",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/rollout"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:03:00.100140+00:00",
+      "ended_at": "2026-09-18T17:03:02.158091+00:00",
+      "returncode": 1,
+      "passed": 1,
+      "total": 71,
+      "cause": "Test fixture path /workspace has mode 0777; existing secure path/evidence/lock guards reject writable ancestor. Corrected fixture placement to root-owned /tmp temporary directory without changing any production guard or system directory mode.",
+      "retry_execution": {
+        "name": "rollout",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+          "-B",
+          "tests/ntp_source/test_rollout.py",
+          "--output",
+          "/tmp/ntp-pr28-verified-w1wc2q31/rollout"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:04:32.606545+00:00",
+        "ended_at": "2026-09-18T17:04:50.782723+00:00",
+        "returncode": 0,
+        "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/rollout"
+      }
+    },
+    {
+      "name": "wrapper",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_wrapper.py",
+        "/workspace/scratch/aaee18a1e95d/validation/wrapper"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:03:02.158387+00:00",
+      "ended_at": "2026-09-18T17:03:03.516629+00:00",
+      "returncode": 1,
+      "passed": 5,
+      "total": 19,
+      "cause": "Test fixture path /workspace has mode 0777; existing secure path/evidence/lock guards reject writable ancestor. Corrected fixture placement to root-owned /tmp temporary directory without changing any production guard or system directory mode.",
+      "retry_execution": {
+        "name": "wrapper",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+          "-B",
+          "tests/ntp_source/test_wrapper.py",
+          "/tmp/ntp-pr28-verified-w1wc2q31/wrapper"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:04:32.607359+00:00",
+        "ended_at": "2026-09-18T17:04:39.667245+00:00",
+        "returncode": 0,
+        "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/wrapper"
+      }
+    },
+    {
+      "name": "serial",
+      "command": [
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "tests/ntp_source/test_rollout_serial.py",
+        "--chronyd",
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "--ansible-playbook",
+        "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--output",
+        "/workspace/scratch/aaee18a1e95d/validation/serial"
+      ],
+      "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+      "started_at": "2026-09-18T17:03:03.516919+00:00",
+      "ended_at": "2026-09-18T17:03:04.851452+00:00",
+      "returncode": 1,
+      "passed": false,
+      "total": 1,
+      "cause": "Test fixture path /workspace has mode 0777; existing secure path/evidence/lock guards reject writable ancestor. Corrected fixture placement to root-owned /tmp temporary directory without changing any production guard or system directory mode.",
+      "retry_execution": {
+        "name": "serial",
+        "command": [
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/python",
+          "-B",
+          "tests/ntp_source/test_rollout_serial.py",
+          "--chronyd",
+          "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+          "--ansible-playbook",
+          "/workspace/scratch/d7770f5e34f6/ansible-ci-linux-1/runtime/venv-2.16.19/bin/ansible-playbook",
+          "--output",
+          "/tmp/ntp-pr28-verified-w1wc2q31/serial"
+        ],
+        "cwd": "/workspace/scratch/aaee18a1e95d/infra-ansible-pr28-followup",
+        "started_at": "2026-09-18T17:04:32.607761+00:00",
+        "ended_at": "2026-09-18T17:04:36.936124+00:00",
+        "returncode": 0,
+        "fixture_path": "/tmp/ntp-pr28-verified-w1wc2q31/serial"
+      }
+    }
+  ],
+  "source_files_changed_during_verification": [],
+  "source_sha256": {
+    "library/fds_ntp_probe.py": "fc63ce1c71e13ba3e0ef6cc730c7cc44c6fb3a53aba8145d7ff9e035106fa74c",
+    "library/fds_ntp_migration.py": "2e1ea06aebf856f42b950242e1cc913b4eda30173ebf19f0dd157f0181d24983",
+    "module_utils/fds_ntp_policy.py": "47ce10e94ea91eaa120d253ee99374502e3427cb83617f372f1a3e0f092e194a",
+    "roles/ntp_source/tasks/verify.yml": "1179ede0c2931df4a822ddffd84aec19c41791d5e6f1a4f21908b2b0ae03734d",
+    "roles/ntp_source/tasks/_restore_pair.yml": "2c94c60bab8938752502a8664891ca380d9c2e7297d27f01af80fe49c7e86b6f",
+    "roles/ntp_source/tasks/_restore_dropin.yml": "b4ab9ceaf107ae69560e42aec60bf9e21e39af25887ae0ac5a5bb1592a01ca25",
+    "roles/ntp_source/tasks/_legacy.yml": "78f500b6e9cff3b8d8a5f83620bc491f90cff9b32b1c1e48bee8420897f190d6",
+    "roles/ntp_source/tasks/_read_original.yml": "ff8d6af52075a8cd52ec68d8cec19c2f3171d18a71dc3895cb6a55d6ac3e9ae7",
+    "roles/ntp_source/tasks/_migration.yml": "a08b93d3480c7b87a7af6840049594586384af60fc1a87deba57a538ae385d2d",
+    "roles/ntp_source/tasks/_check_state_dir.yml": "6a70397c84f247f45c83c5d11ffb8083b6602c25b80a2ad01077f8335a10886a",
+    "roles/ntp_source/tasks/_validate_state.yml": "ee2f5573c08f3cbadef66e683701f852d564b8c007f187a294576805e1355377",
+    "roles/ntp_source/tasks/main.yml": "472555824ede130fed517589c2b4c66dc2c9e5b38b5343aed115db6430a3fe83",
+    "roles/ntp_source/templates/chrony-client-source.conf.j2": "ed9a4607165996262bbea8e1ee11010c5e58eebab22bd608cec55c5be5c8d0e5",
+    "roles/ntp_source/templates/chrony-source-allow.conf.j2": "36789f4be6e967e90c1f6ff263478183f5fccfae3141706e52735b640b40c035",
+    "tools/ntp-rollout.py": "419d52206dae52e8fc6db596661c7a1f198f67fc0fd249986b0c4495b2de8598",
+    "tools/verification-wheels.lock.json": "1ab2b5eeb5f8c0c3d25f609388a3e3150fedb7cc8525eb8f99812d7d7a8a29b4",
+    "tools/render-ntp-egress.py": "d3604f6cbed2992dff4e5e24981aa8c744ccd090b49dcd750ad33fba9fe71188",
+    "tools/ntp-workflow-lock.py": "91b7e14272c8bc470ba4d403d1d32aad889aeca8dd14760230da16955b10d218",
+    "tools/verification-kit.py": "951c8bb9ed7a1c9019c43ca95e59e9ef36d86ec2ced65d23f8441a70662b734d",
+    "scripts/cr-p1-ans-01-01-run.sh": "62bdfe8dfa3785952da91d97554616f73eee314d56537efd951689a0776846b2",
+    "scripts/cr-p1-ntp-01-01-run.sh": "c95929999f0fea727844dd779b985b5dadeec42853b6b82539becfff4a58b3ba",
+    "scripts/p1-k8s-01-gate0-run.sh": "49bb00b0e1f8b04affc952f57656e6e6f980adbd267d5691a5f1e39b764b00c8",
+    "scripts/verify-ssh-main.py": "8a2eea74f2fcc60bf7fcfd0c0acf2db58ba3621d3fff17365a2757d768f940ce",
+    "scripts/cr-p1-mon-01-01-run.sh": "5057b1b6b16ebfaf4c00e2a3ec60b532598cdcb12ba535950c39c3c45cb8bb96",
+    "scripts/verification_contract.py": "e91aad08cfedf5d80124a0dd0399422e71aba968bb984a9e5ea9838119c0beb3",
+    "playbooks/cr-p1-ntp-01-01-verify.yml": "43f8893fad55b6f0772cebd6388828b32c0c9a33b39a8e4030aa500296d408c8",
+    "playbooks/site.yml": "1f9053b6a654988132ede57003b66a646a3ef34b48cb079aaf914e9a055c1234",
+    "playbooks/cr-p1-ntp-01-01-rollback.yml": "627275f2119b2d55c419f7e254cfb62639389b8af357b5e28734dbfec04079a6",
+    "playbooks/cr-p1-ntp-01-01-apply-clients.yml": "352cf440c54c67e8335c2b4fad11427a1f8ad49002748ecb65727cd3103f5876",
+    "playbooks/p1-k8s-01-gate0-precheck.yml": "bcaa9b6431dc2b52f95d6968ca4ed92a0cbada766f38747292db0b88c432f636",
+    "playbooks/precheck.yml": "e3c31bc3b0a3f481852bd6ee27ec5e4e81d07d98c14a7974d756c68653ccf0ff",
+    "playbooks/cr-p1-ans-01-01-verify.yml": "2ef70483db0ab222576e6da6f072283df8ed44ca4f176c823f117ade1d6baa69",
+    "playbooks/p1-lb-01-stage-a-nodes.yml": "92b1893cd9a773aeb9b822269f09763e71a196c34f99accdc596377755fc3946",
+    "playbooks/cr-p1-ans-01-01-apply-workers.yml": "8969a68ccf972f5e168ff9f46b64a0efa8e30ae409c80451f94bb10f1b82037b",
+    "playbooks/cr-p1-ans-01-01-rollback.yml": "13f6bfbf816132a8852e986649f7b535935a9bdd0df157dfbe42cbfa1f297128",
+    "playbooks/cr-p1-ntp-01-01-precheck.yml": "be351f4eaddead684be1b240a6b1ab69e708b272ff1f9de5399021342ae9c7ee",
+    "playbooks/cr-p1-ntp-01-01-apply-source.yml": "f48efae1f82cde10c3cf827e10db5ffd5850ecb2685b5ee87a83c40ad8e2c1d4",
+    "playbooks/cr-p1-mon-01-01-rollback.yml": "febb2c3eac09e2d8ea8ddd436c6bd3315e73e20f82f21f42a142b05ee6d5ee7a",
+    "playbooks/cr-p1-mon-01-01-precheck.yml": "0931e90a7459507ff7d60f228a12bf1e2e53bfb96f853af2d094c2097004d059",
+    "playbooks/harden_svc_ansible_key.yml": "aa3f94e94a5901bb55b26ac8342f1077776f8ee482e72e6fc659a65105c62e79",
+    "playbooks/cr-p1-ans-01-01-precheck.yml": "b093ff2973cf2c0be5f12af349a98ae2a2cecfac1f49cb7cd1a20382aa123799",
+    "playbooks/cr-p1-ans-01-01-apply-control-plane.yml": "34dbdd59f7e923a5194bc061ba3791affcfc7fabbde3033e788bbb2d42048103",
+    "playbooks/cr-p1-ntp-01-01-pathcheck.yml": "e1b95bcc1051269da6f18312fd155505a36838aefaf7f6e4f8479511c8a4dcba",
+    "playbooks/cr-p1-mon-01-01-apply.yml": "473f0c5aa26eacf653c32356120cc2d0288f8cabe36ee04d48ca271209512fb2",
+    "playbooks/cr-p1-mon-01-01-verify.yml": "dca913b8a10abfef04ebfb7bb0048e797510454a1ae4585324e7c37adb926e4c",
+    "playbooks/cr-p1-ntp-01-01-diagnose.yml": "396438702db2bbe7f32b4c025d67213a4455778ea2613277cf1781e6612e4089",
+    "tests/ntp_source/test_probe.py": "8b91bc92c16d3988d8a7f7338148b481dc7b8d1a7a6391422760e321c442a9b1",
+    "tests/ntp_source/README-migration.md": "86d4d4ebadba13f55e8953948bad88ed2e212296f687a1c91acde51bc983354c",
+    "tests/ntp_source/test_module_transport.py": "6b3f0353d2a7e9949c06fcd649712b41efb7070e9bbc29d98c128b2c773f9f16",
+    "tests/ntp_source/test_rollout.py": "af86a3bc72d0c07dabeac6a0a62cd80097f08e7ea39f4a302a4e5c665492f986",
+    "tests/ntp_source/fixture_action.py": "100f5b91abebad1c863b8c99d604539693e671f843b605eb75c566592b917aee",
+    "tests/ntp_source/test_migration.py": "f5642d00cbe3598098cb5ce56e9d808767b67a0d46bf2ebaa684fd5e4bf91e0a",
+    "tests/ntp_source/policy_test_support.py": "9208dfc61b67bcb58fde523ee10aa51ad6da1ec9fbdd72d678287a26e307600e",
+    "tests/ntp_source/test_egress_contract.py": "9e77b015bee25e17878fe8aa652e4fecc168d017480accea05f63ef1149a8cce",
+    "tests/ntp_source/test_wrapper.py": "0e5b9b7426db6b04017a2e3c332f7900d4f6cc2a2878fd0ce3caf329090639b5",
+    "tests/ntp_source/test_ntp_source.py": "0e229008fa3e62b4ab2f5427b024ab99b200a46f0387d9773ec0d34c25e17799",
+    "tests/ntp_source/fixture_connection.py": "9690a2c95453ebdcd0b5cbc2ef222b7562b4665ccc2fdfd72ea4091b03bc7950",
+    "tests/ntp_source/test_rollout_serial.py": "6a07fbc5c19448c88eeec1b30146ef3f266bed23d5f8bf70bad51b218f8da650",
+    "tests/ntp_source/fixtures/observed-chrony.conf": "147346c1b876b87dfad3bd436c62bc137c36723137ed5b647cf376a9f54e66aa"
+  },
+  "configuration_sha256_at_report": {
+    "ansible.cfg": "73e6f6b5844a7a2dee8cf042b67a1c7b61c3e4b4198f4f7f7b65907e883de90e",
+    "inventory/hosts.yml": "0e7e66c6b182c95d9bff4502e02de7c8669a781296b7ff45965a8b2defb4f565",
+    "inventory/group_vars/all.yml": "88e5b9aa279755ab21647f4e59fd73d8cc6d7a60ab1e9938877ad504af8a9c6f"
+  },
+  "raw_case_logs": {
+    "archive": "raw-case-logs.tar.gz",
+    "files": 405,
+    "index": "raw-case-log-index.json",
+    "note": "Actual per-case Ansible stdout/stderr and local fixture transaction/call records; excludes copied code, .git, test keys, configuration/baseline snapshots and nested rollout fixture archives."
+  }
+}

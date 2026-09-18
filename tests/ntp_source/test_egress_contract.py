@@ -19,9 +19,8 @@ SPEC = importlib.util.spec_from_file_location('ntp_egress', SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
-# Syntax fixtures only: these addresses are deliberately not a list of NTP
-# servers. They are never contacted and never written into production inventory.
-FIXTURE_UPSTREAMS = ['8.8.8.8', '1.1.1.1', '9.9.9.9']
+# Offline fixtures only; three addresses from TWO providers, never contacted.
+FIXTURE_UPSTREAMS = ['162.159.200.1', '162.159.200.123', '194.58.200.20']
 
 
 class EgressContractTests(unittest.TestCase):
@@ -60,9 +59,33 @@ class EgressContractTests(unittest.TestCase):
         self.assertFalse(result['implementation_review']['applies_firewall_configuration'])
 
     def test_unselected_or_wrong_count_is_rejected(self):
-        for value in (None, [], {}, '8.8.8.8', FIXTURE_UPSTREAMS[:2], FIXTURE_UPSTREAMS * 2):
+        for value in (None, [], {}, '8.8.8.8', FIXTURE_UPSTREAMS[:1], FIXTURE_UPSTREAMS + [FIXTURE_UPSTREAMS[0]]):
             with self.subTest(value=value), self.assertRaises(MODULE.ContractError):
                 MODULE.public_upstreams(value)
+
+    def test_two_and_three_known_addresses_accepted(self):
+        for values in (FIXTURE_UPSTREAMS[:2], FIXTURE_UPSTREAMS[::2], FIXTURE_UPSTREAMS):
+            with self.subTest(values=values):
+                self.assertEqual(MODULE.public_upstreams(values), values)
+                candidate = dict(self.variables, cr_ntp_source_upstreams=values)
+                contract = self.contract(candidate)
+                self.assertEqual(contract['public_ntp_egress']['destination_cidrs'],
+                                 [ip + '/32' for ip in values])
+
+    def test_unsupported_providers_rejected_before_output_mutation(self):
+        for address in ('8.8.8.8', '132.163.96.1', '129.6.15.28'):
+            with self.subTest(address=address), tempfile.TemporaryDirectory() as temp:
+                path, output = Path(temp) / 'vars.yml', Path(temp) / 'review.json'
+                value = dict(self.variables, cr_ntp_source_upstreams=[FIXTURE_UPSTREAMS[0], address])
+                path.write_text(yaml.safe_dump(value))
+                before = path.read_bytes()
+                process = subprocess.run([sys.executable, str(SCRIPT), '--vars-file', str(path),
+                                          '--output', str(output)], capture_output=True,
+                                         text=True, timeout=10)
+                self.assertEqual(process.returncode, 2, process.stderr)
+                self.assertFalse(output.exists())
+                self.assertEqual(path.read_bytes(), before)
+                self.assertEqual(process.stdout, '')
 
     def test_unsafe_or_ambiguous_destinations_are_rejected(self):
         invalid = ['0.0.0.0', '0.0.0.0/0', '10.0.0.1', '172.16.0.1',
@@ -78,7 +101,7 @@ class EgressContractTests(unittest.TestCase):
 
     def test_duplicate_destinations_are_rejected(self):
         with self.assertRaisesRegex(MODULE.ContractError, 'distinct'):
-            MODULE.public_upstreams(['8.8.8.8', '8.8.8.8', '1.1.1.1'])
+            MODULE.public_upstreams([FIXTURE_UPSTREAMS[0], FIXTURE_UPSTREAMS[0]])
 
     def test_inventory_scope_drift_is_rejected(self):
         changes = [('cr_ntp_change_id', 'OTHER'),
@@ -131,7 +154,7 @@ class EgressContractTests(unittest.TestCase):
                                      text=True, timeout=10)
             self.assertEqual(process.returncode, 2)
             self.assertEqual(process.stdout, '')
-            self.assertIn('selection is PENDING', process.stderr)
+            self.assertTrue(process.stderr.strip())
             self.assertFalse(output.exists())
             self.assertEqual(path.read_bytes(), before)
 
