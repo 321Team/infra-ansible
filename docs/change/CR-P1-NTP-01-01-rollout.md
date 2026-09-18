@@ -2,6 +2,11 @@
 
 상태: 통합 실행 코드의 리뷰 후보. [로컬 검증 128/128 PASS](CR-P1-NTP-01-01-rollout-validation.md). 실제 서버 적용과 AC 인수는 미실행.
 
+2026-09-19 KST 권장안 착수: [공인 시간원 후보와 서비스 정책 수정 계약](CR-P1-NTP-01-01-upstream-selection.md),
+[네트워크·복구 실행 계약](CR-P1-NTP-01-01-network-recovery.md)을 추가했다.
+NIST 후보는 현재 iburst 진단/설정과 호환되지 않으므로 실제 입력에 추가하지 않는다.
+후보 선정 문서는 실행 설정이 아니며 기존 128/128 결과에 신규 provider 적합성 시험을 소급 포함하지 않는다.
+
 ## 승인과 소스
 
 PR #27은 `hayeounglee`가 2026-09-18 22:12:28 KST에 정확한 HEAD

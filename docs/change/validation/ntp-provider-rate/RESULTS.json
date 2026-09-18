@@ -1,0 +1,182 @@
+{
+  "recorded_at": "2026-09-18T16:00:33.963921+00:00",
+  "scope": "Actual chrony 4.8 against synthetic NTP on 127.0.0.1 only",
+  "binary_path": "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+  "binary_sha256": "4bbea9015df39385b6f025fed43ed5a630906de8846d92114fce2833b0fdb914",
+  "adapted_fixture_path": "/workspace/scratch/de9613d2608d/ntp-rollout/work/tests/ntp_source/test_probe.py",
+  "adapted_fixture_sha256": "fabbf0cfe77ce340971170e9d04bfc86307ae89e7a1e1602684976dcd14d8a8a",
+  "script_sha256": "d3a3ac2a8b9ca8fe9b5571250526819203eaaef89e305f272614787156232875",
+  "results": [
+    {
+      "name": "existing_iburst",
+      "passed": true,
+      "argv": [
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "-4",
+        "-Q",
+        "-t",
+        "35",
+        "server 127.0.0.1 iburst port 60798",
+        "pidfile /",
+        "port 0",
+        "cmdport 0",
+        "bindcmdaddress /"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "2026-09-18T16:00:17Z chronyd version 4.8 starting (+CMDMON +REFCLOCK +RTC -PRIVDROP -SCFILTER -SIGND -NTS -SECHASH +IPV6 -DEBUG)\n2026-09-18T16:00:17Z Disabled control of system clock\n2026-09-18T16:00:17Z Running with root privileges\n2026-09-18T16:00:21Z System clock wrong by 0.000033 seconds (ignored)\n2026-09-18T16:00:21Z chronyd exiting\n",
+      "elapsed_seconds": 4.250791788996139,
+      "outer_timeout": false,
+      "fixture_offset_seconds": 0.0,
+      "offset_seconds": 3.3e-05,
+      "sample_accepted": true,
+      "offset_gate_100ms_pass": true,
+      "destination_address": "127.0.0.1",
+      "destination_port": 60798,
+      "packet_count": 3,
+      "packets": [
+        {
+          "elapsed_seconds": 0.20557757699862123,
+          "source_address": "127.0.0.1",
+          "source_port": 39905,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 2.212851252996188,
+          "source_address": "127.0.0.1",
+          "source_port": 34462,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 4.25021549599478,
+          "source_address": "127.0.0.1",
+          "source_port": 48078,
+          "request_bytes": 48
+        }
+      ],
+      "request_intervals_seconds": [
+        2.007273675997567,
+        2.037364242998592
+      ],
+      "intervals_at_least_4_seconds": false,
+      "fixture_errors": []
+    },
+    {
+      "name": "proposed_poll8s",
+      "passed": true,
+      "argv": [
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "-4",
+        "-Q",
+        "-t",
+        "35",
+        "server 127.0.0.1 minpoll 3 maxpoll 3 port 46114",
+        "pidfile /",
+        "port 0",
+        "cmdport 0",
+        "bindcmdaddress /"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "2026-09-18T16:00:17Z chronyd version 4.8 starting (+CMDMON +REFCLOCK +RTC -PRIVDROP -SCFILTER -SIGND -NTS -SECHASH +IPV6 -DEBUG)\n2026-09-18T16:00:17Z Disabled control of system clock\n2026-09-18T16:00:17Z Running with root privileges\n2026-09-18T16:00:33Z System clock wrong by 0.000035 seconds (ignored)\n2026-09-18T16:00:33Z chronyd exiting\n",
+      "elapsed_seconds": 16.34954484100308,
+      "outer_timeout": false,
+      "fixture_offset_seconds": 0.0,
+      "offset_seconds": 3.5e-05,
+      "sample_accepted": true,
+      "offset_gate_100ms_pass": true,
+      "destination_address": "127.0.0.1",
+      "destination_port": 46114,
+      "packet_count": 3,
+      "packets": [
+        {
+          "elapsed_seconds": 0.20241425600397633,
+          "source_address": "127.0.0.1",
+          "source_port": 57830,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 8.33574245100317,
+          "source_address": "127.0.0.1",
+          "source_port": 33143,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 16.34906840199983,
+          "source_address": "127.0.0.1",
+          "source_port": 39270,
+          "request_bytes": 48
+        }
+      ],
+      "request_intervals_seconds": [
+        8.133328194999194,
+        8.01332595099666
+      ],
+      "intervals_at_least_4_seconds": true,
+      "fixture_errors": []
+    },
+    {
+      "name": "proposed_poll8s_250ms",
+      "passed": true,
+      "argv": [
+        "/workspace/scratch/de9613d2608d/ntp-migration/chrony-validation/chrony-4.8/chronyd",
+        "-4",
+        "-Q",
+        "-t",
+        "35",
+        "server 127.0.0.1 minpoll 3 maxpoll 3 port 40160",
+        "pidfile /",
+        "port 0",
+        "cmdport 0",
+        "bindcmdaddress /"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "2026-09-18T16:00:17Z chronyd version 4.8 starting (+CMDMON +REFCLOCK +RTC -PRIVDROP -SCFILTER -SIGND -NTS -SECHASH +IPV6 -DEBUG)\n2026-09-18T16:00:17Z Disabled control of system clock\n2026-09-18T16:00:17Z Running with root privileges\n2026-09-18T16:00:33Z System clock wrong by 0.250065 seconds (ignored)\n2026-09-18T16:00:33Z chronyd exiting\n",
+      "elapsed_seconds": 16.38543000700156,
+      "outer_timeout": false,
+      "fixture_offset_seconds": 0.25,
+      "offset_seconds": 0.250065,
+      "sample_accepted": true,
+      "offset_gate_100ms_pass": false,
+      "destination_address": "127.0.0.1",
+      "destination_port": 40160,
+      "packet_count": 3,
+      "packets": [
+        {
+          "elapsed_seconds": 0.20514866700250423,
+          "source_address": "127.0.0.1",
+          "source_port": 51079,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 8.274375503002375,
+          "source_address": "127.0.0.1",
+          "source_port": 33405,
+          "request_bytes": 48
+        },
+        {
+          "elapsed_seconds": 16.385028707998572,
+          "source_address": "127.0.0.1",
+          "source_port": 53541,
+          "request_bytes": 48
+        }
+      ],
+      "request_intervals_seconds": [
+        8.06922683599987,
+        8.110653204996197
+      ],
+      "intervals_at_least_4_seconds": true,
+      "fixture_errors": []
+    }
+  ],
+  "passed": 3,
+  "total": 3,
+  "limitations": [
+    "No public NTP endpoint or production host contacted.",
+    "Only per-process packet intervals are measured.",
+    "Does not cover daemon/probe overlap, restart boundaries, repeated invocations or NAT-shared clients.",
+    "No repository code was modified; production policy support is not complete.",
+    "The synthetic server is unauthenticated and does not prove public-service reachability or leap policy."
+  ]
+}

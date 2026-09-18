@@ -10,6 +10,11 @@ See [field migration](CR-P1-NTP-01-01-field-migration.md) for the paired fix and
 diagnosis, conditional apply, verification and evidence collection. The new
 execution code needs its own exact-HEAD review; PR #27's approval does not
 automatically approve it. Missing endpoint/network inputs still stop apply.
+The 2026-09-19 KST [upstream selection and correction contract](CR-P1-NTP-01-01-upstream-selection.md)
+records three provider candidates and the NIST request-rate incompatibility.
+The [network/recovery contract](CR-P1-NTP-01-01-network-recovery.md) defines the
+scoped egress amendment and field evidence. These are planning records;
+runtime inputs remain unpopulated and no provider compatibility PASS is claimed.
 K8S 6/6 join was reported complete by the K8S owner (하영); this document
 update does not independently verify the current cluster or deploy NTP.
 The R1–R7 remediation in [PR #25](https://github.com/321Team/infra-ansible/pull/25)
