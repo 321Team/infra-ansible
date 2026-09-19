@@ -1,0 +1,25 @@
+{
+  "repository": "321Team/infra-ansible",
+  "pr": {
+    "number": 28,
+    "url": "https://github.com/321Team/infra-ansible/pull/28",
+    "head_sha": "f7940d7fd29850e45f4197ea7ab97d74b35021aa",
+    "base": "cr-p1-ntp-01-01",
+    "merged": true,
+    "merged_at": "2026-09-18T16:22:03Z",
+    "merge_commit_sha": "a51a7de0e7e7cebaa46bef318ab46808ceb2b835"
+  },
+  "reviews": [
+    {
+      "id": 5250065110,
+      "state": "APPROVED",
+      "author": "hayeounglee",
+      "commit_id": "f7940d7fd29850e45f4197ea7ab97d74b35021aa",
+      "submitted_at": "2026-09-18T16:20:28Z",
+      "url": "https://github.com/321Team/infra-ansible/pull/28#pullrequestreview-5250065110"
+    }
+  ],
+  "merge_tree": "694f6af7709c4703757fb9a346260bf649c8912e",
+  "local_snapshot_base_tree": "694f6af7709c4703757fb9a346260bf649c8912e",
+  "query_date_kst": "2026-09-19"
+}

@@ -100,7 +100,7 @@ class ActionModule(ActionBase):
                     selected = scenario.get('address', upstreams[0])
                     first_state = '?' if scenario.get('source_no_selected') else '*'
                     other_state = '*' if scenario.get('source_two_selected') else '+'
-                    other_upstreams = upstreams[1:2] if scenario.get('source_missing') else upstreams[1:]
+                    other_upstreams = upstreams[1:-1] if scenario.get('source_missing') else upstreams[1:]
                     stdout = ('MS Name/IP address Stratum Poll Reach LastRx Last sample\n'
                               '================================================================\n'
                               f'^{first_state} {selected} 2 6 377 23 -1234ns[ -1234ns] +/- 1ms\n' +

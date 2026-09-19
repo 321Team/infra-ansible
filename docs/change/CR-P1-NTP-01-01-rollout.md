@@ -1,10 +1,13 @@
 # CR-P1-NTP-01-01 통합 실행 지침
 
-상태: 통합 실행 코드의 리뷰 후보. [로컬 검증 128/128 PASS](CR-P1-NTP-01-01-rollout-validation.md). 실제 서버 적용과 AC 인수는 미실행.
+상태: PR #28 통합 실행기는 승인·병합 완료. 이번 2~3개 시간원 지원·미지원 provider 차단 수정은 별도 리뷰 대상이다. 실제 서버 적용과 AC 인수는 미실행.
+기존 [128/128 검증](CR-P1-NTP-01-01-rollout-validation.md)은 당시 소스의 이력이며, 신규 결과는 [수정 검증 기록](CR-P1-NTP-01-01-two-source-validation.md)에 구분한다.
+현장 작업 순서는 [실서버 반영 절차](CR-P1-NTP-01-01-field-runbook.md)를 따른다.
 
 2026-09-19 KST 권장안 착수: [공인 시간원 후보와 서비스 정책 수정 계약](CR-P1-NTP-01-01-upstream-selection.md),
 [네트워크·복구 실행 계약](CR-P1-NTP-01-01-network-recovery.md)을 추가했다.
-NIST 후보는 현재 iburst 진단/설정과 호환되지 않으므로 실제 입력에 추가하지 않는다.
+NIST 후보는 현재 서비스 정책·반복/병행 진단 적합성 확인이 끝나지 않았고
+이번 지원 목록에서 제외했으므로 실제 입력에 추가하지 않는다.
 후보 선정 문서는 실행 설정이 아니며 기존 128/128 결과에 신규 provider 적합성 시험을 소급 포함하지 않는다.
 
 ## 승인과 소스
@@ -19,9 +22,13 @@ PR #27은 `hayeounglee`가 2026-09-18 22:12:28 KST에 정확한 HEAD
 이는 main 병합이나 운영 적용 완료를 뜻하지 않는다. 당시 Checks, Status,
 Actions 실행 기록은 0건이므로 CI는 NOT RUN이다.
 
-이 문서와 함께 추가한 통합 실행기는 새 코드다. [리뷰 정책](../REVIEW_POLICY.md)에
-따라 해당 최종 HEAD의 독립 리뷰와 Lead 병합 판단을 거쳐 사용한다.
-기존 PR #27 승인을 새 실행 코드의 승인으로 소급하지 않는다.
+PR #28 통합 실행기는 `hayeounglee`가 전체 HEAD
+`f7940d7fd29850e45f4197ea7ab97d74b35021aa`를 승인했고
+([승인 원문](https://github.com/321Team/infra-ansible/pull/28#pullrequestreview-5250065110)),
+`a51a7de0e7e7cebaa46bef318ab46808ceb2b835`로 PR #24 작업 브랜치에 병합됐다.
+이번 2~3개 지원·provider 차단은 새 코드이므로 [리뷰 정책](../REVIEW_POLICY.md)에
+따라 그 최종 HEAD의 독립 리뷰와 Lead 병합 판단을 거쳐 사용한다.
+PR #28 승인이나 로컬 검증을 이번 변경의 승인으로 소급하지 않는다.
 동일한 승인 범위의 진단·적용·검증 단계마다 추가 승인 질문을 요구하지 않는다.
 
 ## 계속 유지할 지침
@@ -30,7 +37,7 @@ Actions 실행 기록은 0건이므로 CI는 NOT RUN이다.
   tree 또는 실행 입력이 달라지면 후속 적용을 중단하고 증적을 보존한다.
 - controller는 `server01_ansible@ansible01`이다. 기존 SSH 개인키의 **경로**만
   사용하며 키 내용, 토큰, 인증 파일은 입력 JSON·로그·증적에 넣지 않는다.
-- control01만 확정된 공인 IPv4 NTP 3개를 사용한다. 다섯 클라이언트는
+- control01만 확정된 공인 IPv4 NTP 2~3개를 사용한다. 다섯 클라이언트는
   control01 `10.1.93.102`만 사용한다. 기본 주소 목록은 비워 두며 현재 pool의
   응답 IP를 임의로 운영 입력으로 채택하지 않는다.
 - 공인 서비스 사용 조건, 장애 도메인, 윤초 처리 방식과 실제 network/host
@@ -60,7 +67,7 @@ Actions 실행 기록은 0건이므로 CI는 NOT RUN이다.
 | 키 | 실제 값 |
 |---|---|
 | `reviewed_source_sha` | 통합 실행기를 포함한 검토·병합된 실행 checkout의 전체 HEAD SHA |
-| `public_upstreams` | 확정된 서로 다른 공인 IPv4 주소 3개 |
+| `public_upstreams` | 확정된 서로 다른 지원되는 공인 IPv4 주소 2~3개 |
 | `source_policy_ref` | 위 주소 및 호환되는 윤초·서비스 사용 조건을 결정한 기존 기록 |
 | `network_policy_ref` | control01 외부 UDP/123 및 5개 client → control01 내부 UDP/123 정책 기록 |
 | `recovery_ref` | 기존 chrony pair와 네트워크 정책 복구에 대한 기존 기록 |
@@ -87,7 +94,7 @@ python3 -I -B tools/ntp-rollout.py \
 )
 ```
 
-실행 순서는 사전검사 → control01에서 공인 NTP 3개 응답 진단 → source
+실행 순서는 사전검사 → control01에서 선정 공인 NTP 2~3개 응답 진단 → source
 check/apply/idempotency → 다섯 client에서 control01 NTP 응답 진단 → clients
 check/apply/idempotency → 전체 검증 → finalize/압축이다. 단계 사이에 수동 명령이나
 승인 답변을 추가하지 않는다. 주소 미확정, 입력 불일치, 구성 충돌, 응답 실패는
@@ -101,7 +108,7 @@ clients 미시작 상태를 증적에 남긴다.
 NTP 응답 진단은 설치된 chronyd의 `-Q`를 별도 설정으로 실행한다. 기존 daemon과
 시계를 수정하지 않고, 응답 offset의 유한값 및 100ms 한도를 별도 검사한다.
 응답 성공은 네트워크 경로에서 유효한 표본을 받았다는 뜻이며 전체 방화벽의
-최소 권한, 세 upstream의 합의, 지속 동기화까지 증명하지 않는다. 실제 서비스의
+최소 권한, 선정 upstream 간 합의, 지속 동기화까지 증명하지 않는다. 실제 서비스의
 Leap Normal 및 선택 source 검증은 기존 apply/verify에 유지한다.
 
 ## 종료와 복구

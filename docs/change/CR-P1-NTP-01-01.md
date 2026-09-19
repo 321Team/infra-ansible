@@ -1,5 +1,14 @@
 # CR-P1-NTP-01-01 — Internal single-source NTP (control01)
 
+Current correction (2026-09-19 KST): PR #28 was approved on exact HEAD
+`f7940d7fd29850e45f4197ea7ab97d74b35021aa` and merged into this working
+branch as `a51a7de0e7e7cebaa46bef318ab46808ceb2b835`. The next code change
+supports two or three upstreams and rejects providers unsupported by the
+iburst workflow; it requires its own review. See the [field runbook](CR-P1-NTP-01-01-field-runbook.md)
+and [correction validation](CR-P1-NTP-01-01-two-source-validation.md).
+Production apply remains NOT RUN. The following dated records retain their
+original scope.
+
 2026-09-18 status: the observed-layout migration in PR #27 was approved on
 exact HEAD `52e9a7450aca411e44be221b99840aeb372bacb3` and merged into the
 PR #24 working branch as `e5446288c1c646f41c9ec9c890bf85e7509503ec`.
@@ -11,7 +20,7 @@ diagnosis, conditional apply, verification and evidence collection. The new
 execution code needs its own exact-HEAD review; PR #27's approval does not
 automatically approve it. Missing endpoint/network inputs still stop apply.
 The 2026-09-19 KST [upstream selection and correction contract](CR-P1-NTP-01-01-upstream-selection.md)
-records three provider candidates and the NIST request-rate incompatibility.
+records the initial three-provider candidates and the unresolved NIST request-rate contract.
 The [network/recovery contract](CR-P1-NTP-01-01-network-recovery.md) defines the
 scoped egress amendment and field evidence. These are planning records;
 runtime inputs remain unpopulated and no provider compatibility PASS is claimed.
@@ -66,7 +75,7 @@ until that's separately approved and tracked here.
 
 The user's later request adopts the Kubernetes owner's proposal for review:
 control01 alone uses a fixed set of public NTP endpoints. The new opt-in
-migration supports exactly three explicit public IPv4 addresses and removes
+migration supports two or three explicit supported public IPv4 addresses and removes
 the original pool/DHCP source on control01 as well as the clients. This is a
 proposed amendment to the earlier **no new external egress** decision, not
 evidence that the older decision already allowed it. The address list is

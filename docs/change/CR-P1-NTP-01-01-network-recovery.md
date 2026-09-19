@@ -4,7 +4,7 @@
 작성: 2026-09-19 KST. [시간원 선정·수정 계약](CR-P1-NTP-01-01-upstream-selection.md)과 함께 검토한다.
 
 사용자의 권장안 착수 지시에 따라 기존 control01 단일 내부 NTP 구조를 유지하고,
-control01 자체 upstream을 선정된 공인 IPv4 3개로 제한하는 안을 구체화한다.
+control01 자체 upstream을 선정된 공인 IPv4 2~3개로 제한하는 안을 구체화한다.
 이 문서는 실제 주소 선정, 방화벽 반영, 서버 실행 또는 AC 인수 증적이 아니다.
 공인 3기관 후보는 선정 문서에 기록했지만 현재 실행기와의 서비스 정책 적합성,
 최종 유효 네트워크 정책과 구체적인 네트워크 복구 기준점은 아직 미확정이다.
@@ -20,7 +20,7 @@ authority는 `INPUT_INCOMPLETE / RUNTIME_HOLD`로 구분한다.
 
 [2026-09-16 Lead 결정](https://github.com/321Team/fds-project-baseline/issues/10#issuecomment-5697547621)의
 내부 단일 소스, Relay 추가 제외, 수치 AC는 유지한다. 그 결정의
-“신규 외부 egress 없음”에서 **control01 한 대의 선정 공인 NTP 3개 접근**으로
+“신규 외부 egress 없음”에서 **control01 한 대의 선정 공인 NTP 2~3개 접근**으로
 바뀌는 부분은 기존 결정의 자동 승계가 아니다. 해당 범위 Lead가 기존
 Decision/CR에 변경 이유, 정확한 endpoint, 영향과 복구를 기록한다.
 
@@ -35,8 +35,9 @@ Decision/CR에 변경 이유, 정확한 endpoint, 영향과 복구를 기록한�
 Support 서명이나 새 승인 문서를 요구하지 않는다. 변경 판단과 아래 세 참조는
 하나의 기존 Decision/CR 기록에서 함께 관리할 수 있다.
 
-참조한 통합 실행 소스는 [PR28 HEAD `72d3f62992683511d67be0c70b984b0644b6412d`](https://github.com/321Team/infra-ansible/tree/72d3f62992683511d67be0c70b984b0644b6412d)다.
-이 문서에서 해당 SHA의 코드 승인·병합 또는 실제 실행을 새로 주장하지 않는다.
+기존 통합 실행기 PR #28은 승인 HEAD `f7940d7fd29850e45f4197ea7ab97d74b35021aa`에서
+병합 SHA `a51a7de0e7e7cebaa46bef318ab46808ceb2b835`로 작업 브랜치에 반영됐다.
+이번 2~3개 입력·provider 차단 수정은 별도 코드 리뷰 대상이며 실제 실행은 미수행이다.
 실행 시 `reviewed_source_sha`에는 그때 확인한 검토·병합된 실행 checkout의
 전체 HEAD를 사용한다.
 
@@ -44,16 +45,16 @@ Support 서명이나 새 승인 문서를 요구하지 않는다. 변경 판단�
 
 | 구분 | Source | Destination | 요청·판정 |
 |---|---|---|---|
-| 공인 NTP 요청 | control01 `10.1.93.102/32` | 선정한 서로 다른 공인 IPv4 3개, 각각 `/32` | IPv4 UDP **destination 123**만 |
-| 공인 NTP 응답 | 위 3개 endpoint | 실제 요청을 시작한 control01 세션 | stateful reply만; 인터넷 시작 신규 inbound 허용 없음 |
+| 공인 NTP 요청 | control01 `10.1.93.102/32` | 선정한 서로 다른 공인 IPv4 2~3개, 각각 `/32` | IPv4 UDP **destination 123**만 |
+| 공인 NTP 응답 | 위 선정 endpoint | 실제 요청을 시작한 control01 세션 | stateful reply만; 인터넷 시작 신규 inbound 허용 없음 |
 | 내부 NTP 요청 | `10.1.93.103/32`, `10.1.93.104/32`, `10.1.93.105/32`, `10.1.93.107/32`, `10.1.93.108/32` | control01 `10.1.93.102/32` | UDP destination 123; source ingress와 client egress 모두 대조 |
 | 내부 NTP 응답 | control01 | 요청한 5개 client 세션 | 실제 반환 경로·stateful reply 확인 |
 | 나머지 5대의 공인 NTP 직접 접근 | 위 client 5개 | 공인 NTP | 최종 설계에서 허용하지 않음; 실제 차단 여부는 별도 증적 필요 |
 | 업무 Pod의 외부 NTP | 업무 Pod | 외부 | 이번 변경에서 허용 범위를 추가하지 않음 |
 
-주소 목록은 실제 서비스 운영·사용 조건을 확인한 literal IPv4 3개로 채운다.
+주소 목록은 실제 서비스 운영·사용 조건을 확인한 literal IPv4 2~3개로 채운다.
 현재 pool을 한 번 DNS 조회해 나온 IP를 고정 운영 주소로 전환하지 않는다.
-hostname, `0.0.0.0/0`, 큰 공인 대역 허용, 선정된 3개 외 목적지 추가로 대체하지 않는다.
+hostname, `0.0.0.0/0`, 큰 공인 대역 허용, 선정된 목록 외 목적지 추가로 대체하지 않는다.
 공인 IP 문법 통과는 해당 주소가 NTP 서비스를 제공하거나 사용을 허용한다는
 증명이 아니다. 공급자의 윤초 처리 방식이 호환되는지 함께 결정한다.
 
@@ -77,7 +78,7 @@ backend의 검토된 변경분으로 수행한다. 아래 목록은 모든 장�
 |---|---|---|
 | control01·client host 정책 | firewalld 활성 상태, interface/source의 zone 결합, runtime/permanent, policy/rich/direct 규칙과 실제 유효 nftables 경로 중 NTP에 관련된 부분 | zone에 `ntp`가 보이거나 보이지 않는 것만으로 전체 허용·차단 단정 불가 |
 | Calico host 정책 | 실제 HEP 유무, node/interface/IP/label, 적용되는 GNP selector·tier/order·direction·forward/preDNAT 범위와 유효 규칙 | 저장소 manifest 존재는 live 집행 증거가 아님; 업무 Pod 정책과 host 정책을 혼동하지 않음 |
-| 상위망·NAT | control01→선정 IP 3개별 route/interface/source, 실제 외부 source/NAT, UDP123 허용과 반환 세션 조건, 정책 ID/변경 ID | `10.1.93.102`가 상위 장비에서도 그대로 보인다고 가정하지 않음 |
+| 상위망·NAT | control01→선정 IP 2~3개별 route/interface/source, 실제 외부 source/NAT, UDP123 허용과 반환 세션 조건, 정책 ID/변경 ID | `10.1.93.102`가 상위 장비에서도 그대로 보인다고 가정하지 않음 |
 | 내부 5개 경로 | client별 source/interface/route와 control01 UDP123 listener·5개 `/32` ACL, 실제 NTP request/reply | route 또는 ACL 성공은 UDP 왕복·정확한 시간 표본 성공을 대체하지 않음 |
 | 변경 소유권 | 변경 전 정책 원문/해시, 장비·host·정책 ID, 이번 추가·수정·삭제 내역, 복구 대상과 기존 공유 규칙의 구분 | 전체 정책 flush/교체를 증분 변경이나 복구로 취급하지 않음 |
 | 영속성 | 해당 backend의 저장·재기동/재부팅 후 집행 방식과 검증 결과 | runtime만 바꾼 결과를 permanent·재부팅 지속성 PASS로 표시하지 않음 |
@@ -99,8 +100,8 @@ NTP 허용 항목이 없었지만 전체 nftables/상위망/HEP 유효 정책을
 
 | 입력 | 연결할 실제 기존 기록의 내용 | 완료 전 상태 |
 |---|---|---|
-| `source_policy_ref` | 선정 IP 3개, 서비스 운영자·사용 조건, 고정 endpoint 유지/변경 방식, 윤초 처리의 호환성, control01 단독 외부 접근으로 바꾸는 Lead 판단과 기존 downstream/AC 유지 | 주소·사용·윤초 중 미결이 있으면 미확정 |
-| `network_policy_ref` | 위와 동일한 IP 3개와 `.102/32` UDP destination123, 5개 내부 client 경로, 실제 통제 장비/host와 변경 증분·반영 결과, stateful return/NAT, public 직접 접근 제한 및 경로 시험의 원문 위치 | 정책 초안·코드만 있으면 적용 미검증 |
+| `source_policy_ref` | 선정 IP 2~3개, 서비스 운영자·사용 조건, 고정 endpoint 유지/변경 방식, 윤초 처리의 호환성, control01 단독 외부 접근으로 바꾸는 Lead 판단과 기존 downstream/AC 유지 | 주소·사용·윤초 중 미결이 있으면 미확정 |
+| `network_policy_ref` | 위와 동일한 IP 2~3개와 `.102/32` UDP destination123, 5개 내부 client 경로, 실제 통제 장비/host와 변경 증분·반영 결과, stateful return/NAT, public 직접 접근 제한 및 경로 시험의 원문 위치 | 정책 초안·코드만 있으면 적용 미검증 |
 | `recovery_ref` | host별 원본 chrony pair/baseline과 직전 snapshot, 이전 네트워크 정책 원문/해시, 변경 소유권·복구 순서·접근 경로·중단 기준, 성공 host 보존과 실패 host/네트워크 증분 복구 방법 | 원본 pool/DHCP와 복구 네트워크의 정합성을 확인하지 못하면 미확정 |
 
 세 참조는 기존 티켓의 한 결정 댓글이나 버전 고정 문서의 구분된 절을 가리켜도
@@ -125,14 +126,14 @@ resolved upstream 값, 네트워크 요청서의 주소가 일치해야 한다.
 이 표는 담당자를 새로 배정하거나 Support에게 추가 승인권을 만드는 것이 아니다.
 상위 방화벽의 실제 운영자는 네트워크 기록에서 확인하고 임의로 지정하지 않는다.
 
-1. 결정 기록과 주소 3개를 고정하고, 작업창의 실제 정책·chrony 원본·복구 경로를
+1. 결정 기록과 주소 2~3개를 고정하고, 작업창의 실제 정책·chrony 원본·복구 경로를
    연결한다. 설치된 chronyd의 실제 argv/config와 서비스 상태는 실행 진단에서
    확인한다. 현재의 SSH 관리 경로를 보존한다.
 2. 네트워크 소유자가 검토한 최소 증분을 반영한다. 아직 원래 pool/DHCP를 쓰는
    host의 필요한 경로를 먼저 끊지 않도록 **구성 전환과 기존 허용 제거 시점**을
    같은 기록에 정한다. 기존 경로의 존재나 허용 근거가 미확정이면 가정하지
    않는다. 잠시 유지할 기존 범위도 명시하며 새 광역 예외를 만들지 않는다.
-3. 네트워크 준비 후 통합 실행기 한 번으로 precheck→control01의 공인 3개
+3. 네트워크 준비 후 통합 실행기 한 번으로 precheck→control01의 공인 2~3개
    NTP 응답 진단→source check/apply/idempotency→source health/ACL/listener와
    5개 내부 NTP 응답 gate→clients check/apply/idempotency→verify→증적 포장을
    수행한다. 별도 단계별 승인 질문을 추가하지 않는다.
@@ -143,7 +144,7 @@ resolved upstream 값, 네트워크 요청서의 주소가 일치해야 한다.
 5. 원문 증적과 설정/정책 버전으로 최종 AC를 판정한다. 통합 실행기의
    `ROLLOUT_COMPLETED_REVIEW_REQUIRED`는 흐름 완료이고 최종 인수 PASS가 아니다.
 
-네트워크 변경은 현 PR28 실행기가 수행하지 않는다. 따라서 실제 backend 변경분이
+네트워크 변경은 통합 실행기가 수행하지 않는다. 따라서 실제 backend 변경분이
 미구현·미반영인 상태에서 “진단부터 적용까지 한 번”만으로 모든 방화벽 준비도
 끝난다고 설명하지 않는다. 기존 `makestep 1.0 3`은 보존되므로 chronyd 재시작 후
 조건을 만족하면 시계가 step될 수 있다. Kubernetes 영향과 작업창 판단에 포함한다.
@@ -164,7 +165,7 @@ host rollback은 보호된 최초 baseline을 사용한다. 두 기준점은 다
 
 **원래 pair를 복원하는 것과 시간 동기화가 복구되는 것은 다르다.** 최초 baseline은
 `pool 2.centos.pool.ntp.org iburst`와 `sourcedir /run/chrony-dhcp`를 포함한다.
-그 설정이 사용하는 목적지는 새 고정 IP 3개와 다를 수 있다. 새 strict allowlist만
+그 설정이 사용하는 목적지는 새 고정 IP 2~3개와 다를 수 있다. 새 strict allowlist만
 남긴 상태에서 pair를 복원하면 동기화가 계속 실패할 수 있다.
 
 따라서 `recovery_ref`에 다음을 한 묶음으로 남긴다.
@@ -186,9 +187,9 @@ host를 기록하고 해당 Lead가 기존 책임 범위에서 복구를 판단�
 
 | 항목 | 성공 조건 | 남길 원문과 범위 |
 |---|---|---|
-| source 진단 | control01에서 확정 IP 3개 각각의 유효 NTP 응답과 offset 검사 성공 | target·source·시각·명령·rc·원문; 진단 응답은 세 서버의 시간 합의나 장기 동기화의 대체 증거가 아님 |
+| source 진단 | control01에서 확정 IP 2~3개 각각의 유효 NTP 응답과 offset 검사 성공 | target·source·시각·명령·rc·원문; 진단 응답은 선정 서버 간 시간 합의나 장기 동기화의 대체 증거가 아님 |
 | 내부 경로 | 5개 client 각각 control01에서 실제 NTP 응답; source listener/5개 ACL 일치 | host별 request/reply·서비스·ACL 원문; ACL만으로 통신 PASS 불가 |
-| 최종 소스 구성 | control01은 확정 3개, 5개 client는 control01만 사용 | effective chrony config와 runtime sources/tracking; 기존 pool/DHCP에 의한 경쟁 source가 남지 않는지 확인 |
+| 최종 소스 구성 | control01은 확정 2~3개, 5개 client는 control01만 사용 | effective chrony config와 runtime sources/tracking; 기존 pool/DHCP에 의한 경쟁 source가 남지 않는지 확인 |
 | offset | 기존 확정 한도 **100ms 이내** | 동일한 측정 필드·기준을 사용하고 raw tracking의 System time/Last offset을 보존; 부호를 제거한 크기와 단위 명시 |
 | 표본 | **60초 간격 × 6회** | 6대 각각 실제 관측 시각과 값. 시작을 t0로 하면 마지막은 약 t0+300초; 누락/재시도/지연을 숨기지 않음 |
 | 동기화 상실 | **5분 이상 지속 시 FAIL** | 상실 시작·관측 공백·회복 시각과 연속 관측. 짧은 한 번의 정상 출력으로 조건 충족을 주장하지 않음 |

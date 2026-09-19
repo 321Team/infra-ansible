@@ -35,7 +35,7 @@ def load_module(name, path):
 
 LOCK = load_module('ntp_workflow_lock_test', ROOT / 'tools/ntp-workflow-lock.py')
 ROLLOUT = None
-UPSTREAMS = ['8.8.8.8', '1.1.1.1', '9.9.9.9']  # Syntax fixtures, never contacted.
+UPSTREAMS = ['162.159.200.1', '162.159.200.123', '194.58.200.20']  # Offline fixtures: TWO providers, never contacted.
 
 
 def rejected(function, contains=None):
@@ -170,6 +170,8 @@ class RolloutFixture:
         self.directory, self.scenario = directory, scenario
         self.repo = directory / 'repo'
         self.repo.mkdir()
+        shutil.copytree(ROOT / 'module_utils', self.repo / 'module_utils')
+        self.upstreams = scenario.get('upstreams', UPSTREAMS)
         shutil.copyfile(ROOT / '.gitignore', self.repo / '.gitignore')
         (self.repo / 'tools').mkdir()
         for name in ('render-ntp-egress.py', 'ntp-workflow-lock.py', 'ntp-rollout.py'):
@@ -189,11 +191,13 @@ class RolloutFixture:
         if scenario.get('git_environment'):
             shutil.copytree(self.repo, self.foreign)
         self.runtime_input = directory / 'runtime-input.json'
-        data = dict(reviewed_source_sha=self.head, public_upstreams=UPSTREAMS,
+        data = dict(reviewed_source_sha=self.head, public_upstreams=self.upstreams,
                     source_policy_ref='fixture:source-policy', network_policy_ref='fixture:network-policy',
                     recovery_ref='fixture:recovery')
         if scenario.get('bad_input') == 'upstreams':
             data['public_upstreams'] = []
+        if 'invalid_upstreams' in scenario:
+            data['public_upstreams'] = scenario['invalid_upstreams']
         if scenario.get('bad_input') == 'head':
             data['reviewed_source_sha'] = 'f' * 40
         self.runtime_input.write_text(json.dumps(data))
@@ -210,7 +214,7 @@ class RolloutFixture:
         hosts = dict(ROLLOUT.HOSTS)
         if self.scenario.get('bad_inventory') == 'missing':
             del hosts['k8s-worker03']
-        values = {host: dict(ansible_host=address, cr_ntp_source_upstreams=UPSTREAMS,
+        values = {host: dict(ansible_host=address, cr_ntp_source_upstreams=self.upstreams,
                              cr_ntp_migrate_main=True) for host, address in hosts.items()}
         if self.scenario.get('bad_inventory') == 'upstreams':
             values['k8s-worker01']['cr_ntp_source_upstreams'] = UPSTREAMS[:2]
@@ -220,7 +224,7 @@ class RolloutFixture:
 
     def receipts(self, rollout, gate):
         for host, address in ROLLOUT.HOSTS.items():
-            targets = UPSTREAMS if gate == 'diagnose' and host == ROLLOUT.SOURCE else (
+            targets = self.upstreams if gate == 'diagnose' and host == ROLLOUT.SOURCE else (
                 [ROLLOUT.HOSTS[ROLLOUT.SOURCE]] if gate == 'pathcheck' and host != ROLLOUT.SOURCE else [])
             value = dict(schema_version=1, gate=gate, run_id=rollout.summary['run_id'],
                          source_head=self.head, input_sha256=rollout.input_hash,
@@ -360,7 +364,7 @@ def orchestration_case(directory, scenario):
     phases = [item['phase'] for item in fixture.calls]
     (directory / 'fixture-calls.json').write_text(json.dumps(fixture.calls, indent=2) + '\n')
     fixture.check_evidence(rollout)
-    success = not any(scenario.get(key) for key in ('bad_input', 'bad_inventory', 'receipt', 'fail_phase',
+    success = not any(scenario.get(key) for key in ('bad_input', 'bad_inventory', 'receipt', 'fail_phase', 'invalid_upstreams',
                     'exception_phase', 'input_mutation_phase', 'dirty_phase', 'head_change_phase', 'initial_dirty', 'unapproved'))
     assert (rc == 0) == success, (rc, rollout.summary)
     attempted = [p for p in phases if p in ('precheck', 'diagnose', 'source', 'pathcheck', 'clients', 'verify')]
@@ -371,7 +375,7 @@ def orchestration_case(directory, scenario):
         assert rollout.summary['clients_started'] is (not scenario.get('diagnose_only', False))
     else:
         assert rollout.summary.get('error') or rollout.summary.get('wrapper_finalize') == 'FAILED_RETAINED'
-        if scenario.get('bad_input') or scenario.get('bad_inventory') or scenario.get('initial_dirty') or scenario.get('unapproved'):
+        if 'invalid_upstreams' in scenario or scenario.get('bad_input') or scenario.get('bad_inventory') or scenario.get('initial_dirty') or scenario.get('unapproved'):
             assert not attempted, attempted
             if scenario.get('initial_dirty') or scenario.get('bad_input') == 'head':
                 assert 'HEAD/tree/clean' in rollout.summary['error']
@@ -397,6 +401,15 @@ def orchestration_case(directory, scenario):
 def orchestration_cases():
     yield 'diagnose_only_never_applies', {'diagnose_only': True}
     yield 'full_gated_rollout_order', {}
+    yield 'full_two_source_gated_rollout_order', {'upstreams': UPSTREAMS[::2]}
+    for name, values in [('nist_boulder', ['132.163.96.1', UPSTREAMS[0]]),
+                         ('nist_maryland', ['129.6.15.28', UPSTREAMS[0]]),
+                         ('unknown_public', ['8.8.8.8', UPSTREAMS[0]]),
+                         ('one', UPSTREAMS[:1]), ('four', UPSTREAMS + [UPSTREAMS[0]]),
+                         ('duplicate', [UPSTREAMS[0], UPSTREAMS[0]]),
+                         ('dns', ['ntp.example.org', UPSTREAMS[0]]),
+                         ('wrong_type', '162.159.200.1')]:
+        yield 'input_' + name + '_rejected_before_host_phases', {'invalid_upstreams': values}
     yield 'missing_upstreams_prevents_apply', {'bad_input': 'upstreams'}
     yield 'wrong_reviewed_head_prevents_apply', {'bad_input': 'head'}
     yield 'dirty_checkout_prevents_apply', {'initial_dirty': True}

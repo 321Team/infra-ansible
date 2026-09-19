@@ -142,17 +142,19 @@
   check_mode: false
   when: cr_ntp_is_source | bool
 
-- name: Require exactly the three approved upstreams on a migrated source
+- name: Require exactly the approved upstream set on a migrated source
   ansible.builtin.assert:
     that:
-      - cr_ntp_source_rows | length == 3
+      - cr_ntp_source_upstreams | length in [2, 3]
+      - cr_ntp_source_upstreams | unique | length == cr_ntp_source_upstreams | length
+      - cr_ntp_source_rows | length == cr_ntp_source_upstreams | length
       - >-
         cr_ntp_sources_after.stdout
         | regex_findall('(?m)^[\^=#][*+?x~-][ \t]+([0-9.]+)[ \t]+') | sort
         == cr_ntp_source_upstreams | sort
       - cr_ntp_source_rows | select('match', '^\^\*\s+') | list | length == 1
     fail_msg: >-
-      The migrated source must expose exactly the approved three upstream
+      The migrated source must expose exactly the approved two or three upstream
       addresses with one selected server; current rows={{ cr_ntp_source_rows }}.
   when:
     - cr_ntp_migrate_main | default(false) | bool

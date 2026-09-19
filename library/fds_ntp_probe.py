@@ -6,7 +6,6 @@ Receipts (including failures) are returned to the controller for preservation.
 """
 import datetime
 import hashlib
-import ipaddress
 import math
 import os
 from pathlib import Path
@@ -16,16 +15,16 @@ import socket
 import subprocess
 import time
 
+from ansible.module_utils.fds_ntp_policy import (
+    validate_probe_target, validate_public_upstreams,
+)
+
 HOSTS = {"k8s-control01": "10.1.93.102", "k8s-control02": "10.1.93.103",
          "k8s-control03": "10.1.93.104", "k8s-worker01": "10.1.93.105",
          "k8s-worker02": "10.1.93.107", "k8s-worker03": "10.1.93.108"}
 SOURCE = "k8s-control01"
 CLIENTS = [ip for host, ip in HOSTS.items() if host != SOURCE]
 OFFSET = re.compile(r"^.*\bSystem clock wrong by ([+-]?[0-9]+(?:\.[0-9]+)?) seconds \(ignored\)\s*$", re.M)
-SPECIAL = tuple(ipaddress.IPv4Network(net) for net in (
-    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16",
-    "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16",
-    "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4"))
 
 
 def clean_environment():
@@ -52,8 +51,7 @@ def command(argv, timeout=10):
 
 
 def run_probe(chronyd, target, runner=command, timeout=20, limit_ms=100):
-    if str(ipaddress.IPv4Address(target)) != target:
-        raise ValueError("Probe requires a literal IPv4 address")
+    validate_probe_target(target)
     if type(timeout) is not int or not 1 <= timeout <= 30:
         raise ValueError("Invalid bounded probe timeout")
     if not math.isfinite(limit_ms) or not 0 < limit_ms <= 100:
@@ -83,13 +81,7 @@ def validate_bindings(args):
         raise ValueError("Invalid run identifier")
     if not re.fullmatch(r"[0-9a-f]{40}", args["source_head"]) or not re.fullmatch(r"[0-9a-f]{64}", args["input_sha256"]):
         raise ValueError("Invalid source or input digest binding")
-    upstreams = args["source_upstreams"]
-    if len(upstreams) != 3 or len(set(upstreams)) != 3:
-        raise ValueError("Exactly three distinct upstreams are required")
-    for value in upstreams:
-        ip = ipaddress.IPv4Address(value)
-        if str(ip) != value or not ip.is_global or any(ip in network for network in SPECIAL):
-            raise ValueError("Upstream must be a public unicast literal IPv4 address")
+    validate_public_upstreams(args["source_upstreams"])
 
 
 def service_arguments(argv, expected_binary, main_path):
@@ -290,8 +282,8 @@ class Observation:
                 self.errors.append(str(exc))
             sources = self.observe("sources", ["chronyc", "-n", "sources", "-a"])
             rows = re.findall(r"^([\^=#][*+?x~-])\s+(\S+)\s+.*$", sources["stdout"], re.M)
-            if len(rows) != 3 or sorted(ip for state, ip in rows) != sorted(a["source_upstreams"]) or sum(state == "^*" for state, ip in rows) != 1:
-                self.errors.append("Source runtime must contain exactly three approved upstreams with one selected")
+            if len(rows) != len(a["source_upstreams"]) or sorted(ip for state, ip in rows) != sorted(a["source_upstreams"]) or sum(state == "^*" for state, ip in rows) != 1:
+                self.errors.append("Source runtime must contain exactly the approved two or three upstreams with one selected")
             directives = [line.split() for line in effective["stdout"].splitlines() if line.split()]
             source_lines = [line for line in directives if line[0].lower() in ("server", "pool", "peer", "refclock", "sourcedir", "local", "manual")]
             if sorted(source_lines) != sorted([["server", ip, "iburst"] for ip in a["source_upstreams"]]):

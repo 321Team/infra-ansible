@@ -11,11 +11,14 @@ import threading
 import time
 from unittest.mock import patch
 
+from policy_test_support import load_policy
+
 ROOT = Path(__file__).resolve().parents[2]
+load_policy()
 spec = importlib.util.spec_from_file_location("probe", ROOT / "library/fds_ntp_probe.py")
 P = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(P)
-UPSTREAMS = ["162.159.200.1", "162.159.200.123", "129.6.15.28"]  # Fixture inputs, never contacted.
+UPSTREAMS = ["162.159.200.1", "162.159.200.123", "194.58.200.20"]  # Fixture inputs, never contacted.
 
 
 def args(host="k8s-control01", gate="diagnose"):
@@ -56,7 +59,7 @@ class Fixture:
                                for unit in ("systemd-timesyncd.service", "ntpd.service", "ntpsec.service"))
             return result(argv, text, 1, "Some units not found")
         if "-p" in argv and "-f" in argv:
-            lines = ["server " + ip + " iburst" for ip in UPSTREAMS]
+            lines = ["server " + ip + " iburst" for ip in self.args["source_upstreams"]]
             lines += ["allow " + ip + "/32" for ip in P.CLIENTS]
             if self.changes.get("broad_acl"):
                 lines.append("allow 10.0.0.0/8")
@@ -65,7 +68,7 @@ class Fixture:
             return result(argv, "Leap status : %s\nLast offset : %s seconds\nSystem time : 0.00001 seconds fast of NTP time\nStratum : 3\n" %
                           (self.changes.get("leap", "Normal"), self.changes.get("last_offset", "0.00001")))
         if argv == ["chronyc", "-n", "sources", "-a"]:
-            ips = self.changes.get("runtime_ips", UPSTREAMS)
+            ips = self.changes.get("runtime_ips", self.args["source_upstreams"])
             return result(argv, "\n".join(("^*" if index == 0 else "^+") + " " + ip + " 2 6 377 1 +0us" for index, ip in enumerate(ips)))
         if argv[0] == "ss":
             return result(argv, 'UNCONN 0 0 0.0.0.0:123 0.0.0.0:* users:(("chronyd",pid=%s,fd=6))' % self.changes.get("listener_pid", "1234"))
@@ -148,9 +151,53 @@ def main():
             return str(exc)
         raise AssertionError("Invalid binding accepted")
     for number, changes in enumerate([dict(ansible_host="10.1.93.103"), dict(run_id="../bad"), dict(source_head="a" * 39),
-                                      dict(input_sha256="wrong"), dict(source_upstreams=UPSTREAMS[:2]),
+                                      dict(input_sha256="wrong"), dict(source_upstreams=UPSTREAMS[:1]),
                                       dict(source_upstreams=["127.0.0.1"] + UPSTREAMS[:2])]):
         check("reject_binding_%02d" % number, lambda changes=changes: reject_binding(changes))
+    def two_source_success(gate):
+        settings = dict(args(gate=gate), source_upstreams=UPSTREAMS[::2])
+        receipt = Fixture(settings).receipt()
+        assert receipt['gate_pass'], receipt['errors']
+        assert len(receipt['probes']) == (2 if gate == 'diagnose' else 0)
+        return receipt
+    for gate in ('diagnose', 'pathcheck'):
+        check('two_source_' + gate, lambda gate=gate: two_source_success(gate))
+    for name, ips in [('missing', UPSTREAMS[:1]), ('extra', UPSTREAMS),
+                      ('wrong_address', [UPSTREAMS[0], UPSTREAMS[1]])]:
+        check('two_source_runtime_' + name + '_rejected',
+              lambda ips=ips: reject(dict(args(gate='pathcheck'), source_upstreams=UPSTREAMS[::2]), {'runtime_ips': ips}))
+    def reject_before_commands(values):
+        fixture = Fixture(dict(args(), source_upstreams=values))
+        try:
+            fixture.receipt()
+        except ValueError as exc:
+            assert not fixture.calls, 'Invalid upstreams reached host commands'
+            return str(exc)
+        raise AssertionError('Invalid source list accepted')
+    for name, values in [('empty', []), ('one', UPSTREAMS[:1]), ('four', UPSTREAMS + [UPSTREAMS[0]]),
+                         ('duplicate', [UPSTREAMS[0]] * 2), ('wrong_type', '162.159.200.1'),
+                         ('null', None), ('bool_element', [True, UPSTREAMS[0]]),
+                         ('private', ['10.0.0.1', UPSTREAMS[0]]),
+                         ('dns', ['ntp.example.org', UPSTREAMS[0]]),
+                         ('options', ['162.159.200.1 iburst', UPSTREAMS[2]]),
+                         ('unknown_public', ['8.8.8.8', UPSTREAMS[0]]),
+                         ('nist_boulder', ['132.163.96.1', UPSTREAMS[0]]),
+                         ('nist_maryland', ['129.6.15.28', UPSTREAMS[0]])]:
+        check('provider_policy_' + name, lambda values=values: reject_before_commands(values))
+    def reject_direct_probe(address):
+        calls = []
+        def never_run(*args, **kwargs):
+            calls.append(args)
+            raise AssertionError('Rejected probe reached process execution')
+        try:
+            P.run_probe('/usr/sbin/chronyd', address, runner=never_run)
+        except ValueError as exc:
+            assert not calls
+            return str(exc)
+        raise AssertionError('Unsupported target accepted')
+    for name, address in [('unknown_public', '8.8.8.8'), ('nist_boulder', '132.163.96.1'),
+                          ('nist_maryland', '129.6.15.28'), ('private', '10.0.0.1')]:
+        check('direct_probe_' + name + '_rejected_before_process', lambda address=address: reject_direct_probe(address))
     if options.chronyd:
         def real_probe(offset, leap):
             packets = []
@@ -182,11 +229,12 @@ def main():
                 thread.start()
                 def local_runner(argv, timeout):
                     argv = list(argv)
-                    index = argv.index("server 127.0.0.1 iburst")
-                    argv[index] += " port " + str(server.getsockname()[1])
+                    index = argv.index("server " + UPSTREAMS[0] + " iburst")
+                    argv[index] = "server 127.0.0.1 iburst port " + str(server.getsockname()[1])
                     return P.command(argv, timeout)
                 try:
-                    receipt = P.run_probe(str(options.chronyd.resolve()), "127.0.0.1", local_runner, timeout=12)
+                    # Redirect one permitted target to the loopback fixture ONLY in this test runner.
+                    receipt = P.run_probe(str(options.chronyd.resolve()), UPSTREAMS[0], local_runner, timeout=12)
                 finally:
                     stop.set()
                     thread.join(timeout=1)

@@ -75,7 +75,7 @@ cr_ntp_client_ips:
 cr_ntp_dropin_path: /etc/chrony.d/50-cr-p1-ntp-01-01.conf
 cr_ntp_state_dir: /var/lib/fds-change/CR-P1-NTP-01-01
 cr_ntp_migrate_main: false
-# Exactly three distinct public IPv4 addresses for the opt-in source migration.
+# Two or three distinct public IPv4 addresses for the opt-in source migration.
 # Empty deliberately fails source migration until the endpoints, consistent
 # leap-second policy and narrowly scoped egress are selected and reviewed.
 # Default drop-in-only mode continues to leave control01's upstream untouched.

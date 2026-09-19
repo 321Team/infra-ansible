@@ -44,13 +44,14 @@ pool's resolved addresses.
 
 ## Public upstream design review
 
-The reviewed candidate accepts exactly three distinct public IPv4 literals
+The reviewed candidate accepts two or three distinct supported public IPv4 literals
 in `cr_ntp_source_upstreams`; its default is an empty list. Source planning
 and apply stop until endpoints are supplied. No public address or DNS result
 has been silently selected for production. The chosen list must be the same
 in chronyd and the firewall request. Clients still use control01 only.
 
-Three is the selected size within the requested two-to-three range:
+The implementation now supports the requested two-to-three range. More
+independent sources remain a resilience recommendation:
 [chrony recommends at least three](https://chrony-project.org/faq.html#_what_is_the_minimum_recommended_configuration_for_an_ntp_client),
 while [RFC 8633 section 3.2](https://www.rfc-editor.org/rfc/rfc8633.html#section-3.2)
 prefers four independent, diverse sources for resilience. Three has less
@@ -65,10 +66,15 @@ policy. Do not mix smeared and non-smeared time; see
 [Google's explicit warning](https://developers.google.com/time/faq#i_am_using_another_ntp_service_now_can_i_also_use_google_public_ntp)
 and [RFC 8633 section 3.7.1](https://www.rfc-editor.org/rfc/rfc8633.html#section-3.7.1).
 Three IPs owned by one provider do not prove three independent references.
+The first-phase technical catalog contains Cloudflare `.1/.123` and Netnod
+`.20`, only two operators. Policy references must record the actual selected
+set and its accepted failure-domain limits; Netnod is conditional on leap
+policy confirmation. Unsupported sources, including NIST, are rejected
+before source configuration or public probes.
 An IP fixed in configuration is also not a promise that a provider will
 retain it forever; changing it needs coordinated chronyd/firewall review.
 
-The firewall contract is control01 `10.1.93.102/32` to the three approved
+The firewall contract is control01 `10.1.93.102/32` to the selected two or three approved
 `/32` destinations, UDP destination port 123, with stateful replies. Do not
 pin the request's source port to 123 or open unsolicited Internet ingress.
 The number of actual rules depends on the effective egress firewall and HEP
@@ -130,7 +136,7 @@ This change does not open a runtime window. Under `docs/REVIEW_POLICY.md`,
 new execution code requires an independent review of its own HEAD followed
 by the Lead's merge decision. Use the reviewed and merged SHA for runtime.
 
-Before source apply, confirm the selected three endpoints and control01-only
+Before source apply, confirm the selected two or three endpoints and control01-only
 external egress decision, the actual chronyd service configuration path/options,
 and the approved effective internal UDP/123 host/network policy. The receipt shows
 no NTP listener and `209 Access denied` on control01; `chronyc accheck`

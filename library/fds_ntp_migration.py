@@ -19,15 +19,11 @@ import stat
 import subprocess
 import tempfile
 
+from ansible.module_utils.fds_ntp_policy import validate_public_upstreams
+
 OBSERVED_MAIN_SHA256 = "147346c1b876b87dfad3bd436c62bc137c36723137ed5b647cf376a9f54e66aa"
 BASELINE_NAME = "original-ntp-pair.json"
 LEGACY_NAME = "original-ntp-dropin.json"
-# Keep these policy exclusions stable across Python ipaddress versions.
-SPECIAL_IPV4 = tuple(ipaddress.IPv4Network(value) for value in (
-    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
-    "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
-    "192.88.99.0/24", "192.168.0.0/16", "198.18.0.0/15",
-    "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4"))
 
 
 def digest(data):
@@ -117,7 +113,8 @@ def make_main(original, role, dropin_path):
 def make_dropin(role, source_ip, client_ips, source_upstreams=None):
     header = b"# CR-P1-NTP-01-01 managed NTP configuration\n"
     if role == "source":
-        return header + "".join("server %s iburst\n" % ip for ip in source_upstreams or []).encode("ascii") + "".join("allow %s/32\n" % ip for ip in client_ips).encode("ascii")
+        upstreams = validate_public_upstreams(source_upstreams)
+        return header + "".join("server %s iburst\n" % ip for ip in upstreams).encode("ascii") + "".join("allow %s/32\n" % ip for ip in client_ips).encode("ascii")
     return header + ("server %s iburst\n" % source_ip).encode("ascii")
 
 
@@ -147,13 +144,7 @@ class Transaction:
         for ip in [args["source_ip"]] + args["client_ips"]:
             ipaddress.IPv4Address(ip)
         if self.role == "source" and args.get("action", "plan") in ("plan", "apply"):
-            upstreams = args.get("source_upstreams", [])
-            if not isinstance(upstreams, list) or len(upstreams) != 3 or len(set(upstreams)) != 3:
-                raise ValueError("Source migration requires exactly three distinct approved public IPv4 upstreams")
-            for value in upstreams:
-                ip = ipaddress.IPv4Address(value)
-                if not isinstance(value, str) or str(ip) != value or not ip.is_global or ip.is_multicast or ip.is_reserved or any(ip in network for network in SPECIAL_IPV4):
-                    raise ValueError("Source upstreams must be literal unicast public IPv4 addresses")
+            validate_public_upstreams(args.get("source_upstreams", []))
 
     def identity(self):
         return {"schema_version": 2, "change_id": self.args["change_id"],
