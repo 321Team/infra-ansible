@@ -28,8 +28,8 @@ import uuid
 
 sys.dont_write_bytecode = True
 CHANGE_ID = 'CR-P1-NTP-01-01'
-ROLLOUT_SHA = 'eb08dc8c4ae3505dace39e76a11ef57be75e96ce'
-ROLLOUT_TREE = 'a3f0f5529dd249c9b0a48d2a8dde17997208df4d'
+ROLLOUT_SHA = '0e17e2d7713484352c84f72d9ddc55aab6187386'
+ROLLOUT_TREE = '3978af25d4489de68590af3fc5d86191e97beb5b'
 HOSTS = {'k8s-control01': '10.1.93.102', 'k8s-control02': '10.1.93.103',
          'k8s-control03': '10.1.93.104', 'k8s-worker01': '10.1.93.105',
          'k8s-worker02': '10.1.93.107', 'k8s-worker03': '10.1.93.108'}
