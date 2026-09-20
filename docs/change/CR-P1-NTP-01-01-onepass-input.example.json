@@ -1,0 +1,11 @@
+{
+  "reviewed_wrapper_sha": "",
+  "reviewed_source_sha": "eb08dc8c4ae3505dace39e76a11ef57be75e96ce",
+  "public_upstreams": [
+    "162.159.200.1",
+    "162.159.200.123"
+  ],
+  "source_policy_ref": "https://github.com/321Team/fds-project-baseline/issues/10#issuecomment-5740306915",
+  "network_policy_ref": "",
+  "recovery_ref": ""
+}

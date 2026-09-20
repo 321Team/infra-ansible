@@ -1,0 +1,58 @@
+{
+  "scope": "LOCAL/MOCK ONLY; no field SSH, Ansible run, firewall mutation or NTP packet in field",
+  "recorded_at_utc": "2026-09-20T12:12:56.941981+00:00",
+  "approved_rollout_sha": "eb08dc8c4ae3505dace39e76a11ef57be75e96ce",
+  "unchanged_existing_tracked_files": 118,
+  "mode_check": "Git executable/non-executable distinction; extraction umask does not change Git mode",
+  "old_suites_rerun": false,
+  "final_tests": {
+    "controller": {
+      "passed": 35,
+      "total": 35
+    },
+    "firewall": {
+      "passed": 28,
+      "total": 28
+    },
+    "total": 63
+  },
+  "additional_checks": {
+    "embedded_stdin_wrong_host_guard": "LOCAL PROCESS PASS",
+    "python_syntax_files": 4,
+    "bash_syntax_blocks": 2,
+    "input_json_keys": 6,
+    "git_diff_check": "PASS"
+  },
+  "review": {
+    "kind": "AI technical code review, not independent human GitHub approval",
+    "findings_fixed": [
+      "Use previous sample batch completion +60s to preserve per-host minimum spacing",
+      "Classify REMOVE_PREPARED as uncertain alongside PREPARED/UNCERTAIN"
+    ],
+    "remaining_confirmed_blockers": 0
+  },
+  "retained_initial_failures": [
+    "Initial controller fixtures under writable workspace ancestors rejected; rerun under private /tmp without weakening guards",
+    "Expanded fixture incorrectly rejected intentionally configured ANSIBLE_NOCOLOR; corrected fixture only"
+  ],
+  "source_sha256": {
+    "tools/ntp-onepass.py": "13b8f058f7fcd8595a9d9750868c37f33c941820d7d60931501e35ce2d03ec17",
+    "tools/ntp-onepass-remote.py": "6d2af2337f24880d6b81b3ef49f835efb7d6d7cd47dfaf08061d9e1ee7687e34",
+    "tests/ntp_source/test_onepass.py": "b45ed0fe45cb0f8c7eae4544595416345775ff2121f4633e609b5d97e468c798",
+    "tests/ntp_source/test_onepass_firewall.py": "517510bc6239ac737848a775e93f977093a542b8bafbf1a5c3dc702f771b7961",
+    "docs/change/CR-P1-NTP-01-01-onepass.md": "0118421dd6d9c49a586e1f571667920c6c7907b0362e6c2c78ff8103d4e89911",
+    "docs/change/CR-P1-NTP-01-01-onepass-input.example.json": "8279758e87646a8ea3dd603416f3f2c8e0922606c60793f8f7a7d6214c64492d"
+  },
+  "raw_results_sha256": "d0bae0b7098879efc960747fe9a8aa774178921e339b87fd314f59a44569fc35",
+  "ci": "NOT_RUN",
+  "field_runtime": "NOT_RUN",
+  "human_exact_head_review": "PENDING",
+  "merge": "NOT_RUN",
+  "acceptance": "NOT_RUN",
+  "limitations": [
+    "Deprecated firewalld direct interface; feature/policy guard required",
+    "NEW UDP123 only; existing conntrack sessions preserved",
+    "IPv6 packet negative, fault injection and reboot acceptance not run",
+    "Actual governance network/recovery refs must be supplied; generated records do not invent approvals"
+  ]
+}
