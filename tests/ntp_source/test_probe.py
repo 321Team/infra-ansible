@@ -49,9 +49,9 @@ class Fixture:
         if "-v" in argv:
             return result(argv, self.changes.get("version", "chronyd (chrony) version 4.8 (+NTS)"))
         if "--property=Environment" in argv:
-            return result(argv, self.changes.get("inline_environment", ""))
+            return result(argv, self.changes.get("inline_environment", ""), self.changes.get("inline_environment_rc", 0))
         if argv[:3] == ["systemctl", "show", "chronyd.service"]:
-            return result(argv, "LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=1234\nExecStart={ argv[]=/usr/sbin/chronyd -n $OPTIONS ; ignore_errors=no }\nEnvironmentFiles=/etc/sysconfig/chronyd (ignore_errors=yes)\nFragmentPath=/usr/lib/systemd/system/chronyd.service\nDropInPaths=" + self.changes.get("override", ""))
+            return result(argv, "LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=1234\nExecStart={ argv[]=/usr/sbin/chronyd -n $OPTIONS ; ignore_errors=no }\nEnvironmentFiles=" + self.changes.get("environment_files", "/etc/sysconfig/chronyd (ignore_errors=yes)") + "\nFragmentPath=/usr/lib/systemd/system/chronyd.service\nDropInPaths=" + self.changes.get("override", ""))
         if argv[:3] == ["systemctl", "show", "systemd-timesyncd.service"]:
             if self.changes.get("incomplete_conflict"):
                 return result(argv, "", 1, "Failed to connect to bus")
@@ -144,6 +144,73 @@ def main():
         assert receipt["gate_pass"], receipt["errors"]
         return receipt["observations"]["restart_exec_argv"]
     check("optional_environment_file_absent", optional_environment_absent)
+    def empty_options_default(host, gate, **changes):
+        # Reproduce the six hosts' observed unit default, sysconfig and argv.
+        # All service calls and packet probes remain mocked fixture operations.
+        settings = dict(args(host, gate), source_upstreams=UPSTREAMS[:2])
+        receipt = Fixture(settings, inline_environment="OPTIONS=\n", **changes).receipt()
+        assert receipt["gate_pass"], receipt["errors"]
+        inline = receipt["observations"]["service_inline_environment"]
+        assert inline == {"returncode": 0, "empty": False, "accepted_empty_options_default": True}
+        expected = changes.get("argv", ["/usr/sbin/chronyd", "-n", "-F", "2"])
+        assert receipt["observations"]["restart_exec_argv"] == expected
+        assert receipt["observations"]["expanded_exec_argv"] == expected
+        return {"scope": "LOCAL/MOCK from observed service facts", "inline": inline, "restart_argv": expected}
+    for gate in ("diagnose", "pathcheck"):
+        for host in P.HOSTS:
+            check("empty_options_default_" + gate + "_" + host,
+                  lambda host=host, gate=gate: empty_options_default(host, gate))
+    check("empty_options_default_optional_file_absent",
+          lambda: empty_options_default(P.SOURCE, "diagnose", options_missing=True,
+                                        argv=["/usr/sbin/chronyd", "-n"]))
+    def truly_empty_environment():
+        receipt = Fixture(args(), inline_environment="\n").receipt()
+        assert receipt["gate_pass"], receipt["errors"]
+        assert receipt["observations"]["service_inline_environment"] == {
+            "returncode": 0, "empty": True, "accepted_empty_options_default": False}
+        return receipt["observations"]["service_inline_environment"]
+    check("empty_options_default_absent_keeps_empty_receipt", truly_empty_environment)
+    rejected_inline = {
+        "nonempty_options": 'OPTIONS="-F 2"\n',
+        "unsafe_options": "OPTIONS=-x\n",
+        "other_empty_variable": "OTHER=\n",
+        "additional_variable": "OPTIONS= LANG=C\n",
+        "additional_empty_variable": "OPTIONS= OTHER=\n",
+        "duplicate_options": "OPTIONS= OPTIONS=\n",
+        "quoted_assignment": '"OPTIONS="\n',
+        "quoted_empty_value": 'OPTIONS=""\n',
+        "malformed_quote": 'OPTIONS="\n',
+        "whitespace_value": 'OPTIONS=" "\n',
+        "embedded_newline": "OPTIONS=\nOTHER=\n",
+        "embedded_nul": "OPTIONS=\0\n",
+        "escaped_assignment": "OPTIONS=\\\n",
+        "missing_equals": "OPTIONS\n",
+    }
+    for name, inline in rejected_inline.items():
+        check("reject_inline_" + name,
+              lambda inline=inline: reject(args(), {"inline_environment": inline}))
+    for name, changes in {
+        "query_failure": {"inline_environment_rc": 1},
+        "query_timeout": {"inline_environment_rc": 124},
+        "restart_drift": {"options_text": 'OPTIONS="-F 1"\n'},
+        "missing_file_drift": {"options_missing": True},
+        "unsafe_config": {"options_text": 'OPTIONS="-f /tmp/other.conf"\n'},
+        "sysconfig_extra_variable": {"options_text": 'OPTIONS="-F 2"\nOTHER="unreviewed"\n'},
+        "sysconfig_duplicate": {"options_text": 'OPTIONS="-F 2"\nOPTIONS="-F 2"\n'},
+        "unknown_environment_file": {"environment_files": "/etc/other-chronyd (ignore_errors=yes)"},
+    }.items():
+        check("empty_options_default_reject_" + name,
+              lambda changes=changes: reject(args(), dict(inline_environment="OPTIONS=\n", **changes)))
+    def inline_secret_not_recorded():
+        secret = "fixture-secret-should-not-be-recorded"
+        receipt = Fixture(args(), inline_environment="OPTIONS= SECRET_TOKEN=" + secret + "\n").receipt()
+        assert not receipt["gate_pass"]
+        assert receipt["errors"] == ["Inline chronyd Environment needs a separate restart review"]
+        encoded = json.dumps(receipt)
+        assert secret not in encoded and "SECRET_TOKEN" not in encoded
+        assert receipt["observations"]["service_inline_environment"]["accepted_empty_options_default"] is False
+        return {"blocked": True, "secret_not_recorded": True}
+    check("inline_secret_not_recorded", inline_secret_not_recorded)
     def reject_binding(changes):
         try:
             P.validate_bindings(dict(args(), **changes))
