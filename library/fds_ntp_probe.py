@@ -194,8 +194,14 @@ class Observation:
     def inspect_restart(self, properties):
         environment = self.runner(["systemctl", "show", "chronyd.service", "--property=Environment", "--value"], timeout=10)
         # Do not copy potentially unrelated environment variable values into evidence.
-        self.observations["service_inline_environment"] = {"returncode": environment["returncode"], "empty": not environment["stdout"].strip()}
-        if environment["returncode"] != 0 or environment["stdout"].strip():
+        inline = environment["stdout"].strip()
+        self.observations["service_inline_environment"] = {
+            "returncode": environment["returncode"], "empty": not inline,
+            "accepted_empty_options_default": environment["returncode"] == 0 and inline == "OPTIONS=",
+        }
+        # Accept only systemctl's exact empty OPTIONS default. EnvironmentFile
+        # supplies its reviewed override below; all other inline values still stop.
+        if environment["returncode"] != 0 or inline not in ("", "OPTIONS="):
             raise ValueError("Inline chronyd Environment needs a separate restart review")
         options = ""
         if properties.get("EnvironmentFiles"):
