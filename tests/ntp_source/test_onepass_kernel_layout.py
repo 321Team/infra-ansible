@@ -98,6 +98,7 @@ class KernelLayoutTests(unittest.TestCase):
             engine.kernel_topology(fw.commands['runtime-direct-all-rules'])
         else:
             engine.topology()
+        return engine
 
     def layouts(self):
         for family in ('ipv4', 'ipv6'):
@@ -315,6 +316,46 @@ class KernelLayoutTests(unittest.TestCase):
             fw.commands[name] = '\n'.join(row for row in fw.commands[name].splitlines() if ' filter OUTPUT ' not in row)
             with self.subTest(layout=layout), self.assertRaises(M.Stop):
                 self.validate(fw, kernel_only=True)
+
+    def stopped_engine(self, fw):
+        """Run topology() to failure and hand back the engine for receipt checks."""
+        engine = M.Engine(request(host=fw.host), MemoryJournal(), runner=fw)
+        with self.assertRaises(M.Stop):
+            engine.topology()
+        return engine
+
+    def test_stop_receipt_preserves_mismatched_hook_layout(self):
+        fw = ReplayFirewall(M.SOURCE)
+        fw.indirect('ipv4')
+        fw.filter_edit('ipv4', lambda rows: rows + [HOOK])
+        receipt = self.stopped_engine(fw).details['kernel_topology']
+        self.assertEqual(receipt['family'], 'ipv4')
+        self.assertEqual(receipt['table'], 'filter')
+        self.assertEqual(receipt['stage'], 'hook_layout_mismatch')
+        self.assertEqual(receipt['connection_form'], 'undetermined')
+        self.assertIn('direct_layout', receipt['expected'])
+        self.assertIn('bridge_refs', receipt['actual'])
+        self.assertEqual(receipt['raw']['rc'], 0)
+        self.assertIsInstance(receipt['raw']['truncated'], bool)
+        self.assertIsInstance(receipt['raw']['stdout'], str)
+
+    def test_stop_receipt_preserves_foreign_table_name(self):
+        fw = ReplayFirewall(M.SOURCE)
+        fw.other_table('ipv4', 'mangle', [':FDS_NTP_0101 - [0:0]'])
+        receipt = self.stopped_engine(fw).details['kernel_topology']
+        self.assertEqual(receipt['stage'], 'chain_declared_outside_filter')
+        self.assertEqual(receipt['table'], 'mangle')
+        self.assertEqual(receipt['actual']['table'], 'mangle')
+        self.assertEqual(receipt['expected']['table'], 'filter')
+
+    def test_stop_receipt_preserves_predecessor_diff(self):
+        fw = ReplayFirewall(M.SOURCE)
+        fw.filter_edit('ipv4', lambda rows: ['-A OUTPUT -j ACCEPT'] + rows)
+        receipt = self.stopped_engine(fw).details['kernel_topology']
+        self.assertEqual(receipt['stage'], 'unreviewed_output_predecessor')
+        self.assertEqual(receipt['connection_form'], 'hook')
+        self.assertEqual(receipt['actual']['prefix'][0], ('-A', 'OUTPUT', '-j', 'ACCEPT'))
+        self.assertEqual(receipt['expected']['prefix'], [('-A', 'OUTPUT', '-j', 'KUBE-FIREWALL')])
 
 
 if __name__ == '__main__':

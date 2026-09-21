@@ -34,6 +34,7 @@ ACTIONS = {'snapshot', 'ingress', 'egress', 'verify', 'rollback_ingress',
 MAX_REQUEST = 65536
 MAX_OUTPUT = 8 * 1024 * 1024
 MAX_STATE = 24 * 1024 * 1024
+TOPOLOGY_RAW_LIMIT = 4096
 FIREWALL = '/usr/bin/firewall-cmd'
 FILES = ('/etc/chrony.conf', '/etc/chrony.d/50-cr-p1-ntp-01-01.conf',
          '/etc/sysconfig/chronyd', '/etc/firewalld/firewalld.conf',
@@ -97,6 +98,12 @@ def command(argv, timeout=20):
         raise Stop('Command output exceeds bound: ' + argv[0])
     return {'argv': argv, 'rc': code, 'stdout': stdout.decode('utf-8', 'replace'),
             'stderr': stderr.decode('utf-8', 'replace')}
+
+
+def raw_capture(result, limit=TOPOLOGY_RAW_LIMIT):
+    """Bound the raw command text retained in a failure receipt."""
+    stdout = result['stdout']
+    return {'rc': result['rc'], 'truncated': len(stdout) > limit, 'stdout': stdout[:limit]}
 
 
 def protected(path, directory=False, private=False):
@@ -393,7 +400,14 @@ class Engine:
                         raise Stop('Preexisting dedicated chain is incomplete or belongs to another deployment')
 
     def kernel_topology(self, registered):
-        """Match either exact kernel layout; reject unknown paths before the hook."""
+        """Match either exact kernel layout; reject unknown paths before the hook.
+
+        On refusal, self.details['kernel_topology'] retains the family, table,
+        failing stage, resolved connection form (hook/bridge/absent), the
+        expected/actual values compared at that stage, and a size-bounded copy
+        of the raw kernel dump for offline diagnosis. This is diagnostic only:
+        it never changes which layouts pass or fail.
+        """
         import shlex
         registered_rows = [shlex.split(line) for line in registered.splitlines()]
         def canonical(args):
@@ -408,9 +422,17 @@ class Engine:
                 index += 1
             return tuple(clean)
         for family, binary in (('ipv4', '/usr/sbin/iptables-save'), ('ipv6', '/usr/sbin/ip6tables-save')):
-            def refuse(message):
+            dump = self.run([binary])
+            raw = raw_capture(dump)
+            def refuse(stage, message, table, expected=None, actual=None, connection_form=None):
+                # Merge rather than overwrite: preserve any details a caller set
+                # before invoking kernel_topology().
+                self.details = dict(self.details, kernel_topology={
+                    'family': family, 'table': table, 'stage': stage,
+                    'connection_form': connection_form,
+                    'expected': expected, 'actual': actual, 'raw': raw})
                 raise Stop(family + ': ' + message)
-            rows = self.run([binary])['stdout'].splitlines()
+            rows = dump['stdout'].splitlines()
             table, declarations, actual = None, set(), []
             for line in rows:
                 if line.startswith('*'):
@@ -422,30 +444,39 @@ class Engine:
                     # OUTPUT_direct is a generic firewalld name scoped by table.
                     # Only our dedicated chain is forbidden in every other table.
                     if name == CHAIN and table != 'filter':
-                        refuse('Dedicated chain declared outside filter table')
+                        refuse('chain_declared_outside_filter', 'Dedicated chain declared outside filter table',
+                               table, expected={'table': 'filter'}, actual={'table': table, 'chain': name})
                     if table == 'filter':
                         if name in declarations:
-                            refuse('Duplicate filter chain declaration')
+                            refuse('duplicate_filter_chain_declaration', 'Duplicate filter chain declaration',
+                                   table, actual={'chain': name})
                         declarations.add(name)
                 elif line.startswith('-A '):
                     row = shlex.split(line)
                     if CHAIN in row and table != 'filter':
-                        refuse('Dedicated chain referenced outside filter table')
+                        refuse('chain_referenced_outside_filter', 'Dedicated chain referenced outside filter table',
+                               table, expected={'table': 'filter'}, actual={'table': table, 'rule': row})
                     if table == 'filter':
                         actual.append(canonical(row))
             obj = {'kind': 'chain', 'permanent': False, 'family': family, 'chain': CHAIN}
-            if (CHAIN in declarations) != self.exists(obj):
-                refuse('Kernel dedicated chain differs from firewalld ownership registry')
+            registry_owns = self.exists(obj)
+            if (CHAIN in declarations) != registry_owns:
+                refuse('ownership_registry_mismatch', 'Kernel dedicated chain differs from firewalld ownership registry',
+                       'filter', expected={'firewalld_registry_owns_chain': registry_owns},
+                       actual={'kernel_declares_chain': CHAIN in declarations})
             owned = [row for row in registered_rows
                      if row[0] == family and row[1] == 'filter' and row[2] in (CHAIN, 'OUTPUT')]
             if len({tuple(row) for row in owned}) != len(owned):
-                refuse('Duplicate registered dedicated rule')
+                refuse('duplicate_registered_rule', 'Duplicate registered dedicated rule',
+                       'filter', actual={'registered_rows': owned})
             def expected(chain):
                 return [canonical(['-A', chain] + row[4:])
                         for row in sorted((row for row in owned if row[2] == chain), key=lambda row: int(row[3]))]
             body = [row for row in actual if row[1] == CHAIN]
             if body != expected(CHAIN):
-                refuse('Actual dedicated rules or rule order differ from registered exact rules')
+                refuse('dedicated_chain_rules_mismatch',
+                       'Actual dedicated rules or rule order differ from registered exact rules',
+                       'filter', expected=expected(CHAIN), actual=body)
             hooks = expected('OUTPUT')
             chain_refs = [row for row in actual if CHAIN in row[2:]]
             bridge_refs = [row for row in actual if 'OUTPUT_direct' in row[2:]]
@@ -455,7 +486,8 @@ class Engine:
             entry = None
             if hooks:
                 if len(hooks) != 1:
-                    refuse('Expected exactly one registered NTP OUTPUT hook')
+                    refuse('output_hook_cardinality', 'Expected exactly one registered NTP OUTPUT hook',
+                           'filter', expected={'count': 1}, actual={'count': len(hooks), 'hooks': hooks})
                 hook = hooks[0]
                 indirect_hook = ('-A', 'OUTPUT_direct') + hook[2:]
                 if chain_refs == [hook] and not bridge_refs and 'OUTPUT_direct' not in declarations and not direct_body:
@@ -464,15 +496,29 @@ class Engine:
                       and 'OUTPUT_direct' in declarations and direct_body == [indirect_hook]):
                     entry = bridge
                 else:
-                    refuse('NTP hook layout is missing, duplicated, mixed, or foreign')
+                    refuse('hook_layout_mismatch', 'NTP hook layout is missing, duplicated, mixed, or foreign',
+                           'filter', connection_form='undetermined',
+                           expected={'direct_layout': hook, 'bridged_layout': indirect_hook},
+                           actual={'chain_refs': chain_refs, 'bridge_refs': bridge_refs,
+                                   'output_direct_declared': 'OUTPUT_direct' in declarations,
+                                   'output_direct_body': direct_body})
             else:
                 # Preapply and rollback may retain empty owned/OUTPUT_direct chains.
                 if chain_refs or direct_body:
-                    refuse('Unregistered dedicated hook or OUTPUT_direct rule')
+                    refuse('unregistered_hook_present', 'Unregistered dedicated hook or OUTPUT_direct rule',
+                           'filter', connection_form='undetermined',
+                           expected={'chain_refs': [], 'output_direct_body': []},
+                           actual={'chain_refs': chain_refs, 'output_direct_body': direct_body})
                 if bridge_refs:
                     if bridge_refs != [bridge] or 'OUTPUT_direct' not in declarations:
-                        refuse('Empty OUTPUT_direct bridge is duplicated, conditional, or foreign')
+                        refuse('empty_bridge_mismatch',
+                               'Empty OUTPUT_direct bridge is duplicated, conditional, or foreign',
+                               'filter', connection_form='bridge',
+                               expected={'bridge_refs': [bridge], 'output_direct_declared': True},
+                               actual={'bridge_refs': bridge_refs,
+                                       'output_direct_declared': 'OUTPUT_direct' in declarations})
                     entry = bridge
+            connection_form = 'absent' if entry is None else ('bridge' if entry == bridge else 'hook')
             prefix = output[:output.index(entry)] if entry is not None else output
             if prefix:
                 # The only observed predecessor is this exact drop-only kubelet
@@ -484,7 +530,12 @@ class Engine:
                 kube_body = [row for row in actual if row[1] == 'KUBE-FIREWALL']
                 if (family != 'ipv4' or prefix != [kube_jump] or 'KUBE-FIREWALL' not in declarations
                         or kube_body != [kube_drop]):
-                    refuse('Unreviewed OUTPUT predecessor could bypass NTP enforcement')
+                    refuse('unreviewed_output_predecessor', 'Unreviewed OUTPUT predecessor could bypass NTP enforcement',
+                           'filter', connection_form=connection_form,
+                           expected={'family': 'ipv4', 'prefix': [kube_jump], 'kube_declared': True,
+                                     'kube_body': [kube_drop]},
+                           actual={'family': family, 'prefix': prefix,
+                                   'kube_declared': 'KUBE-FIREWALL' in declarations, 'kube_body': kube_body})
 
     def egress(self):
         self.pending_guard()
