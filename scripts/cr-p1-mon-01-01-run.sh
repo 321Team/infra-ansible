@@ -72,7 +72,7 @@ assert_idempotent() {
     printf '%s\n' "${recap_lines}" >&2
     exit 1
   fi
-  expected_hosts="$(ansible-inventory -i "${repo_root}/inventory/hosts.yml" --graph --limit egress_proxy \
+  expected_hosts="$(ansible-inventory -i "${repo_root}/inventory/hosts.yml" --graph egress_proxy \
     | sed -n 's/^.*--//p' | grep -vE '^@|:$' | sort)"
   actual_hosts="$(printf '%s\n' "${recap_lines}" | awk '{print $1}' | sort)"
   if [[ "${expected_hosts}" != "${actual_hosts}" ]]; then

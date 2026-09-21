@@ -1,0 +1,27 @@
+test_actual_child_http_parse (__main__.Tests.test_actual_child_http_parse) ... ok
+test_api_contract_and_environment (__main__.Tests.test_api_contract_and_environment) ... ok
+test_complete_packet_and_evidence (__main__.Tests.test_complete_packet_and_evidence) ... ok
+test_evidence_failure_removes_new_packet (__main__.Tests.test_evidence_failure_removes_new_packet) ... ok
+test_expired_and_future_tokens_report_numeric_time (__main__.Tests.test_expired_and_future_tokens_report_numeric_time) ... ok
+test_failure_hints_and_stderr_status (__main__.Tests.test_failure_hints_and_stderr_status) ... ok
+test_gh_missing_stops_before_api (__main__.Tests.test_gh_missing_stops_before_api) ... ok
+test_http_401_403_404_preserve_status_without_secrets (__main__.Tests.test_http_401_403_404_preserve_status_without_secrets) ... ok
+test_invalid_token_and_expiry_do_not_leak (__main__.Tests.test_invalid_token_and_expiry_do_not_leak) ... ok
+test_malformed_json_and_wrong_http_fail (__main__.Tests.test_malformed_json_and_wrong_http_fail) ... ok
+test_missing_token_fields_fail_without_partial_packet (__main__.Tests.test_missing_token_fields_fail_without_partial_packet) ... ok
+test_partial_issuance_does_not_write_packet (__main__.Tests.test_partial_issuance_does_not_write_packet) ... ok
+test_partial_packet_write_failure_removes_file (__main__.Tests.test_partial_packet_write_failure_removes_file) ... ok
+test_prctl_failure_stops_before_api (__main__.Tests.test_prctl_failure_stops_before_api) ... ok
+test_registration_fail_stops_before_removal (__main__.Tests.test_registration_fail_stops_before_removal) ... ok
+test_repository_mismatch_stops_before_post (__main__.Tests.test_repository_mismatch_stops_before_post) ... ok
+test_root_refused_before_evidence_or_api (__main__.Tests.test_root_refused_before_evidence_or_api) ... ok
+test_spawn_error_does_not_log_exception_text (__main__.Tests.test_spawn_error_does_not_log_exception_text) ... ok
+test_timeout_discards_captured_output (__main__.Tests.test_timeout_discards_captured_output) ... ok
+test_unknown_exception_does_not_leak (__main__.Tests.test_unknown_exception_does_not_leak) ... ok
+test_write_failure_does_not_leak (__main__.Tests.test_write_failure_does_not_leak) ... ok
+test_wrong_host_stops_before_api (__main__.Tests.test_wrong_host_stops_before_api) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 0.057s
+
+OK

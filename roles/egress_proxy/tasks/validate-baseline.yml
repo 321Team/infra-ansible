@@ -1,0 +1,50 @@
+---
+# Shared by apply and rollback, before any configuration/service/firewall write.
+# Missing rule history must never be interpreted as an empty original ruleset.
+- name: Validate preserved baseline identity and restoration fields
+  ansible.builtin.assert:
+    that:
+      - cr_mon_baseline is mapping
+      - cr_mon_baseline.change_id | default('') == cr_mon_change_id
+      - cr_mon_baseline.inventory_hostname | default('') == inventory_hostname
+      - cr_mon_baseline.squid_preinstalled is boolean
+      - cr_mon_baseline.squid_conf_preexisted is boolean
+      - cr_mon_baseline.squid_service_active_state is string
+      - cr_mon_baseline.squid_service_enabled_state is string
+      - cr_mon_baseline.firewalld_default_zone is string
+      - cr_mon_baseline.firewalld_default_zone | length > 0
+      - cr_mon_baseline.proxy_port is integer
+      - cr_mon_baseline.proxy_port >= 1 and cr_mon_baseline.proxy_port <= 65535
+      - cr_mon_baseline.proxy_allowed_clients | type_debug == 'list'
+      - cr_mon_baseline.proxy_allowed_clients | length > 0
+      - cr_mon_baseline.proxy_allowed_clients | select('string') | list | length == cr_mon_baseline.proxy_allowed_clients | length
+      - cr_mon_baseline.firewalld_permanent_rules_before | type_debug == 'list'
+      - cr_mon_baseline.firewalld_runtime_rules_before | type_debug == 'list'
+      - cr_mon_baseline.firewalld_permanent_rules_before | select('string') | list | length == cr_mon_baseline.firewalld_permanent_rules_before | length
+      - cr_mon_baseline.firewalld_runtime_rules_before | select('string') | list | length == cr_mon_baseline.firewalld_runtime_rules_before | length
+    fail_msg: >-
+      Incomplete or invalid preserved baseline. Preserve original-state.json,
+      original-squid.conf and evidence, and reconcile their provenance before
+      any apply or rollback. Re-running apply does not repair a partial baseline.
+
+- name: Validate metadata needed to restore an existing configuration
+  ansible.builtin.assert:
+    that:
+      - cr_mon_baseline.squid_conf_owner is string
+      - cr_mon_baseline.squid_conf_owner | length > 0
+      - cr_mon_baseline.squid_conf_group is string
+      - cr_mon_baseline.squid_conf_group | length > 0
+      - cr_mon_baseline.squid_conf_mode is string
+      - cr_mon_baseline.squid_conf_mode is match('^0[0-7]{3}$')
+    fail_msg: Missing or invalid original configuration metadata; preserve state and stop.
+  when: cr_mon_baseline.squid_conf_preexisted
+
+- name: Verify the original backup matches baseline presence
+  ansible.builtin.assert:
+    that:
+      - >-
+        (cr_mon_baseline.squid_conf_preexisted and
+         (cr_mon_backup_stat.isreg | default(false))) or
+        (not cr_mon_baseline.squid_conf_preexisted and
+         not cr_mon_backup_stat.exists)
+    fail_msg: Original configuration backup is missing, non-regular or inconsistent; preserve state and stop.
