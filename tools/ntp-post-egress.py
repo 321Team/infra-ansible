@@ -20,6 +20,7 @@ import uuid
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER_SHA256 = '0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646'
+REMOTE_SHA256 = 'aac675f80c5e664aa6fdde67ca366aa06a9568029f62e97755b93767bea92520'
 
 
 def module(name, path, expected=None):
@@ -36,7 +37,7 @@ def module(name, path, expected=None):
 
 
 W = module('ntp_post_approved_wrapper', ROOT / 'tools/ntp-onepass.py', WRAPPER_SHA256)
-R = module('ntp_post_remote', ROOT / 'tools/ntp-post-egress-remote.py')
+R = module('ntp_post_remote', ROOT / 'tools/ntp-post-egress-remote.py', REMOTE_SHA256)
 # The unchanged wrapper's dependency loader must also execute current source bytes.
 W.load_tool = module
 
@@ -68,6 +69,7 @@ class Followup(W.OnePass):
         self.preflight_receipts = {}
         self.ref_hashes = {}
         self.followup_remote_hash = None
+        self.clock_bindings = {}
         self.summary.update(verify_requested=bool(args.verify), prior_run_id=R.PRIOR_RUN_ID,
                             preflight_completed=[], negative_completed=[], finalize_completed=[],
                             original_journal_replayed=False, configuration_mutation_requested=False,
@@ -103,6 +105,8 @@ class Followup(W.OnePass):
             raise ValueError('Approved wrapper dependency changed')
         if W.sha256((self.repo / 'tools/ntp-onepass-remote.py').read_bytes()) != R.BASE_SHA256:
             raise ValueError('Approved PR32 engine dependency changed')
+        if W.sha256((self.repo / 'tools/ntp-post-egress-remote.py').read_bytes()) != REMOTE_SHA256:
+            raise ValueError('Pinned followup remote dependency changed')
         self.wrapper_tree = bindings['followup']['tree']
         return bindings
 
@@ -181,6 +185,75 @@ class Followup(W.OnePass):
             self.mutation_guard()
         return result
 
+    def clock_binding(self, host):
+        """Fix a remote deadline from a prior sample, never from request arrival.
+
+        The sample precedes controller receipt. Adding only the receipt-time
+        remainder, less 10 s, to that earlier sample includes transport delays.
+        A cached binding cannot renew the same host's work window.
+        """
+        if not self.args.verify or host not in W.HOSTS:
+            raise ValueError('Clock query exceeds explicit followup verification scope')
+        self.mutation_guard()
+        if host in self.clock_bindings:
+            return dict(self.clock_bindings[host])
+        request = {'schema_version': 1, 'action': 'clock', 'host': host,
+                   'followup_run_id': self.summary['run_id'],
+                   'window_start': self.input['window_start'], 'window_end': self.input['window_end'],
+                   'request_id': uuid.uuid4().hex}
+        code = (self.repo / 'tools/ntp-post-egress-remote.py').read_text()
+        if W.sha256(code.encode()) != REMOTE_SHA256:
+            raise ValueError('Pinned clock-query source bytes changed')
+        operation = self.root / 'remote' / ('clock-' + host + '-' + request['request_id'][:10])
+        operation.mkdir(mode=0o700)
+        payload = ('import json\n_scope = {"__name__": "fds_ntp_post_egress_clock"}\n' +
+                   'exec(compile(' + repr(code) + ', "ntp-post-egress-remote.py", "exec"), _scope)\n' +
+                   '_result = json.loads(' + repr(json.dumps(request)) + ')\n' +
+                   '_result.update(status="OK", changed=False, clock=_scope["clock_snapshot"]())\n' +
+                   'print(json.dumps(_result, sort_keys=True))\n')
+        (operation / 'stdin.py').write_text(payload)
+        W.write_json(operation / 'REQUEST.json', request)
+        rawdir = operation / 'ansible-results'
+        rawdir.mkdir(mode=0o700)
+        command = {'argv': ['/usr/bin/python3', '-I', '-B', '-'], 'stdin': payload, 'stdin_add_newline': False}
+        result = self.run_command('clock-' + host, ['ansible', host, '-i', str(self.root / 'inventory.json'),
+                    '--become', '-m', 'ansible.builtin.command', '-a', json.dumps(command), '--tree', str(rawdir)], timeout=30)
+        received = datetime.datetime.now(datetime.timezone.utc)
+        if result['returncode'] != 0 or any(result.get(key) for key in ('timed_out', 'interrupted', 'output_limit')):
+            raise W.StateUncertain(host + ': no completed clock observation')
+        try:
+            _, raw = W.read_json_bytes(rawdir / host)
+            if (not isinstance(raw, dict) or raw.get('unreachable') or raw.get('skipped') or
+                    type(raw.get('rc')) is not int or raw['rc'] != 0):
+                raise ValueError('No completed remote clock command')
+            value = json.loads(raw['stdout'], object_pairs_hook=W.unique_object)
+            if (not isinstance(value, dict) or set(value) != set(request) | {'status', 'changed', 'clock'} or
+                    type(value.get('schema_version')) is not int or
+                    any(value.get(k) != v for k, v in request.items()) or
+                    value['status'] != 'OK' or value['changed'] is not False):
+                raise ValueError('Clock response binding/status mismatch')
+            sample = value['clock']
+            if (not isinstance(sample, dict) or set(sample) != {'boot_id', 'boottime_ns'} or
+                    not isinstance(sample['boot_id'], str) or not re.fullmatch(
+                        r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', sample['boot_id']) or
+                    type(sample['boottime_ns']) is not int or sample['boottime_ns'] <= 0):
+                raise ValueError('Invalid remote boot clock observation')
+        except (OSError, KeyError, TypeError, ValueError) as exc:
+            raise W.StateUncertain(host + ': no valid bound clock observation') from exc
+        end = R.validate_window(self.input['window_start'], self.input['window_end'], now=received)[1]
+        remaining_ns = int((end - received).total_seconds() * 1_000_000_000) - 10_000_000_000
+        if remaining_ns <= 0:
+            raise ValueError('Clock observation leaves no work-window budget')
+        binding = {'boot_id': sample['boot_id'], 'sampled_boottime_ns': sample['boottime_ns'],
+                   'deadline_boottime_ns': sample['boottime_ns'] + remaining_ns,
+                   'controller_received_at': received.isoformat()}
+        W.write_json(operation / 'RESPONSE.json', value)
+        W.write_json(operation / 'CLOCK_BINDING.json', binding)
+        self.clock_bindings[host] = binding
+        W.write_json(self.root / 'CLOCK_BINDINGS.json', self.clock_bindings)
+        self.mutation_guard()
+        return dict(binding)
+
     def remote(self, action, host):
         if not self.args.verify or action not in R.ACTIONS or host not in W.HOSTS:
             raise ValueError('Remote action exceeds explicit followup verification scope')
@@ -188,7 +261,8 @@ class Followup(W.OnePass):
         expected = None if action == 'preflight' else self.preflight_receipts[host]
         request = {'schema_version': 1, 'action': action, 'host': host, 'prior_run_id': R.PRIOR_RUN_ID,
                    'followup_run_id': self.summary['run_id'], 'window_start': self.input['window_start'],
-                   'window_end': self.input['window_end'], 'expected_preservation': expected}
+                   'window_end': self.input['window_end'], 'expected_preservation': expected,
+                   'clock_binding': self.clock_binding(host)}
         code = (self.repo / 'tools/ntp-post-egress-remote.py').read_text()
         base = (self.repo / 'tools/ntp-onepass-remote.py').read_text()
         if W.sha256(code.encode()) != self.followup_remote_hash or W.sha256(base.encode()) != R.BASE_SHA256:

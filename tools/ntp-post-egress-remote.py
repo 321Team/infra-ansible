@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import stat
+import time
 
 PRIOR_RUN_ID = 'ntp-onepass-f9392ba915da49a19e0fe502e7616cfb'
 BASE_SHA256 = 'ccdfd29e6d4821e4205963990b7c29af879240b1aae76c40119966fc67eebf50'
@@ -155,10 +156,38 @@ def validate_window(start, end, now=None, require_active=True):
         raise ValueError('Invalid timezone-aware work window')
     if a <= datetime.datetime(2026, 9, 21, 2, 35, tzinfo=datetime.timezone.utc):
         raise ValueError('A new window after the expired original window is required')
-    current = now or datetime.datetime.now(datetime.timezone.utc)
-    if require_active and not a <= current < b:
-        raise ValueError('Outside the explicitly supplied followup work window')
+    if require_active:
+        current = now or datetime.datetime.now(datetime.timezone.utc)
+        if not a <= current < b:
+            raise ValueError('Outside the explicitly supplied followup work window')
     return a, b
+
+
+def clock_snapshot():
+    """Linux boot clock includes suspend and cannot be stepped by NTP."""
+    return {'boot_id': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+            'boottime_ns': time.clock_gettime_ns(time.CLOCK_BOOTTIME)}
+
+
+def validate_clock_binding(binding):
+    keys = {'boot_id', 'sampled_boottime_ns', 'deadline_boottime_ns', 'controller_received_at'}
+    if not isinstance(binding, dict) or set(binding) != keys:
+        raise ValueError('Exact controller-authoritative clock binding required')
+    if (not isinstance(binding['boot_id'], str) or not re.fullmatch(
+            r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', binding['boot_id']) or
+            any(type(binding[key]) is not int or binding[key] <= 0
+                for key in ('sampled_boottime_ns', 'deadline_boottime_ns')) or
+            binding['deadline_boottime_ns'] <= binding['sampled_boottime_ns'] or
+            not isinstance(binding['controller_received_at'], str)):
+        raise ValueError('Invalid controller-authoritative clock binding')
+    received = datetime.datetime.fromisoformat(binding['controller_received_at'])
+    if received.tzinfo is None:
+        raise ValueError('Controller receipt time must be timezone-aware')
+    current = clock_snapshot()
+    if (current['boot_id'] != binding['boot_id'] or
+            not binding['sampled_boottime_ns'] <= current['boottime_ns'] < binding['deadline_boottime_ns']):
+        raise ValueError('Remote boot changed or fixed controller work-window deadline expired')
+    return (binding['deadline_boottime_ns'] - current['boottime_ns']) / 1_000_000_000
 
 
 def normalize_iptables(text):
@@ -191,7 +220,7 @@ def normalize_nft(text):
 
 def validate_request(req):
     keys = {'schema_version', 'action', 'host', 'prior_run_id', 'followup_run_id',
-            'window_start', 'window_end', 'expected_preservation'}
+            'window_start', 'window_end', 'expected_preservation', 'clock_binding'}
     if not isinstance(req, dict) or set(req) != keys or type(req['schema_version']) is not int or req['schema_version'] != 1:
         raise ValueError('Exact followup request schema required')
     if req['action'] not in ACTIONS or req['host'] not in HOSTS or req['prior_run_id'] != PRIOR_RUN_ID:
@@ -201,7 +230,13 @@ def validate_request(req):
     expected = req['expected_preservation']
     if (req['action'] == 'preflight' and expected is not None) or (req['action'] != 'preflight' and not isinstance(expected, dict)):
         raise ValueError('Only preflight may establish the preservation receipt')
-    validate_window(req['window_start'], req['window_end'])
+    start, end = validate_window(req['window_start'], req['window_end'], require_active=False)
+    validate_clock_binding(req['clock_binding'])
+    received = datetime.datetime.fromisoformat(req['clock_binding']['controller_received_at'])
+    if (not start <= received < end or
+            req['clock_binding']['deadline_boottime_ns'] - req['clock_binding']['sampled_boottime_ns'] >
+            int((end - received).total_seconds() * 1_000_000_000) - 10_000_000_000):
+        raise ValueError('Clock binding exceeds controller receipt work-window budget')
     return req
 
 
@@ -287,11 +322,18 @@ class Verifier:
         self.record_bytes = 0
         self.before = None
         self.after = None
+        self.operation_error = None
+        self.preservation_error = None
+        self.clock_remaining = None
         original = {'schema_version': 1, 'action': 'verify', 'run_id': PRIOR_RUN_ID, 'host': req['host']}
         self.engine = self.m.Engine(original, journal, runner=self.read_command, sender=self.send)
 
     def guard(self):
-        validate_window(self.req['window_start'], self.req['window_end'])
+        remaining = validate_clock_binding(self.req['clock_binding'])
+        if self.clock_remaining is not None and remaining > self.clock_remaining:
+            raise ValueError('Remote boot clock moved backwards during the observation')
+        self.clock_remaining = remaining
+        return remaining
 
     def allowed_commands(self):
         allowed = [['/usr/sbin/ip', '-j', '-4', 'addr', 'show', 'dev', 'ens160'],
@@ -310,10 +352,12 @@ class Verifier:
         return allowed
 
     def read_command(self, argv, timeout=20):
-        self.guard()
+        remaining = self.guard()
+        if remaining <= 1:
+            raise ValueError('Read cannot fit the remaining fixed remote deadline')
         if argv not in self.allowed_commands():
             raise ValueError('Command outside the exact read-only followup allowlist')
-        value = self.runner(argv, timeout=timeout)
+        value = self.runner(argv, timeout=min(timeout, remaining - 1))
         size = len(json.dumps(value).encode())
         if self.record_bytes + size > 4 * 1024 * 1024:
             self.records.append({'argv': argv, 'evidence_limit_exceeded': True, 'observed_record_bytes': size})
@@ -365,6 +409,7 @@ class Verifier:
         if not all(self.engine.exists(obj) for obj in objects):
             raise ValueError('Expected runtime/permanent firewall object missing')
         details = {}
+        failure = None
         try:
             if self.req['action'] == 'verify':
                 self.engine.verify()
@@ -372,11 +417,20 @@ class Verifier:
             elif self.req['action'] == 'sample':
                 self.engine.sample()
                 details = self.engine.details
-        finally:
+        except Exception as exc:
+            self.operation_error = {'type': type(exc).__name__, 'message': str(exc)}
+            failure = exc
+        try:
             after = self.preservation()
             self.after = after
             if after != before:
                 raise ValueError('Configuration/kernel/journal changed during followup; preserve state, no rollback')
+        except Exception as exc:
+            self.preservation_error = {'type': type(exc).__name__, 'message': str(exc)}
+            if failure is None:
+                failure = exc
+        if failure is not None:
+            raise failure
         self.guard()
         return {'observation': details, 'preservation_before': before, 'preservation_after': after,
                 'configuration_unchanged': True, 'journal_unchanged': True}
@@ -401,6 +455,11 @@ def main(req, base_source):
     finally:
         if verifier is not None:
             result['commands'] = verifier.records
+            if verifier.operation_error is not None:
+                result['operation_error'] = verifier.operation_error
+            if verifier.preservation_error is not None:
+                result['preservation_error'] = verifier.preservation_error
+                result['preservation_uncertain'] = True
             result.setdefault('details', {'observation': verifier.engine.details,
                 'preservation_before': verifier.before, 'preservation_after': verifier.after})
         if journal is not None:
@@ -410,7 +469,7 @@ def main(req, base_source):
                     raise ValueError('Original journal changed before release')
             except Exception as exc:
                 result.update(status='STOP', preservation_uncertain=True,
-                              preservation_error='%s: %s' % (type(exc).__name__, exc))
+                              journal_preservation_error={'type': type(exc).__name__, 'message': str(exc)})
             finally:
                 journal.close()
     print(json.dumps(result, sort_keys=True))
