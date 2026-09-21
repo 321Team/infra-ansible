@@ -51,6 +51,31 @@
    다른 onepass 작업이 진행 중이면 즉시 `Stop('Another onepass action holds the host lock')`로
    실패한다 — 즉 이 확인이 실제 운영 실행과 충돌하면 **조용히 섞이지 않고 명시적으로 거부**된다.
 
+## 이 가이드 자체의 사전 dry-run (실서버 미포함, 참고용)
+
+문서 작성 과정에서 아래 명령을 **실서버가 아닌 격리된 로컬 환경**에서 직접 실행해 스니펫
+자체의 정확성만 확인했다. 이 dry-run은 실제 6대 호스트의 커널/firewalld 상태를 전혀 건드리지
+않았고, `kernel_topology()` 진단 로직 자체의 실서버 동작도 증명하지 않는다.
+
+- 0단계 inventory 생성 스니펫: 정상 실행, 6개 호스트 IP 매핑이 스크립트 상수와 일치.
+- 1단계 payload 생성 스니펫: 최초 버전은 `head -c4 /dev/urandom | xxd -p`가 `xxd` 미설치 환경에서
+  실패했다 — 대상 호스트(RHEL 계열)에 `xxd`가 기본 포함된다는 보장이 없어 `od -An -tx1 -N4
+  /dev/urandom | tr -d ' \n'`로 교체했다(coreutils 표준, 거의 모든 환경에서 사용 가능). 교체 후
+  정상 실행되고 생성된 `run_id`가 스크립트의 정규식(`[A-Za-z0-9][A-Za-z0-9_-]{19,63}`)을 통과함을
+  직접 확인했다.
+- 생성된 payload(`command.json`의 `argv`/`stdin`)를 `ansible` 없이 `subprocess.run(argv,
+  input=stdin, ...)`으로 **로컬에서 직접 실행**해, `ansible.builtin.command`가 대상 호스트에서
+  실행할 것과 동일한 호출을 재현했다. 결과: `rc=2`,
+  `{"status": "STOP", "error": "Stop: Root/hostname binding failed", ...}` — 이는 실행 환경이
+  `root`도 아니고 호스트명도 `k8s-control01`이 아니므로 `identity()`가 즉시 거부한 것이다.
+  `journal_receipt`는 `Journal`이 생성되기 전에 거부되어 응답에 없었다(정상 성공 경로의
+  예시 JSON과 다른, 더 이른 단계의 실패 형태).
+- 이 결과는 (a) `repr(code)` 인라인 임베딩과 `exec`/`main()` 호출 구조에 문법·이스케이프 오류가
+  없고, (b) 안전 게이트(`identity()`)가 실제 시스템(firewalld/iptables/nft) 명령에 닿기 **전에**
+  작동함을 증명한다. 실제 6대 호스트에서는 `root`(become)로, 정확한 hostname에서 실행되므로
+  `identity()`를 통과해 `kernel_topology()`까지 도달할 것으로 기대되지만, 이는 dry-run으로
+  증명된 사실이 아니라 코드 판독에 근거한 기대치다.
+
 ## 실행 절차
 
 ### 0. 준비 (한 번만)
@@ -117,7 +142,7 @@ umask 077
 export ANSIBLE_PRIVATE_KEY_FILE=/home/server01_ansible/.ssh/p1_ansible_ed25519
 export ANSIBLE_STDOUT_CALLBACK=json
 HOST="$1"   # 예: k8s-control01
-RUN_ID="ntp-issue33-$(date -u +%Y%m%d%H%M%S)-$(head -c4 /dev/urandom | xxd -p)"
+RUN_ID="ntp-issue33-$(date -u +%Y%m%d%H%M%S)-$(od -An -tx1 -N4 /dev/urandom | tr -d ' \n')"
 
 python3 - "$HOST" "$RUN_ID" <<'PYEOF' > "command-${HOST}.json"
 import json, sys
