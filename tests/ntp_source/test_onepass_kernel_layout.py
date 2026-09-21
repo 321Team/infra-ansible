@@ -67,6 +67,21 @@ class ReplayFirewall:
             return result
         self.filter_edit(family, transform)
 
+    def other_table(self, family, table, additions):
+        name = 'iptables-save' if family == 'ipv4' else 'ip6tables-save'
+        text = self.commands[name]
+        marker = '*' + table + '\n'
+        if marker not in text:
+            text += '\n' + marker + ':OUTPUT ACCEPT [0:0]\nCOMMIT\n'
+        before, body = text.split(marker, 1)
+        body, after = body.split('\nCOMMIT', 1)
+        rows = body.splitlines()
+        declarations = [row for row in additions if row.startswith(':')]
+        rules = [row for row in additions if not row.startswith(':')]
+        index = next((i for i, row in enumerate(rows) if row.startswith('-A ')), len(rows))
+        rows[index:index] = declarations
+        self.commands[name] = before + marker + '\n'.join(rows + rules) + '\nCOMMIT' + after
+
 
 class KernelLayoutTests(unittest.TestCase):
     def setUp(self):
@@ -180,7 +195,7 @@ class KernelLayoutTests(unittest.TestCase):
         with self.assertRaises(M.Stop):
             self.validate(fw)
 
-    def test_foreign_chain_or_table_references_rejected(self):
+    def test_foreign_filter_chain_references_rejected(self):
         for family, layout, fw in self.layouts():
             for target in ('FDS_NTP_0101', 'OUTPUT_direct'):
                 for jump in ('-j', '-g'):
@@ -188,11 +203,64 @@ class KernelLayoutTests(unittest.TestCase):
                     changed.filter_edit(family, lambda rows: rows + ['-A FORWARD ' + jump + ' ' + target])
                     with self.subTest(family=family, layout=layout, target=target, jump=jump), self.assertRaises(M.Stop):
                         self.validate(changed)
+
+    def test_other_table_output_direct_is_a_separate_namespace(self):
+        # Synthetic compatibility cases; the retained operating evidence is filter/direct.
+        for family, layout, fw in self.layouts():
+            for table in ('mangle', 'nat', 'raw', 'security'):
+                for bridge in (False, True):
+                    changed = copy.deepcopy(fw)
+                    rows = [':OUTPUT_direct - [0:0]']
+                    if bridge:
+                        rows += [BRIDGE, '-A OUTPUT_direct -j RETURN']
+                    changed.other_table(family, table, rows)
+                    with self.subTest(family=family, layout=layout, table=table, bridge=bridge):
+                        self.validate(changed)
+
+    def test_other_table_namespace_does_not_mask_filter_drift(self):
+        for family, layout, fw in self.layouts():
+            hook = HOOK if layout == 'direct' else HOOK.replace('-A OUTPUT ', '-A OUTPUT_direct ', 1)
+            for table in ('mangle', 'nat', 'raw', 'security'):
+                drifts = ('missing', 'duplicate', 'scope', 'predecessor_accept')
+                if layout == 'indirect':
+                    drifts += ('bridge_missing',)
+                for drift in drifts:
+                    changed = copy.deepcopy(fw)
+                    changed.other_table(family, table, [':OUTPUT_direct - [0:0]', BRIDGE, '-A OUTPUT_direct -j RETURN'])
+                    if drift == 'missing':
+                        changed.filter_edit(family, lambda rows: [row for row in rows if row != hook])
+                    elif drift == 'duplicate':
+                        changed.filter_edit(family, lambda rows: rows + [hook])
+                    elif drift == 'scope':
+                        changed.filter_edit(family, lambda rows: [row.replace('--ctstate NEW', '--ctstate NEW,ESTABLISHED') for row in rows])
+                    elif drift == 'bridge_missing':
+                        changed.filter_edit(family, lambda rows: [row for row in rows if row != BRIDGE])
+                    else:
+                        changed.filter_edit(family, lambda rows: ['-A OUTPUT -j ACCEPT'] + rows)
+                    with self.subTest(family=family, layout=layout, table=table, drift=drift), self.assertRaisesRegex(
+                            M.Stop, 'NTP hook layout|Unreviewed OUTPUT predecessor'):
+                        self.validate(changed)
+
+    def test_dedicated_chain_declaration_in_other_tables_rejected(self):
+        for family, layout, fw in self.layouts():
+            for table in ('mangle', 'nat', 'raw', 'security'):
                 changed = copy.deepcopy(fw)
-                name = 'iptables-save' if family == 'ipv4' else 'ip6tables-save'
-                changed.commands[name] += '\n*raw\n:OUTPUT ACCEPT [0:0]\n-A OUTPUT -j ' + target + '\nCOMMIT\n'
-                with self.subTest(family=family, layout=layout, target=target, table='raw'), self.assertRaises(M.Stop):
+                changed.other_table(family, table, [':FDS_NTP_0101 - [0:0]'])
+                with self.subTest(family=family, layout=layout, table=table), self.assertRaisesRegex(
+                        M.Stop, 'Dedicated chain declared outside filter table'):
                     self.validate(changed)
+
+    def test_dedicated_references_or_body_in_other_tables_rejected(self):
+        for family, layout, fw in self.layouts():
+            for table in ('mangle', 'nat', 'raw', 'security'):
+                for rule in ('-A OUTPUT_direct -j FDS_NTP_0101', '-A OUTPUT_direct -g FDS_NTP_0101',
+                             '-A FDS_NTP_0101 -j DROP'):
+                    changed = copy.deepcopy(fw)
+                    # Omit the FDS declaration to exercise the independent rule/body guard.
+                    changed.other_table(family, table, [':OUTPUT_direct - [0:0]', BRIDGE, rule])
+                    with self.subTest(family=family, layout=layout, table=table, rule=rule), self.assertRaisesRegex(
+                            M.Stop, 'Dedicated chain referenced outside filter table'):
+                        self.validate(changed)
 
     def test_bridge_missing_duplicate_conditional_or_goto_rejected(self):
         for family in ('ipv4', 'ipv6'):

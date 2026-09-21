@@ -161,6 +161,36 @@ NEW에만 적용하므로 **기존 conntrack UDP 세션을 즉시 제거하지 �
 요청 차단 결과를 모든 기존 세션의 즉시 차단으로 해석하지 않는다. conntrack 전체 삭제는
 하지 않으며 기존 세션의 종료·잔존 여부는 최종 최소 권한 인수에서 별도로 대조한다.
 
+### 커널 경로와 재검토 조건
+
+커널 검증은 `filter`의 직접 `OUTPUT → FDS_NTP_0101`과
+`OUTPUT → OUTPUT_direct → FDS_NTP_0101`을 구분한다. 훅의 NEW UDP123 범위,
+host별 승인 목적지, 전용 체인의 RETURN/DROP 순서, 누락·중복·혼합 경로와 소유권을
+검사한다. `FDS_NTP_0101`은 다른 테이블에 선언하거나 참조할 수 없다.
+
+일반 `OUTPUT_direct`는 테이블마다 별개의 체인이다. 다른 테이블의 동명 체인을
+`filter`의 전용 경로와 합치거나 이름만으로 충돌로 판단하지 않는다.
+[firewalld v1.3.4의 BUILT_IN_CHAINS와 build_default_rules](https://github.com/firewalld/firewalld/blob/v1.3.4/src/firewall/core/ipXtables.py)
+는 사용 가능한 `raw`·`mangle`·`nat`·`security` 테이블에도 해당 기본 체인을 생성한다.
+이는 공식 구현 근거이며, 이번 현장에 그 버전이나 간접 연결이 존재한다는 증거는 아니다.
+
+선행 OUTPUT 경로는 비어 있거나, 확인한 IPv4 KUBE-FIREWALL 연결과 정확한 단일
+loopback 차단 DROP 본문일 때만 허용한다. **kubelet/kube-proxy 갱신 등으로
+KUBE-FIREWALL 본문·주석·조건·순서가 바뀌면 STOP 후 재검토한다.** 이 경우 현재
+설정과 journal 및 runtime/permanent 등록값·IPv4/IPv6 커널 원문을 보존하고 변경
+내용을 비교한다. 문자열을 임의 치환하거나 검사를 우회해 재실행하지 않는다.
+
+공식 v1.3.4 iptables backend 구현의 선행 `RELATED,ESTABLISHED` 또는 loopback ACCEPT도 현재
+허용 목록에는 포함하지 않아 STOP할 수 있다. 일반 legacy 환경 전체와의 호환이나
+무회귀를 주장하지 않는다. 실제 간접 연결 환경의 전체 원문·선행 경로·기존 정책을
+별도로 검토하기 전까지, 합성 간접 연결 시험 통과를 운영 지원 완료로 해석하지 않는다.
+
+PR31은 `cr-p1-ntp-01-01`에 병합됐다. PR32도 같은 브랜치에 대한 후속 코드 리뷰이며,
+그 뒤 상위 PR24의 `main` 병합은 누적 변경을 별도로 검토한다. 기존 작업창
+(2026-09-21 10:35–11:35 KST)은 만료됐다. 승인 뒤에도 기존 설정·run journal을
+보존하는 후속 검증 경로의 별도 리뷰·승인과 새 작업창이 필요하다. 이 문서는 전체
+`--apply` 재실행 또는 만료된 작업창 연장을 승인하지 않는다.
+
 ## 실패 시 처리
 
 | 실패 지점 | 처리 원칙 |

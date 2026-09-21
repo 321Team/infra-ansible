@@ -419,7 +419,9 @@ class Engine:
                     table = None
                 elif line.startswith(':'):
                     name = line[1:].split()[0]
-                    if name in (CHAIN, 'OUTPUT_direct') and table != 'filter':
+                    # OUTPUT_direct is a generic firewalld name scoped by table.
+                    # Only our dedicated chain is forbidden in every other table.
+                    if name == CHAIN and table != 'filter':
                         refuse('Dedicated chain declared outside filter table')
                     if table == 'filter':
                         if name in declarations:
@@ -427,7 +429,7 @@ class Engine:
                         declarations.add(name)
                 elif line.startswith('-A '):
                     row = shlex.split(line)
-                    if any(name in row for name in (CHAIN, 'OUTPUT_direct')) and table != 'filter':
+                    if CHAIN in row and table != 'filter':
                         refuse('Dedicated chain referenced outside filter table')
                     if table == 'filter':
                         actual.append(canonical(row))
