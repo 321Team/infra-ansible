@@ -425,10 +425,12 @@ class Engine:
             dump = self.run([binary])
             raw = raw_capture(dump)
             def refuse(stage, message, table, expected=None, actual=None, connection_form=None):
-                self.details = {'kernel_topology': {
+                # Merge rather than overwrite: preserve any details a caller set
+                # before invoking kernel_topology().
+                self.details = dict(self.details, kernel_topology={
                     'family': family, 'table': table, 'stage': stage,
                     'connection_form': connection_form,
-                    'expected': expected, 'actual': actual, 'raw': raw}}
+                    'expected': expected, 'actual': actual, 'raw': raw})
                 raise Stop(family + ': ' + message)
             rows = dump['stdout'].splitlines()
             table, declarations, actual = None, set(), []
