@@ -393,7 +393,7 @@ class Engine:
                         raise Stop('Preexisting dedicated chain is incomplete or belongs to another deployment')
 
     def kernel_topology(self, registered):
-        """Check actual owned chain/hook, not only firewalld's in-memory registry."""
+        """Match either exact kernel layout; reject unknown paths before the hook."""
         import shlex
         registered_rows = [shlex.split(line) for line in registered.splitlines()]
         def canonical(args):
@@ -408,6 +408,8 @@ class Engine:
                 index += 1
             return tuple(clean)
         for family, binary in (('ipv4', '/usr/sbin/iptables-save'), ('ipv6', '/usr/sbin/ip6tables-save')):
+            def refuse(message):
+                raise Stop(family + ': ' + message)
             rows = self.run([binary])['stdout'].splitlines()
             table, declarations, actual = None, set(), []
             for line in rows:
@@ -415,31 +417,72 @@ class Engine:
                     table = line[1:]
                 elif line == 'COMMIT':
                     table = None
-                elif table == 'filter' and line.startswith(':'):
-                    declarations.add(line[1:].split()[0])
+                elif line.startswith(':'):
+                    name = line[1:].split()[0]
+                    if name in (CHAIN, 'OUTPUT_direct') and table != 'filter':
+                        refuse('Dedicated chain declared outside filter table')
+                    if table == 'filter':
+                        if name in declarations:
+                            refuse('Duplicate filter chain declaration')
+                        declarations.add(name)
                 elif line.startswith('-A '):
                     row = shlex.split(line)
-                    if CHAIN in row and table != 'filter':
-                        raise Stop('Dedicated chain referenced outside filter table')
+                    if any(name in row for name in (CHAIN, 'OUTPUT_direct')) and table != 'filter':
+                        refuse('Dedicated chain referenced outside filter table')
                     if table == 'filter':
-                        actual.append(row)
+                        actual.append(canonical(row))
             obj = {'kind': 'chain', 'permanent': False, 'family': family, 'chain': CHAIN}
-            registered_chain = self.exists(obj)
-            if (CHAIN in declarations) != registered_chain:
-                raise Stop('Kernel dedicated chain differs from firewalld ownership registry')
-            expected = []
-            for row in registered_rows:
-                if row[0] == family and row[1] == 'filter' and row[2] in (CHAIN, 'OUTPUT'):
-                    expected.append(canonical(['-A', 'OUTPUT_direct' if row[2] == 'OUTPUT' else row[2]] + row[4:]))
-            managed_actual = [canonical(row) for row in actual if row[1] in (CHAIN, 'OUTPUT_direct')]
-            if sorted(managed_actual) != sorted(expected):
-                raise Stop('Actual kernel dedicated rules or OUTPUT_direct differ from registered exact rules')
-            for row in actual:
-                if CHAIN in row[2:] and row[1] != 'OUTPUT_direct':
-                    raise Stop('Foreign kernel hook references dedicated chain')
-            if any(row[2] == 'OUTPUT' for row in registered_rows if row[0] == family and row[1] == 'filter'):
-                if actual.count(['-A', 'OUTPUT', '-j', 'OUTPUT_direct']) != 1:
-                    raise Stop('Expected one firewalld OUTPUT hook is absent/duplicated')
+            if (CHAIN in declarations) != self.exists(obj):
+                refuse('Kernel dedicated chain differs from firewalld ownership registry')
+            owned = [row for row in registered_rows
+                     if row[0] == family and row[1] == 'filter' and row[2] in (CHAIN, 'OUTPUT')]
+            if len({tuple(row) for row in owned}) != len(owned):
+                refuse('Duplicate registered dedicated rule')
+            def expected(chain):
+                return [canonical(['-A', chain] + row[4:])
+                        for row in sorted((row for row in owned if row[2] == chain), key=lambda row: int(row[3]))]
+            body = [row for row in actual if row[1] == CHAIN]
+            if body != expected(CHAIN):
+                refuse('Actual dedicated rules or rule order differ from registered exact rules')
+            hooks = expected('OUTPUT')
+            chain_refs = [row for row in actual if CHAIN in row[2:]]
+            bridge_refs = [row for row in actual if 'OUTPUT_direct' in row[2:]]
+            direct_body = [row for row in actual if row[1] == 'OUTPUT_direct']
+            output = [row for row in actual if row[1] == 'OUTPUT']
+            bridge = ('-A', 'OUTPUT', '-j', 'OUTPUT_direct')
+            entry = None
+            if hooks:
+                if len(hooks) != 1:
+                    refuse('Expected exactly one registered NTP OUTPUT hook')
+                hook = hooks[0]
+                indirect_hook = ('-A', 'OUTPUT_direct') + hook[2:]
+                if chain_refs == [hook] and not bridge_refs and 'OUTPUT_direct' not in declarations and not direct_body:
+                    entry = hook
+                elif (chain_refs == [indirect_hook] and bridge_refs == [bridge]
+                      and 'OUTPUT_direct' in declarations and direct_body == [indirect_hook]):
+                    entry = bridge
+                else:
+                    refuse('NTP hook layout is missing, duplicated, mixed, or foreign')
+            else:
+                # Preapply and rollback may retain empty owned/OUTPUT_direct chains.
+                if chain_refs or direct_body:
+                    refuse('Unregistered dedicated hook or OUTPUT_direct rule')
+                if bridge_refs:
+                    if bridge_refs != [bridge] or 'OUTPUT_direct' not in declarations:
+                        refuse('Empty OUTPUT_direct bridge is duplicated, conditional, or foreign')
+                    entry = bridge
+            prefix = output[:output.index(entry)] if entry is not None else output
+            if prefix:
+                # The only observed predecessor is this exact drop-only kubelet
+                # chain. Unknown ACCEPT/RETURN/goto/subchain paths require review.
+                kube_jump = ('-A', 'OUTPUT', '-j', 'KUBE-FIREWALL')
+                kube_drop = ('-A', 'KUBE-FIREWALL', '!', '-s', '127.0.0.0/8', '-d', '127.0.0.0/8',
+                             '-m', 'comment', '--comment', 'block incoming localnet connections',
+                             '-m', 'conntrack', '!', '--ctstate', 'RELATED,ESTABLISHED,DNAT', '-j', 'DROP')
+                kube_body = [row for row in actual if row[1] == 'KUBE-FIREWALL']
+                if (family != 'ipv4' or prefix != [kube_jump] or 'KUBE-FIREWALL' not in declarations
+                        or kube_body != [kube_drop]):
+                    refuse('Unreviewed OUTPUT predecessor could bypass NTP enforcement')
 
     def egress(self):
         self.pending_guard()
