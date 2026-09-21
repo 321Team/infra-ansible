@@ -48,6 +48,14 @@ BASE = REMOTE.load_base(BASE_SOURCE)
 START = '2026-09-21T13:00:00+09:00'
 END = '2026-09-21T14:00:00+09:00'
 NOW = datetime.datetime.fromisoformat('2026-09-21T13:05:00+09:00')
+BOOT_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+SAMPLED_BOOTTIME_NS = 1_000_000_000_000
+
+
+def clock_binding():
+    return {'boot_id': BOOT_ID, 'sampled_boottime_ns': SAMPLED_BOOTTIME_NS,
+            'deadline_boottime_ns': SAMPLED_BOOTTIME_NS + 3_290_000_000_000,
+            'controller_received_at': NOW.isoformat()}
 
 
 def remote_request(action='preflight', host='k8s-control01', expected=None):
@@ -55,7 +63,7 @@ def remote_request(action='preflight', host='k8s-control01', expected=None):
             'prior_run_id': REMOTE.PRIOR_RUN_ID,
             'followup_run_id': 'ntp-post-egress-' + 'a' * 32,
             'window_start': START, 'window_end': END,
-            'expected_preservation': expected}
+            'expected_preservation': expected, 'clock_binding': clock_binding()}
 
 
 class NoLiveActions(unittest.TestCase):
@@ -66,6 +74,8 @@ class NoLiveActions(unittest.TestCase):
             subprocess, 'Popen', side_effect=AssertionError('Live process forbidden')))
         self.packet = self.stack.enter_context(patch.object(
             socket, 'socket', side_effect=AssertionError('Live socket forbidden')))
+        self.stack.enter_context(patch.object(REMOTE, 'clock_snapshot', return_value={
+            'boot_id': BOOT_ID, 'boottime_ns': SAMPLED_BOOTTIME_NS + 1_000_000_000}))
 
     def tearDown(self):
         self.process.assert_not_called()
@@ -153,7 +163,8 @@ class RequestBoundaryTests(NoLiveActions):
                 REMOTE.validate_window(start, end, now=observed)
 
     def test_request_rejects_mutating_actions_and_scope_expansion(self):
-        with patch.object(REMOTE, 'validate_window'):
+        with patch.object(REMOTE, 'validate_window', return_value=(datetime.datetime.fromisoformat(START),
+                                                                 datetime.datetime.fromisoformat(END))):
             REMOTE.validate_request(remote_request())
             for action in ('snapshot', 'ingress', 'egress', 'rollback_ingress',
                            'rollback_egress', 'apply', 'restart', 'reload'):
@@ -300,7 +311,6 @@ class ObservationFixture:
                                    self.firewall.commands['ip6tables-save']).encode()),
                                'nft': REMOTE.digest(REMOTE.normalize_nft(self.nft).encode())}}
         case.stack.enter_context(patch.dict(REMOTE.BASELINE, {host: baseline}))
-        case.stack.enter_context(patch.object(REMOTE, 'validate_window'))
         case.stack.enter_context(patch.object(BASE.os, 'geteuid', return_value=0))
         case.stack.enter_context(patch.object(BASE.socket, 'gethostname', return_value=host))
 
@@ -489,6 +499,7 @@ class RemoteFailureReceiptTests(NoLiveActions):
         journal = types.SimpleNamespace(read=lambda: (_ for _ in ()).throw(OSError('journal inaccessible')),
                                         close=lambda: closed.append(True))
         verifier = types.SimpleNamespace(records=[], engine=types.SimpleNamespace(details={}),
+                                         operation_error=None, preservation_error=None,
                                          before=None, after=None,
                                          execute=lambda: (_ for _ in ()).throw(ValueError('preflight drift')))
         output = io.StringIO()
@@ -748,7 +759,8 @@ class ResponseBindingTests(NoLiveActions):
             return {'returncode': parent_rc, 'timed_out': False, 'interrupted': False, 'output_limit': False}
 
         with patch.object(controller, 'mutation_guard'), patch.object(controller, 'run_command', side_effect=command):
-            return controller.remote(action, host), fixture
+            with patch.object(controller, 'clock_binding', return_value=clock_binding()):
+                return controller.remote(action, host), fixture
 
     def test_valid_bound_sample_preserves_observation_for_sampler(self):
         result, fixture = self.exchange(action='sample')
@@ -811,7 +823,8 @@ class ResponseBindingTests(NoLiveActions):
         self.assertEqual(fixture.controller.remote_results[0]['response']['error'], 'Kernel mismatch')
 
     def test_response_with_wrong_run_or_claimed_mutation_is_uncertain(self):
-        for key, value in [('followup_run_id', 'ntp-post-egress-' + 'c' * 32), ('changed', True)]:
+        for key, value in [('followup_run_id', 'ntp-post-egress-' + 'c' * 32), ('changed', True),
+                           ('clock_binding', dict(clock_binding(), deadline_boottime_ns=9_999_000_000_000))]:
             with self.subTest(key=key), self.assertRaises(CONTROLLER.W.StateUncertain):
                 self.exchange(transform=lambda response: response.update({key: value}))
 

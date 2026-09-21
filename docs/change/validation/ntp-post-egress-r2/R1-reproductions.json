@@ -1,0 +1,17 @@
+{
+  "scope": "LOCAL/MOCK only; Popen/socket blocked for simulations",
+  "r1_remote_utc_lag": {
+    "controller_actual_fixture": "2026-09-21T14:05:00+09:00",
+    "remote_utc_fixture": "2026-09-21T13:55:00+09:00",
+    "expired_controller_window_mock_packet_allowed": true
+  },
+  "r1_remote_module_unpinned": {
+    "tampered_module_body_executed_before_source_validation": true
+  },
+  "r1_dual_failure": {
+    "surfaced_type": "OSError",
+    "surfaced_message": "preservation reread failed",
+    "operation_error_field": null,
+    "preservation_error_field": null
+  }
+}
