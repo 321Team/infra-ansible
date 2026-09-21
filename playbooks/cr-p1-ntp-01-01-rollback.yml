@@ -1,0 +1,73 @@
+---
+- name: CR-P1-NTP-01-01 rollback one failed node
+  hosts: k8s_nodes
+  # Select the one rollback host before any managed-host I/O. An unrelated
+  # offline node must not block this host's recovery during fact gathering.
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  pre_tasks:
+    - name: Require an explicit rollback target
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_host is defined
+        fail_msg: Provide cr_ntp_rollback_host with exactly one k8s_nodes host.
+
+    - name: Validate the rollback target exists in inventory
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_host in groups['k8s_nodes']
+        fail_msg: >-
+          {{ cr_ntp_rollback_host }} is not a member of k8s_nodes.
+
+    - name: End non-target hosts without changing them
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != cr_ntp_rollback_host
+
+    - name: Validate rollback approval token
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_rollback_approved | default('') == cr_ntp_change_id
+        fail_msg: >-
+          Set cr_ntp_rollback_approved={{ cr_ntp_change_id }} for the
+          selected rollback host.
+
+    - name: Read and validate the immutable CR baseline
+      ansible.builtin.include_tasks: ../roles/ntp_source/tasks/_read_original.yml
+      when: not (cr_ntp_migrate_main | default(false) | bool)
+
+  tasks:
+    - name: Restore the original CR baseline
+      ansible.builtin.include_tasks: ../roles/ntp_source/tasks/_restore_dropin.yml
+      vars:
+        cr_ntp_restore_state: "{{ cr_ntp_original_state }}"
+      when: not (cr_ntp_migrate_main | default(false) | bool)
+
+    - name: Restore the immutable main and drop-in baseline
+      ansible.builtin.include_tasks: ../roles/ntp_source/tasks/_restore_pair.yml
+      vars:
+        cr_ntp_pair_restore_action: rollback
+      when: cr_ntp_migrate_main | default(false) | bool
+
+    - name: Read post-rollback chronyc sources
+      ansible.builtin.command:
+        argv:
+          - chronyc
+          - -c
+          - sources
+      register: cr_ntp_rollback_sources
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ cr_ntp_change_id }}"
+          host: "{{ inventory_hostname }}"
+          dropin_state: RESTORED
+          main_state: "{{ (cr_ntp_migrate_main | default(false) | bool) | ternary('RESTORED', 'UNCHANGED') }}"
+          chronyd: active
+          sources: "{{ cr_ntp_rollback_sources.stdout_lines }}"
+      when: not ansible_check_mode

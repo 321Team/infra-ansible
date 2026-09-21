@@ -1,0 +1,11 @@
+{
+  "reviewed_wrapper_sha": "",
+  "reviewed_source_sha": "0e17e2d7713484352c84f72d9ddc55aab6187386",
+  "public_upstreams": [
+    "162.159.200.1",
+    "162.159.200.123"
+  ],
+  "source_policy_ref": "https://github.com/321Team/fds-project-baseline/issues/10#issuecomment-5740306915",
+  "network_policy_ref": "/home/server01_ansible/ntp-refs/CR-P1-NTP-01-01-NETWORK.md",
+  "recovery_ref": "/home/server01_ansible/ntp-refs/CR-P1-NTP-01-01-RECOVERY.md"
+}

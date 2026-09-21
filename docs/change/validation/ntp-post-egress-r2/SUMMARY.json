@@ -1,0 +1,44 @@
+{
+  "scope": "LOCAL/MOCK; not CI, runtime, approval, or deployment",
+  "tests": 115,
+  "subtests": 494,
+  "failures": 0,
+  "errors": 0,
+  "successful": true,
+  "test_partition": {
+    "approved_onepass": 50,
+    "existing_post_egress": 46,
+    "new_R2": 19
+  },
+  "live_process_and_socket_gate": "NoLiveActions assertions held for every post-egress test; no live remote/packet execution",
+  "sha256": {
+    "tools/ntp-post-egress.py": "ee62913b7e01c294e51acfcb484afbab81416454caaa34df7c4ce1ce57ad0152",
+    "tools/ntp-post-egress-remote.py": "aac675f80c5e664aa6fdde67ca366aa06a9568029f62e97755b93767bea92520",
+    "tests/ntp_source/test_post_egress.py": "a3b5595fc2c9281740a5cb510eb8f35fd012b0eef104f4e1b8c71174c29d65b7",
+    "tests/ntp_source/test_post_egress_r2.py": "b12073554d1c0ac2efc82ce9649d654b10d7d612c5407c5f9b6f6907c837a3b5",
+    "tools/ntp-onepass.py": "0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646",
+    "tools/ntp-onepass-remote.py": "ccdfd29e6d4821e4205963990b7c29af879240b1aae76c40119966fc67eebf50",
+    "tests/ntp_source/fixtures/post_egress_baseline.json": "98c044a8cf0433f3d0604d07b3bd4ad0ee7196d8d6e2c9c5106f261d29ba7f7a"
+  },
+  "r1_reproduction": "R1-reproductions.json",
+  "observed_at": "2026-09-21T05:23:59.530130+00:00",
+  "runtime_executed": false,
+  "CI_executed": false,
+  "offline_cli": {
+    "status": "PASS",
+    "scope": "Actual default offline CLI only; synthetic LOCAL input, no operational approval/window",
+    "observed_at": "2026-09-21T05:22:59.497605+00:00",
+    "local_head": "6688f351c5b29e9a5512d12be4962cf9247300ea",
+    "tree": "841f942296498653a6bfdfbeef8f675b85aa8220",
+    "runtime_status": "FOLLOWUP_OFFLINE_PREPARED_NOT_EXECUTED",
+    "external_command_records": 0,
+    "remote_requests": 0,
+    "clock_queries": 0,
+    "live_ssh_firewall_packets": 0,
+    "manifest": "PASS",
+    "local_git_commands_executed": true,
+    "note": "Local synthetic Git commit before adding validation-only documentation; not a GitHub approval or operational work window."
+  },
+  "focused-tests.log_sha256": "fb105e0ab17d0b11b0a6f1debca3f9c3aff590c75b11bbe37e6113d345216990",
+  "R1-reproductions.json_sha256": "2e410c4e55ec051d61e64f579d65b07c98db548e9b14500188f94edac384ce28"
+}

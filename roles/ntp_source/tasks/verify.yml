@@ -1,0 +1,212 @@
+---
+# Parsed from the plain (non `-c`) `chronyc` output using its documented
+# field labels rather than guessed CSV column positions — the labels are
+# part of chronyc's stable user-facing output and are much less likely to
+# silently shift between chrony versions than an unverified column count.
+
+- name: Read post-run chronyc tracking
+  ansible.builtin.command:
+    argv:
+      - chronyc
+      - tracking
+  register: cr_ntp_tracking_after
+  environment:
+    LC_ALL: C
+  changed_when: false
+  check_mode: false
+
+- name: Parse tracking fields without substituting missing values with zero
+  ansible.builtin.set_fact:
+    cr_ntp_leap_matches: >-
+      {{ cr_ntp_tracking_after.stdout
+         | regex_findall('(?m)^Leap status[ \t]*:[ \t]*([^\r\n]+)$') }}
+    cr_ntp_last_offset_matches: >-
+      {{ cr_ntp_tracking_after.stdout
+         | regex_findall('(?m)^Last offset[ \t]*:[ \t]*([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:[eE][+-]?[0-9]+)?)[ \t]+seconds[ \t]*$') }}
+    cr_ntp_system_time_matches: >-
+      {{ cr_ntp_tracking_after.stdout
+         | regex_findall('(?m)^System time[ \t]*:[ \t]*([+-]?(?:[0-9]+(?:[.][0-9]*)?|[.][0-9]+)(?:[eE][+-]?[0-9]+)?)[ \t]+seconds[ \t]+(?:fast|slow) of NTP time[ \t]*$') }}
+    cr_ntp_stratum_matches: >-
+      {{ cr_ntp_tracking_after.stdout
+         | regex_findall('(?m)^Stratum[ \t]*:[ \t]*([0-9]+)[ \t]*$') }}
+
+- name: Assert tracking fields were found
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_leap_matches | length == 1
+      - cr_ntp_last_offset_matches | length == 1
+      - cr_ntp_system_time_matches | length == 1
+      - cr_ntp_stratum_matches | length == 1
+    fail_msg: >-
+      Could not parse `chronyc tracking` output on {{ inventory_hostname }};
+      its format may have changed. Raw output:
+      {{ cr_ntp_tracking_after.stdout }}
+
+- name: Reject non-finite tracking numbers
+  ansible.builtin.assert:
+    that:
+      - (cr_ntp_last_offset_matches[0] | float | abs) <= 1.7976931348623157e308
+      - (cr_ntp_system_time_matches[0] | float | abs) <= 1.7976931348623157e308
+    fail_msg: Tracking values must be finite numbers.
+
+- name: Set parsed tracking values
+  ansible.builtin.set_fact:
+    cr_ntp_leap_status: "{{ cr_ntp_leap_matches | first | trim }}"
+    cr_ntp_last_offset_s: "{{ cr_ntp_last_offset_matches | first }}"
+    cr_ntp_system_time_s: "{{ cr_ntp_system_time_matches | first }}"
+    cr_ntp_stratum: "{{ cr_ntp_stratum_matches | first }}"
+
+- name: Assert leap status is Normal
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_leap_status == "Normal"
+    fail_msg: >-
+      Leap status on {{ inventory_hostname }} is "{{ cr_ntp_leap_status }}",
+      not Normal.
+
+- name: Assert current system correction and last offset meet the threshold
+  ansible.builtin.assert:
+    that:
+      - (cr_ntp_last_offset_s | float | abs) <= (cr_ntp_offset_max_ms | int / 1000.0)
+      - (cr_ntp_system_time_s | float | abs) <= (cr_ntp_offset_max_ms | int / 1000.0)
+    fail_msg: >-
+      Last offset={{ cr_ntp_last_offset_s }}s and current system correction=
+      {{ cr_ntp_system_time_s }}s on {{ inventory_hostname }} must both be
+      within the approved {{ cr_ntp_offset_max_ms }}ms threshold.
+  when:
+    - cr_ntp_phase in ['apply', 'verify']
+    - not (cr_ntp_is_source | bool) or (cr_ntp_migrate_main | default(false) | bool)
+
+# `chronyc -n sources` (numeric, no DNS lookups) tabular output, e.g.:
+#   MS Name/IP address         Stratum Poll Reach LastRx Last sample
+#   ===============================================================
+#   ^* 10.1.93.102                    3   6   377    23  -1234ns[...]
+# The first two characters are the mode ('^'=server/'='=peer/'#'=local ref
+# clock) and state ('*'=selected/'+'=combined/'-'=not combined/'?'=unreachable
+# etc). Only lines starting with one of those mode characters are real
+# source rows; the header and separator are excluded by this pattern.
+- name: Read post-run chronyc sources
+  ansible.builtin.command:
+    argv:
+      - chronyc
+      - -n
+      - sources
+      - -a
+  register: cr_ntp_sources_after
+  environment:
+    LC_ALL: C
+  changed_when: false
+  check_mode: false
+
+- name: Extract actual source rows from chronyc sources
+  ansible.builtin.set_fact:
+    cr_ntp_source_rows: >-
+      {{ cr_ntp_sources_after.stdout_lines
+         | select('match', '^[\^=#][*+?x~-]\s+')
+         | list }}
+
+- name: Assert the approved source is selected on client nodes
+  ansible.builtin.assert:
+    that:
+      - >-
+        cr_ntp_source_rows
+        | select('match', '^\^\*\s+' ~ (cr_ntp_source_ip | regex_escape) ~ '(\s|$)')
+        | list | length == 1
+    fail_msg: >-
+      {{ cr_ntp_source_ip }} ({{ cr_ntp_source_host }}) is not the selected
+      (synchronised, '^*') source on {{ inventory_hostname }}. Sources:
+      {{ cr_ntp_source_rows }}
+  when:
+    - cr_ntp_phase in ['apply', 'verify']
+    - not (cr_ntp_is_source | bool)
+
+- name: Assert no other source is configured on client nodes
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_source_rows | length == 1
+    fail_msg: >-
+      {{ inventory_hostname }} has {{ cr_ntp_source_rows | length }}
+      configured sources; expected exactly 1 ({{ cr_ntp_source_ip }}).
+      Sources: {{ cr_ntp_source_rows }}
+  when:
+    - cr_ntp_phase in ['apply', 'verify']
+    - not (cr_ntp_is_source | bool)
+
+- name: Read chronyc clients on the source node
+  ansible.builtin.command:
+    argv:
+      - chronyc
+      - clients
+  register: cr_ntp_clients_after
+  changed_when: false
+  check_mode: false
+  when: cr_ntp_is_source | bool
+
+- name: Require exactly the approved upstream set on a migrated source
+  ansible.builtin.assert:
+    that:
+      - cr_ntp_source_upstreams | length in [2, 3]
+      - cr_ntp_source_upstreams | unique | length == cr_ntp_source_upstreams | length
+      - cr_ntp_source_rows | length == cr_ntp_source_upstreams | length
+      - >-
+        cr_ntp_sources_after.stdout
+        | regex_findall('(?m)^[\^=#][*+?x~-][ \t]+([0-9.]+)[ \t]+') | sort
+        == cr_ntp_source_upstreams | sort
+      - cr_ntp_source_rows | select('match', '^\^\*\s+') | list | length == 1
+    fail_msg: >-
+      The migrated source must expose exactly the approved two or three upstream
+      addresses with one selected server; current rows={{ cr_ntp_source_rows }}.
+  when:
+    - cr_ntp_migrate_main | default(false) | bool
+    - cr_ntp_is_source | bool
+    - cr_ntp_phase in ['apply', 'verify']
+
+- name: Read post-run chronyd service state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - chronyd.service
+  register: cr_ntp_chronyd_after
+  changed_when: false
+  check_mode: false
+
+- name: Assert chronyd is active after the run
+  ansible.builtin.assert:
+    that:
+      - "'active' in cr_ntp_chronyd_after.stdout_lines"
+    fail_msg: >-
+      chronyd is not active on {{ inventory_hostname }} after the change.
+
+- name: Read post-run kubelet state
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - show
+      - --property=LoadState
+      - --property=ActiveState
+      - --value
+      - kubelet.service
+  register: cr_ntp_kubelet_after
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Print CR NTP node verdict
+  ansible.builtin.debug:
+    msg:
+      change_id: "{{ cr_ntp_change_id }}"
+      host: "{{ inventory_hostname }}"
+      phase: "{{ cr_ntp_phase }}"
+      role: "{{ (cr_ntp_is_source | bool) | ternary('source', 'client') }}"
+      leap_status: "{{ cr_ntp_leap_status }}"
+      last_offset_s: "{{ cr_ntp_last_offset_s }}"
+      system_time_s: "{{ cr_ntp_system_time_s }}"
+      stratum: "{{ cr_ntp_stratum }}"
+      sources_before: "{{ cr_ntp_sources_before.stdout_lines | default([]) }}"
+      sources_after: "{{ cr_ntp_source_rows }}"
+      chronyd: "{{ cr_ntp_chronyd_after.stdout_lines }}"
+      kubelet: "{{ cr_ntp_kubelet_after.stdout_lines }}"

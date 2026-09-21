@@ -33,6 +33,8 @@ def syntax_gate(runtime, output, paths, engines, evidence):
     repo = runtime / 'repo'
     config = output / 'syntax-ansible.cfg'
     config.write_text('[defaults]\nroles_path = ' + str(repo / 'roles') +
+                      '\nlibrary = ' + str(repo / 'library') +
+                      '\nmodule_utils = ' + str(repo / 'module_utils') +
                       '\nhost_key_checking = True\nretry_files_enabled = False\n', encoding='utf-8')
     env = kit.environment(); env['ANSIBLE_CONFIG'] = str(config)
     for engine in engines:

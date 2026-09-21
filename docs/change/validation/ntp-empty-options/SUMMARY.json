@@ -1,0 +1,898 @@
+{
+  "schema_version": 1,
+  "status": "LOCAL_MOCK_PASS_REVIEW_PENDING",
+  "base_sha": "b9ba8cb8a2bb838f35b926648aa354b88c7e743f",
+  "rollout_sha": "0e17e2d7713484352c84f72d9ddc55aab6187386",
+  "rollout_tree": "3978af25d4489de68590af3fc5d86191e97beb5b",
+  "scope": "Empty OPTIONS probe default plus exact rollout source binding; no production SSH or apply",
+  "source_sha256": {
+    "tools/ntp-onepass.py": "0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646",
+    "tools/ntp-onepass-remote.py": "6d2af2337f24880d6b81b3ef49f835efb7d6d7cd47dfaf08061d9e1ee7687e34",
+    "tools/ntp-rollout.py": "419d52206dae52e8fc6db596661c7a1f198f67fc0fd249986b0c4495b2de8598",
+    "tools/ntp-workflow-lock.py": "91b7e14272c8bc470ba4d403d1d32aad889aeca8dd14760230da16955b10d218",
+    "module_utils/fds_ntp_policy.py": "47ce10e94ea91eaa120d253ee99374502e3427cb83617f372f1a3e0f092e194a",
+    "library/fds_ntp_probe.py": "0a04f3a1e4632e9abf7a5e43a997a1efe3c3f539a4e52a90b72cc899d6cdba81",
+    "tests/ntp_source/test_onepass.py": "b45ed0fe45cb0f8c7eae4544595416345775ff2121f4633e609b5d97e468c798",
+    "tests/ntp_source/test_rollout.py": "af86a3bc72d0c07dabeac6a0a62cd80097f08e7ea39f4a302a4e5c665492f986",
+    "tests/ntp_source/test_probe.py": "a64f64817f6853268146bcde83cf0b4a597db5e514f45224b96d8aaaa3632947"
+  },
+  "suites": {
+    "probe": {
+      "passed": 102,
+      "total": 102,
+      "execution": "REUSED_UNCHANGED_CODE_RESULT",
+      "raw_result_sha256": "eb37a11138ed4a33a89a500c1f4cba0df3fc33e0fcda8c2d68567345d8017918",
+      "cases": [
+        {
+          "name": "diagnose_k8s-control01",
+          "passed": true
+        },
+        {
+          "name": "diagnose_k8s-control02",
+          "passed": true
+        },
+        {
+          "name": "diagnose_k8s-control03",
+          "passed": true
+        },
+        {
+          "name": "diagnose_k8s-worker01",
+          "passed": true
+        },
+        {
+          "name": "diagnose_k8s-worker02",
+          "passed": true
+        },
+        {
+          "name": "diagnose_k8s-worker03",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-control01",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-control02",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-control03",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-worker01",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-worker02",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_k8s-worker03",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_00",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_01",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_02",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_03",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_04",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_05",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_06",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_07",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_08",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_09",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_10",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_11",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_12",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_13",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_14",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_15",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_16",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_17",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_18",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_19",
+          "passed": true
+        },
+        {
+          "name": "reject_observation_20",
+          "passed": true
+        },
+        {
+          "name": "reject_failed_plan",
+          "passed": true
+        },
+        {
+          "name": "reject_250ms_probe",
+          "passed": true
+        },
+        {
+          "name": "reject_nonfinite_probe",
+          "passed": true
+        },
+        {
+          "name": "optional_environment_file_absent",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-control01",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-control02",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-control03",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-worker01",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-worker02",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_diagnose_k8s-worker03",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-control01",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-control02",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-control03",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-worker01",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-worker02",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_pathcheck_k8s-worker03",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_optional_file_absent",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_absent_keeps_empty_receipt",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_nonempty_options",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_unsafe_options",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_other_empty_variable",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_additional_variable",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_additional_empty_variable",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_duplicate_options",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_quoted_assignment",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_quoted_empty_value",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_malformed_quote",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_whitespace_value",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_embedded_newline",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_embedded_nul",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_escaped_assignment",
+          "passed": true
+        },
+        {
+          "name": "reject_inline_missing_equals",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_query_failure",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_query_timeout",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_restart_drift",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_missing_file_drift",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_unsafe_config",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_sysconfig_extra_variable",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_sysconfig_duplicate",
+          "passed": true
+        },
+        {
+          "name": "empty_options_default_reject_unknown_environment_file",
+          "passed": true
+        },
+        {
+          "name": "inline_secret_not_recorded",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_00",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_01",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_02",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_03",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_04",
+          "passed": true
+        },
+        {
+          "name": "reject_binding_05",
+          "passed": true
+        },
+        {
+          "name": "two_source_diagnose",
+          "passed": true
+        },
+        {
+          "name": "two_source_pathcheck",
+          "passed": true
+        },
+        {
+          "name": "two_source_runtime_missing_rejected",
+          "passed": true
+        },
+        {
+          "name": "two_source_runtime_extra_rejected",
+          "passed": true
+        },
+        {
+          "name": "two_source_runtime_wrong_address_rejected",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_empty",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_one",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_four",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_duplicate",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_wrong_type",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_null",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_bool_element",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_private",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_dns",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_options",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_unknown_public",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_nist_boulder",
+          "passed": true
+        },
+        {
+          "name": "provider_policy_nist_maryland",
+          "passed": true
+        },
+        {
+          "name": "direct_probe_unknown_public_rejected_before_process",
+          "passed": true
+        },
+        {
+          "name": "direct_probe_nist_boulder_rejected_before_process",
+          "passed": true
+        },
+        {
+          "name": "direct_probe_nist_maryland_rejected_before_process",
+          "passed": true
+        },
+        {
+          "name": "direct_probe_private_rejected_before_process",
+          "passed": true
+        }
+      ]
+    },
+    "onepass": {
+      "passed": 35,
+      "total": 35,
+      "execution": "RUN_FOR_R1_BINDING_CHANGE",
+      "raw_result_sha256": "3c9fcd4f6a41d093662b74e3e95d68cb0b87a4975040b2ef36bc345885982022",
+      "cases": [
+        {
+          "name": "snapshot_failure_blocks_every_mutation",
+          "passed": true
+        },
+        {
+          "name": "dry_run_only_collects_six_hosts",
+          "passed": true
+        },
+        {
+          "name": "confirmed_ingress_failure_recovers_owned_delta",
+          "passed": true
+        },
+        {
+          "name": "uncertain_ingress_preserves_state_and_stops",
+          "passed": true
+        },
+        {
+          "name": "partial_rollout_preserves_shared_ingress_and_successful_hosts",
+          "passed": true
+        },
+        {
+          "name": "confirmed_egress_failure_recovers_only_failing_host",
+          "passed": true
+        },
+        {
+          "name": "uncertain_egress_preserves_state_and_stops_later_hosts",
+          "passed": true
+        },
+        {
+          "name": "post_gate_failure_keeps_successful_host_policies",
+          "passed": true
+        },
+        {
+          "name": "sample_failure_keeps_successful_host_policies",
+          "passed": true
+        },
+        {
+          "name": "success_does_not_claim_final_acceptance",
+          "passed": true
+        },
+        {
+          "name": "source_drift_stops_before_next_mutation",
+          "passed": true
+        },
+        {
+          "name": "source_wrapper_tracked",
+          "passed": true
+        },
+        {
+          "name": "source_rollout_tracked",
+          "passed": true
+        },
+        {
+          "name": "source_wrapper_untracked",
+          "passed": true
+        },
+        {
+          "name": "source_rollout_untracked",
+          "passed": true
+        },
+        {
+          "name": "source_wrong_wrapper_sha",
+          "passed": true
+        },
+        {
+          "name": "source_substituted_rollout",
+          "passed": true
+        },
+        {
+          "name": "source_bound_input_tampered",
+          "passed": true
+        },
+        {
+          "name": "source_wrong_script_path",
+          "passed": true
+        },
+        {
+          "name": "source_git_environment",
+          "passed": true
+        },
+        {
+          "name": "child_valid",
+          "passed": true
+        },
+        {
+          "name": "child_process_timeout",
+          "passed": true
+        },
+        {
+          "name": "child_partial_source",
+          "passed": true
+        },
+        {
+          "name": "child_finalization_failed",
+          "passed": true
+        },
+        {
+          "name": "child_wrong_tree",
+          "passed": true
+        },
+        {
+          "name": "child_child_input_changed",
+          "passed": true
+        },
+        {
+          "name": "child_missing_verify_command",
+          "passed": true
+        },
+        {
+          "name": "child_source_drift_marker",
+          "passed": true
+        },
+        {
+          "name": "child_stale_receipt",
+          "passed": true
+        },
+        {
+          "name": "child_offset_over_100ms",
+          "passed": true
+        },
+        {
+          "name": "lock_inherited_by_child_and_retained_by_parent",
+          "passed": true
+        },
+        {
+          "name": "remote_unresolved_journal_prepared",
+          "passed": true
+        },
+        {
+          "name": "remote_unresolved_journal_remove_prepared",
+          "passed": true
+        },
+        {
+          "name": "remote_unresolved_journal_uncertain",
+          "passed": true
+        },
+        {
+          "name": "six_samples_keep_60_second_minimum_for_fast_and_slow_observations",
+          "passed": true
+        }
+      ]
+    },
+    "rollout": {
+      "passed": 71,
+      "total": 71,
+      "execution": "RUN_FOR_R1_BINDING_CHANGE",
+      "raw_result_sha256": "97e0c5a038c8383234906171f367b48b7046df0ce55566de7c847e3017f1d566",
+      "cases": [
+        {
+          "name": "lock_exclusive_and_released",
+          "passed": true
+        },
+        {
+          "name": "lock_inherited_fd_retains_ownership",
+          "passed": true
+        },
+        {
+          "name": "lock_wrong_or_invalid_fd_rejected",
+          "passed": true
+        },
+        {
+          "name": "lock_home_and_evidence_cannot_split_namespace",
+          "passed": true
+        },
+        {
+          "name": "lock_symlink_rejected",
+          "passed": true
+        },
+        {
+          "name": "lock_hardlink_rejected",
+          "passed": true
+        },
+        {
+          "name": "lock_mode_rejected",
+          "passed": true
+        },
+        {
+          "name": "lock_parent_rejected",
+          "passed": true
+        },
+        {
+          "name": "lock_lasts_until_last_inherited_process_exits",
+          "passed": true
+        },
+        {
+          "name": "diagnose_only_never_applies",
+          "passed": true
+        },
+        {
+          "name": "full_gated_rollout_order",
+          "passed": true
+        },
+        {
+          "name": "full_two_source_gated_rollout_order",
+          "passed": true
+        },
+        {
+          "name": "input_nist_boulder_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_nist_maryland_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_unknown_public_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_one_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_four_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_duplicate_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_dns_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "input_wrong_type_rejected_before_host_phases",
+          "passed": true
+        },
+        {
+          "name": "missing_upstreams_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "wrong_reviewed_head_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "dirty_checkout_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "apply_requires_existing_approval",
+          "passed": true
+        },
+        {
+          "name": "git_environment_cannot_redirect_source",
+          "passed": true
+        },
+        {
+          "name": "dirty_real_checkout_rejected_despite_clean_foreign_git",
+          "passed": true
+        },
+        {
+          "name": "inventory_missing_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "inventory_address_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "inventory_upstreams_prevents_apply",
+          "passed": true
+        },
+        {
+          "name": "precheck_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "diagnose_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "source_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "clients_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "verify_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "finalize_failure_stops_and_retains_evidence",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failed_k8s-control02",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failed_k8s-control03",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failed_k8s-worker01",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failed_k8s-worker02",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_failed_k8s-worker03",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_missing",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_stale_run",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_wrong_head",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_wrong_input",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_wrong_host",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_wrong_ip",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_schema",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_errors",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_observations",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_partial_probes",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_wrong_target",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_sample_rejected",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_bad_offset",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_nan_offset",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_probe_rc",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_probe_timeout",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_unexpected_host",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_duplicate_probe",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_typed_check_missing",
+          "passed": true
+        },
+        {
+          "name": "pathcheck_receipt_typed_check_false",
+          "passed": true
+        },
+        {
+          "name": "diagnose_partial_public_responses_prevents_source",
+          "passed": true
+        },
+        {
+          "name": "bound_input_mutation_stops_before_clients",
+          "passed": true
+        },
+        {
+          "name": "bound_input_mutation_during_finalize_fails",
+          "passed": true
+        },
+        {
+          "name": "dirty_during_source_stops_before_clients",
+          "passed": true
+        },
+        {
+          "name": "head_change_during_source_preserves_original_binding",
+          "passed": true
+        },
+        {
+          "name": "unexpected_exception_finalizes",
+          "passed": true
+        },
+        {
+          "name": "package_failure_retains_logs_and_releases_lock",
+          "passed": true
+        },
+        {
+          "name": "sigint_stops_child_group_finalizes_and_unlocks",
+          "passed": true
+        },
+        {
+          "name": "sigterm_stops_child_group_finalizes_and_unlocks",
+          "passed": true
+        },
+        {
+          "name": "timeout_stops_child_group_and_preserves_output",
+          "passed": true
+        }
+      ]
+    }
+  },
+  "field_replay": {
+    "scope": "LOCAL inspect_restart only",
+    "original_rejected": 6,
+    "candidate_accepted": 6,
+    "reused_unchanged": true,
+    "raw_result_sha256": "55129d2ea6dc2b34092cfa8768e7bc0ff342f90a447b8158d4aa090ff9ed6551"
+  },
+  "static": {
+    "git_diff_check": "PASS",
+    "python_compile": "PASS",
+    "runbook_bash_syntax": "PASS"
+  },
+  "independent_ai_review": "NO_BLOCKING_FINDINGS; not human APPROVED",
+  "ci": "NOT_RUN",
+  "runtime": "NOT_RUN",
+  "existing_ingress": "10 rules confirmed present at 2026-09-21T00:41:47+09:00; preserve prior run journal",
+  "new_work_window": "NOT_SET",
+  "evidence_archives": {
+    "ntp-onepass-1vu26i8b.tar.gz": "23846bb6bcbaa4c4cc5e4bf1fa770f6262743fd11d76511f91a8a73dd8653fe9",
+    "ntp-chronyd-environment-xkmf5tss.tar.gz": "3f69e141aed26d018b8e8831da1210268ec53c84e964882e12a998431896f90a"
+  }
+}

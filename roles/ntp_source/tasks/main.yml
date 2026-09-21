@@ -1,0 +1,8 @@
+---
+- name: Select the unchanged drop-in-only workflow
+  ansible.builtin.include_tasks: _legacy.yml
+  when: not (cr_ntp_migrate_main | default(false) | bool)
+
+- name: Select the explicit main and drop-in migration workflow
+  ansible.builtin.include_tasks: _migration.yml
+  when: cr_ntp_migrate_main | default(false) | bool

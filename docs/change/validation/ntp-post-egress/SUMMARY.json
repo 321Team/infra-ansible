@@ -1,0 +1,35 @@
+{
+  "validation": "LOCAL/MOCK ONLY",
+  "observed_at": "2026-09-21T04:16:49.136298+00:00",
+  "approved_onepass_tests": 50,
+  "new_followup_tests": 46,
+  "tests": 96,
+  "subtests": 442,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "process_guard_calls": 0,
+  "socket_guard_calls": 0,
+  "source_stable_during_validation": true,
+  "sha256": {
+    "tools/ntp-post-egress.py": "9e26fafc4e0c7e9eaae0f6b84a40ce075b33a854511079741366c540d595db04",
+    "tools/ntp-post-egress-remote.py": "f8bfcc1ceda31c52baad5929209b9fc1707e809c100f04a4ff63267a5eabe52e",
+    "tests/ntp_source/test_post_egress.py": "4d00c0c72069459e106e910ddc586a2c0d648ecefaf4222b851f076b6cfb3fff",
+    "tests/ntp_source/fixtures/post_egress_baseline.json": "98c044a8cf0433f3d0604d07b3bd4ad0ee7196d8d6e2c9c5106f261d29ba7f7a",
+    "tools/ntp-onepass.py": "0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646",
+    "tools/ntp-onepass-remote.py": "ccdfd29e6d4821e4205963990b7c29af879240b1aae76c40119966fc67eebf50"
+  },
+  "runtime_executed": false,
+  "CI_executed": false,
+  "offline_cli": {
+    "status": "PASS",
+    "scope": "Actual default offline CLI only, synthetic local input, no operational approval/window",
+    "runtime_status": "FOLLOWUP_OFFLINE_PREPARED_NOT_EXECUTED",
+    "remote_requests": 0,
+    "live_ssh_firewall_packets": 0,
+    "manifest": "PASS",
+    "local_git_commands_executed": true,
+    "note": "Actual default CLI with synthetic LOCAL input; local source tree, not an operational approval or work window."
+  },
+  "focused_log_sha256": "c5ce45d367d36c46af2f257f00aa7cef2915f8e93a056f65219af0da93df1878"
+}

@@ -1,0 +1,32 @@
+---
+- name: Restore the selected paired recovery point
+  fds_ntp_migration:
+    action: "{{ cr_ntp_pair_restore_action }}"
+    main_path: "{{ cr_ntp_main_config_path | default('/etc/chrony.conf') }}"
+    dropin_path: "{{ cr_ntp_dropin_path }}"
+    state_dir: "{{ cr_ntp_state_dir }}"
+    change_id: "{{ cr_ntp_change_id }}"
+    inventory_hostname: "{{ inventory_hostname }}"
+    role: "{{ (inventory_hostname == cr_ntp_source_host) | ternary('source', 'client') }}"
+    source_ip: "{{ cr_ntp_source_ip }}"
+    client_ips: "{{ cr_ntp_client_ips }}"
+    source_upstreams: "{{ cr_ntp_source_upstreams | default([]) }}"
+    chronyd_path: "{{ cr_ntp_chronyd_path | default('chronyd') }}"
+    snapshot: "{{ cr_ntp_pair_restore_snapshot | default(omit) }}"
+  register: cr_ntp_pair_restored
+
+- name: Restart chronyd after real paired restoration
+  ansible.builtin.systemd:
+    name: chronyd
+    state: restarted
+  when: not ansible_check_mode
+
+- name: Require chronyd active after paired restoration
+  ansible.builtin.command:
+    argv: [systemctl, is-active, chronyd.service]
+  register: cr_ntp_pair_restore_active
+  changed_when: false
+  retries: 5
+  delay: 2
+  until: cr_ntp_pair_restore_active.rc == 0
+  when: not ansible_check_mode

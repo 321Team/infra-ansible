@@ -1,0 +1,38 @@
+---
+- name: Verify source service and all five client NTP packet paths without changes
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Require the exact six-host path gate scope
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | sort == ['k8s-control01', 'k8s-control02', 'k8s-control03', 'k8s-worker01', 'k8s-worker02', 'k8s-worker03']
+          - cr_ntp_migrate_main | bool
+          - cr_ntp_probe_evidence_dir is match('^/.+')
+
+    - name: Observe source health and client-to-source NTP packet responses
+      fds_ntp_probe:
+        gate: pathcheck
+        run_id: "{{ cr_ntp_probe_run_id }}"
+        source_head: "{{ cr_ntp_probe_source_head }}"
+        input_sha256: "{{ cr_ntp_probe_input_sha256 }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        ansible_host: "{{ ansible_host }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams }}"
+      register: cr_ntp_probe_result
+
+    - name: Preserve this host's complete path receipt on the controller
+      ansible.builtin.copy:
+        content: "{{ cr_ntp_probe_result.receipt | to_nice_json }}\n"
+        dest: "{{ cr_ntp_probe_evidence_dir }}/pathcheck--{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      check_mode: false
+
+    - name: Stop before client changes when source or packet path fails
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_probe_result.receipt.gate_pass | bool
+        fail_msg: "Read-only NTP path gate failed: {{ cr_ntp_probe_result.receipt.errors }}"

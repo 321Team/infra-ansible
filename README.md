@@ -10,6 +10,7 @@
 - SSH known-hosts 및 서비스 계정 authorized_keys 경로 관리
 - Kubernetes API Load Balancer Stage A 연결 검증
 - `CR-P1-ANS-01-01` Kubernetes 전체 Node DNS Resolver 전환
+- `CR-P1-NTP-01-01` control01 기반 내부 NTP 전환 — [진단·조건부 적용 통합 실행 및 지속 지침](docs/change/CR-P1-NTP-01-01-rollout.md)
 - `CR-P1-MON-01-01` Alertmanager egress용 Squid 프록시 서버 구성 (대상: `egress-proxy01` / DEC-P1-EGRESS-01, `inventory/hosts.yml`의 `egress_proxy` 그룹에 반영됨; Squid apply 자체는 client 허용목록 실측 확인 전까지 HOLD)
 
 ## 저장소 구조
@@ -31,6 +32,7 @@
 | `roles/egress_proxy/` | Squid 기반 discord.com allowlist 프록시 구성·검증·Rollback |
 | `scripts/cr-p1-ans-01-01-run.sh` | 승인 Gate와 Evidence 수집 실행기 |
 | `scripts/cr-p1-mon-01-01-run.sh` | CR-P1-MON-01-01 승인 Gate와 Evidence 수집 실행기 |
+| `tools/ntp-rollout.py` | NTP 진단 → 조건부 적용 → 검증 → 증적 수집 단일 진입점 |
 | `docs/runbooks/CR-P1-ANS-01-01.md` | CR 실행 및 증적 Runbook |
 | `docs/runbooks/CR-P1-MON-01-01.md` | CR-P1-MON-01-01 실행 및 증적 Runbook |
 
