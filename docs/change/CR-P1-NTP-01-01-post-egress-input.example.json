@@ -1,0 +1,8 @@
+{
+  "reviewed_followup_sha": "",
+  "window_start": "",
+  "window_end": "",
+  "approval_ref": "",
+  "network_policy_ref": "/home/server01_ansible/ntp-refs/CR-P1-NTP-01-01-NETWORK.md",
+  "recovery_ref": "/home/server01_ansible/ntp-refs/CR-P1-NTP-01-01-RECOVERY.md"
+}
