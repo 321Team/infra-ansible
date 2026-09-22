@@ -11,7 +11,7 @@ import stat
 import time
 
 PRIOR_RUN_ID = 'ntp-onepass-f9392ba915da49a19e0fe502e7616cfb'
-BASE_SHA256 = 'ccdfd29e6d4821e4205963990b7c29af879240b1aae76c40119966fc67eebf50'
+BASE_SHA256 = '28e59bfd517661439f2a2c794824b0d19de3218e5101e143656ff5a865e3f1b2'
 BASELINE_SOURCE_SHA256 = '11ea3cf62d3709d902120aca58264f6160725f5045568d4040d4119e54c7b7a9'
 ACTIONS = {'preflight', 'verify', 'sample', 'finalize'}
 PRESERVED_FILES = ('/etc/chrony.conf', '/etc/chrony.d/50-cr-p1-ntp-01-01.conf',

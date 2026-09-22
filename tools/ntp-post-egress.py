@@ -20,7 +20,7 @@ import uuid
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER_SHA256 = '0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646'
-REMOTE_SHA256 = 'aac675f80c5e664aa6fdde67ca366aa06a9568029f62e97755b93767bea92520'
+REMOTE_SHA256 = '839f2b0fec93541b7dfc39404b0897efedfab2253831253c2d4bff67451c5fd9'
 
 
 def module(name, path, expected=None):
