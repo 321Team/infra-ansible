@@ -15,7 +15,7 @@
 
 ## 사전 검증(Pre-check) 코드 예외 — 2026-09-23
 
-적용 기준: 프로젝트 중간 결과 회고에 따른 2026-09-23 KST 사용자 정책 변경 안내. 상세 기준은 [중앙 리뷰 권한 정책 §3.2](https://github.com/321Team/fds-project-baseline/blob/e491eb8363533828fe00aab103c369c6626edd2e/governance/REVIEW_AUTHORITY_POLICY.md)([PR #93](https://github.com/321Team/fds-project-baseline/pull/93))를 따른다. 중앙 PR 병합 전까지 이 절은 제안 상태다.
+적용 기준: 프로젝트 중간 결과 회고에 따른 2026-09-23 KST 사용자 정책 변경 안내. 상세 기준은 [중앙 리뷰 권한 정책 §3.2](https://github.com/321Team/fds-project-baseline/blob/49278c189dacb620e81d282c6401faa2a9c677a6/governance/REVIEW_AUTHORITY_POLICY.md)를 따른다. 중앙 [PR #93](https://github.com/321Team/fds-project-baseline/pull/93)이 2026-09-23 15:02 KST에 병합(`49278c1`)되어 이 절을 적용한다.
 
 | 단계 | 검토와 병합 |
 |---|---|
