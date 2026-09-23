@@ -1,0 +1,6 @@
+entry_id	host	account	entry_type	entry_file	working_directory	executable_realpath	core_version	python_path	config_path	collections_path	source_sha_or_hash	previous_engine_path	candidate_engine_path	evidence_reference	status
+manual	ansible01	server01_ansible	interactive	PENDING	/home/server01_ansible/p1-ans-01	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	NOT_COLLECTED
+cron	ansible01	PENDING	cron	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	NOT_COLLECTED
+systemd	ansible01	PENDING	systemd	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	NOT_COLLECTED
+runner-ansible	cicd-runner01	PENDING	isolated_CI	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	NOT_COLLECTED
+runner-cicd	cicd-runner01	PENDING	permanent_CI	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	PENDING	NOT_COLLECTED

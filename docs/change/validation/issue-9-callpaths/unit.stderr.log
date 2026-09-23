@@ -1,0 +1,16 @@
+test_fifo_does_not_block (test_ansible_callpaths.CollectorTests.test_fifo_does_not_block) ... ok
+test_full_collection_mock_missing_crontab_and_unchanged_input (test_ansible_callpaths.CollectorTests.test_full_collection_mock_missing_crontab_and_unchanged_input) ... ok
+test_host_guard (test_ansible_callpaths.CollectorTests.test_host_guard) ... ok
+test_metadata_inspection_never_executes_file (test_ansible_callpaths.CollectorTests.test_metadata_inspection_never_executes_file) ... ok
+test_no_raw_secrets_or_arguments (test_ansible_callpaths.CollectorTests.test_no_raw_secrets_or_arguments) ... ok
+test_oversize_is_coverage_gap (test_ansible_callpaths.CollectorTests.test_oversize_is_coverage_gap) ... ok
+test_permission_denied_not_absence (test_ansible_callpaths.CollectorTests.test_permission_denied_not_absence) ... ok
+test_query_environment_and_no_shell (test_ansible_callpaths.CollectorTests.test_query_environment_and_no_shell) ... ok
+test_repo_locations_omit_credentials (test_ansible_callpaths.CollectorTests.test_repo_locations_omit_credentials) ... ok
+test_root_guard (test_ansible_callpaths.CollectorTests.test_root_guard) ... ok
+test_symlink_not_followed (test_ansible_callpaths.CollectorTests.test_symlink_not_followed) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.007s
+
+OK

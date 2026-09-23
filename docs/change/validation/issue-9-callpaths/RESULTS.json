@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-09-23T20:55:14.509479+00:00",
+  "scope": "LOCAL_STATIC_UNIT_MOCK",
+  "ast_files": 2,
+  "unit_tests": 11,
+  "unit_rc": 0,
+  "local_identity_guard_rc": 64,
+  "real_server_collection": "NOT_RUN",
+  "ci": "NOT_RUN",
+  "production_apply": false,
+  "engine_transition": false,
+  "review": "NOT PERFORMED (Pre-check)",
+  "source_sha256": {
+    "tools/collect-ansible-callpaths.py": "ef85fdb6609bdc3e860d77ed311ba5fddce46b96cdbd0240d29ebfeef936f1ce",
+    "tests/test_ansible_callpaths.py": "d47373ae0fed67fe84acc43cb1d8b86a789462693d5540272884916493185501"
+  },
+  "limitations": [
+    "Mock full collection does not establish host RPM/cron/systemd/Runner state.",
+    "No Ansible executable, SSH, package manager or systemd operation was invoked."
+  ]
+}
