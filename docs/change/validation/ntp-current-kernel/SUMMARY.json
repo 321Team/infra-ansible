@@ -1,0 +1,55 @@
+{
+  "validated_at": "2026-09-23T11:05:31.683015+00:00",
+  "source_main": "65b279c44051e6b17a8e531816b23d812e09e127",
+  "stage": "LOCAL/MOCK",
+  "status": "PASS",
+  "tests": 151,
+  "subtests": 690,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "runtime": "NOT RUN",
+  "ci": "NOT RUN",
+  "independent_github_review": "NOT PERFORMED",
+  "fixture_archive_sha256": "7945a9bc4c18f0bc05d22dc329773b9820134e57cdaa764cfcd8cc21f218fcb6",
+  "fixture_archive_exact_command_text_matches": 78,
+  "fixture_timestamp": "2026-09-21T16:14:31+09:00",
+  "current_live_policy_observed": false,
+  "independent_local_security_review": {
+    "positive_cases": 6,
+    "adversarial_rejected": 156,
+    "within_run_drift_stopped": 6,
+    "unexpected_acceptances": 0,
+    "runtime": "NOT RUN",
+    "github_approval": false
+  },
+  "source_sha256": {
+    "tools/ntp-kernel-contract.py": "7cb9d316245dc60f0f0690326e7a6db670e84742c627aad5fd16802a25f04d3f",
+    "tools/ntp-post-egress-remote.py": "bafd8587e30e84c67369e63241f21fad92f8b1de147d62bed83076dd3dc246ce",
+    "tools/ntp-post-egress.py": "dab4a257b8b66a243de3327a2d15c0a823d637f308f1ff8fe4b7310437f94fd7",
+    "tools/ntp-onepass-remote.py": "28e59bfd517661439f2a2c794824b0d19de3218e5101e143656ff5a865e3f1b2",
+    "tools/ntp-onepass.py": "0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646"
+  },
+  "offline_cli_smoke": {
+    "candidate_sha": "cfe95fe905b3b1eb0033611284589ebb52e537a1",
+    "status": "FOLLOWUP_OFFLINE_PREPARED_NOT_EXECUTED",
+    "remote_operation_count": 0,
+    "runtime": "NOT RUN",
+    "synthetic_offline_inputs": true,
+    "evidence_path": "/tmp/ntp-r3-offline-smoke-c9cqx8re/ntp-post-egress-6dsc0vi8",
+    "manifest_files_verified": 5,
+    "commands_manifest_records": 0,
+    "note": "Actual local git source checks ran; wrapper does not include git() calls in COMMANDS.json. No remote operation directories."
+  },
+  "main_tree_comparison": {
+    "github_main_sha": "65b279c44051e6b17a8e531816b23d812e09e127",
+    "github_main_tree": "ab08619b93a721663766e4e69d2632f12daee6b7",
+    "local_snapshot_commit": "c54748c10f7b64d9caba47b4262e101d2195032e",
+    "files": 217,
+    "missing": [],
+    "extra": [],
+    "content_differences": [],
+    "mode_differences": [],
+    "local_snapshot_tree": "ab08619b93a721663766e4e69d2632f12daee6b7"
+  }
+}

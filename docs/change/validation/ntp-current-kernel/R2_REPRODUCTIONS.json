@@ -1,0 +1,69 @@
+{
+  "source_main": "ab0e98ffeda913908d11f4df8ae09642ff80b775",
+  "field_archive_sha256": "7945a9bc4c18f0bc05d22dc329773b9820134e57cdaa764cfcd8cc21f218fcb6",
+  "mode": "LOCAL_REPLAY",
+  "live_remote_commands": 0,
+  "live_packets": 0,
+  "results": [
+    {
+      "host": "k8s-control01",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    },
+    {
+      "host": "k8s-control02",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    },
+    {
+      "host": "k8s-control03",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    },
+    {
+      "host": "k8s-worker01",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    },
+    {
+      "host": "k8s-worker02",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    },
+    {
+      "host": "k8s-worker03",
+      "r2_nonfilter_stop": "Nonfilter rules differ from the reviewed empty field baseline",
+      "r2_kernel_layout_stop": "ipv4: Unreviewed OUTPUT predecessor could bypass NTP enforcement",
+      "historical_kernel_hash_differs": {
+        "iptables": true,
+        "ip6tables": true,
+        "nft": true
+      }
+    }
+  ]
+}

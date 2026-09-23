@@ -7,13 +7,17 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import stat
 import time
 
 PRIOR_RUN_ID = 'ntp-onepass-f9392ba915da49a19e0fe502e7616cfb'
 BASE_SHA256 = '28e59bfd517661439f2a2c794824b0d19de3218e5101e143656ff5a865e3f1b2'
+KERNEL_SHA256 = '7cb9d316245dc60f0f0690326e7a6db670e84742c627aad5fd16802a25f04d3f'
 BASELINE_SOURCE_SHA256 = '11ea3cf62d3709d902120aca58264f6160725f5045568d4040d4119e54c7b7a9'
 ACTIONS = {'preflight', 'verify', 'sample', 'finalize'}
+KERNEL_COMMANDS = (('/usr/sbin/iptables-save',), ('/usr/sbin/ip6tables-save',),
+                   ('/usr/sbin/nft', 'list', 'ruleset'), ('/usr/sbin/ipset', 'save'))
 PRESERVED_FILES = ('/etc/chrony.conf', '/etc/chrony.d/50-cr-p1-ntp-01-01.conf',
                    '/etc/sysconfig/chronyd', '/etc/firewalld/firewalld.conf',
                    '/etc/firewalld/zones/public.xml', '/etc/firewalld/direct.xml',
@@ -204,8 +208,6 @@ def normalize_iptables(text):
             if table is None:
                 raise ValueError('Unexpected iptables COMMIT')
             table = None
-        elif row.startswith('-A ') and table != 'filter':
-            raise ValueError('Nonfilter rules differ from the reviewed empty field baseline')
         rows.append(re.sub(r'\[[0-9]+:[0-9]+\]', '[COUNTERS]', row))
     if table is not None or not any(row == '*filter' for row in rows):
         raise ValueError('Incomplete iptables-save table stream')
@@ -216,6 +218,33 @@ def normalize_nft(text):
     # Do not trim whitespace, reorder rules, ignore handles or discard expressions.
     # Native inet firewalld is absent from iptables-save and must also be bound.
     return re.sub(r'\bcounter packets [0-9]+ bytes [0-9]+\b', 'counter packets COUNTER bytes COUNTER', text)
+
+
+def kernel_receipt(host, command_results, kernel_contract):
+    """Validate a fresh complete observation before deriving preservation hashes."""
+    if not isinstance(command_results, list) or len(command_results) != len(KERNEL_COMMANDS):
+        raise ValueError('Four complete kernel command receipts are required')
+    texts = []
+    for argv, value in zip(KERNEL_COMMANDS, command_results):
+        if (not isinstance(value, dict) or value.get('argv') != list(argv) or
+                type(value.get('rc')) is not int or value['rc'] != 0 or
+                not isinstance(value.get('stdout'), str) or not isinstance(value.get('stderr'), str) or
+                any(value.get(key) for key in ('timeout', 'timed_out', 'interrupted', 'output_limit',
+                                               'stdout_truncated', 'stderr_truncated', 'truncated'))):
+            raise ValueError('Kernel observation is missing, incomplete or failed: ' + ' '.join(argv))
+        texts.append(value['stdout'])
+    contract = kernel_contract.validate_kernel(host, *texts)
+    labels = ('iptables', 'ip6tables', 'nft', 'ipset')
+    if (not isinstance(contract, dict) or set(contract) != {label + '_contract' for label in labels} or
+            any(not isinstance(value, str) or not re.fullmatch('[a-f0-9]{64}', value)
+                for value in contract.values())):
+        raise ValueError('Reviewed kernel contract returned an invalid receipt')
+    normalized = (normalize_iptables(texts[0]), normalize_iptables(texts[1]),
+                  normalize_nft(texts[2]), kernel_contract.normalize_ipset(texts[3]))
+    if any(not isinstance(text, str) for text in normalized):
+        raise ValueError('Kernel preservation normalization must return text')
+    return {'kernel': {label: digest(text.encode()) for label, text in zip(labels, normalized)},
+            'kernel_contract': dict(contract)}
 
 
 def validate_request(req):
@@ -248,6 +277,16 @@ def load_base(source):
     if scope['FILES'] != PRESERVED_FILES:
         raise ValueError('Preserved file contract differs from the approved engine')
     return type('ApprovedEngine', (), scope)
+
+
+def load_kernel(source):
+    if not isinstance(source, str) or digest(source.encode()) != KERNEL_SHA256:
+        raise ValueError('Reviewed kernel contract source hash differs')
+    scope = {'__name__': 'fds_ntp_followup_kernel_contract'}
+    exec(compile(source, 'ntp-kernel-contract.py', 'exec'), scope)
+    if not callable(scope.get('validate_kernel')) or not callable(scope.get('normalize_ipset')):
+        raise ValueError('Reviewed kernel contract API is incomplete')
+    return type('ReviewedKernelContract', (), scope)
 
 
 class ReadOnlyJournal:
@@ -314,8 +353,11 @@ class ReadOnlyJournal:
 
 
 class Verifier:
-    def __init__(self, req, base_engine, journal, runner=None, sender=None):
+    def __init__(self, req, base_engine, journal, runner=None, sender=None, kernel_contract=None):
         self.req, self.m, self.journal = req, base_engine, journal
+        if kernel_contract is None:
+            raise ValueError('A reviewed kernel contract is required; historical raw hashes cannot authorize a probe')
+        self.kernel_contract = kernel_contract
         self.runner = runner or self.m.command
         self.sender = sender
         self.records = []
@@ -326,7 +368,13 @@ class Verifier:
         self.preservation_error = None
         self.clock_remaining = None
         original = {'schema_version': 1, 'action': 'verify', 'run_id': PRIOR_RUN_ID, 'host': req['host']}
-        self.engine = self.m.Engine(original, journal, runner=self.read_command, sender=self.send)
+        owner = self
+        class FollowupEngine(self.m.Engine):
+            # Both topology() and verify() dispatch here; the approved mutation
+            # engine remains unchanged and is never used to relax a packet gate.
+            def kernel_topology(engine, registered):
+                owner.kernel_topology(registered)
+        self.engine = FollowupEngine(original, journal, runner=self.read_command, sender=self.send)
 
     def guard(self):
         remaining = validate_clock_binding(self.req['clock_binding'])
@@ -340,6 +388,7 @@ class Verifier:
                    [self.m.FIREWALL, '--state'], [self.m.FIREWALL, '--get-zone-of-interface=ens160'],
                    ['/usr/sbin/iptables-save'], ['/usr/sbin/ip6tables-save'],
                    ['/usr/sbin/nft', 'list', 'ruleset'],
+                   ['/usr/sbin/ipset', 'save'],
                    ['/usr/bin/chronyc', '-n', 'tracking'], ['/usr/bin/chronyc', '-n', 'sources', '-a'],
                    ['/usr/sbin/iptables', '-w', '5', '-n', '-v', '-x', '-L', self.m.CHAIN, '--line-numbers']]
         for permanent in (False, True):
@@ -366,6 +415,28 @@ class Verifier:
         self.records.append(value)
         return value
 
+    def observe_kernel(self):
+        commands = [self.engine.run(list(argv)) for argv in KERNEL_COMMANDS]
+        return kernel_receipt(self.req['host'], commands, self.kernel_contract)
+
+    def kernel_topology(self, registered):
+        """Bind exact owned registry objects to the reviewed current kernel path."""
+        rows = [shlex.split(line) for line in registered.splitlines()]
+        if any(len(row) < 4 for row in rows):
+            raise ValueError('Malformed direct rule listing')
+        actual = [tuple(row) for row in rows if row[1] == 'filter' and row[2] in (self.m.CHAIN, 'OUTPUT')]
+        expected = [tuple([obj['family'], 'filter', obj['chain'], obj['priority']] + obj['args'])
+                    for obj in self.m.egress_objects(self.req['host'])
+                    if obj['kind'] == 'direct' and not obj['permanent']]
+        if sorted(actual) != sorted(expected) or len(set(actual)) != len(actual):
+            raise ValueError('Runtime registered dedicated rules/hooks differ from exact reviewed objects')
+        # The pinned contract also checks actual chain body/order, hook layout,
+        # cross-table references and packet-relevant Calico/Kubernetes paths.
+        current = self.observe_kernel()
+        if self.before is not None and any(current[key] != self.before[key]
+                                           for key in ('kernel', 'kernel_contract')):
+            raise ValueError('Kernel/ipset changed since the preservation observation')
+
     def preservation(self):
         files = {}
         for name in self.m.FILES:
@@ -377,16 +448,8 @@ class Verifier:
             actual = files[name]
             if any(actual.get(key) != val for key, val in expected.items()):
                 raise ValueError('Retained configuration baseline differs: ' + name)
-        kernel = {}
-        for label, argv, normalize in (
-                ('iptables', ['/usr/sbin/iptables-save'], normalize_iptables),
-                ('ip6tables', ['/usr/sbin/ip6tables-save'], normalize_iptables),
-                ('nft', ['/usr/sbin/nft', 'list', 'ruleset'], normalize_nft)):
-            value = self.engine.run(argv)
-            kernel[label] = digest(normalize(value['stdout']).encode())
-            if kernel[label] != BASELINE[self.req['host']]['kernel'][label]:
-                raise ValueError(label + ': rules differ from reviewed field baseline; retain raw output and review')
-        return {'files': files, 'kernel': kernel, 'journal_sha256': digest(self.journal.read())}
+        kernel = self.observe_kernel()
+        return {'files': files, **kernel, 'journal_sha256': digest(self.journal.read())}
 
     def send(self):
         self.guard()
@@ -436,18 +499,19 @@ class Verifier:
                 'configuration_unchanged': True, 'journal_unchanged': True}
 
 
-def main(req, base_source):
+def main(req, base_source, kernel_source=None):
     result = {'schema_version': 1, 'status': 'STOP', 'changed': False}
     journal, verifier = None, None
     try:
         validate_request(req)
         result.update(req)
         m = load_base(base_source)
+        kernel = load_kernel(kernel_source)
         # Identity precedes opening even the existing journal lock.
         probe_req = {'schema_version': 1, 'action': 'verify', 'run_id': PRIOR_RUN_ID, 'host': req['host']}
         m.Engine(probe_req, None).identity()
         journal = ReadOnlyJournal(req, m)
-        verifier = Verifier(req, m, journal)
+        verifier = Verifier(req, m, journal, kernel_contract=kernel)
         result['details'] = verifier.execute()
         result['status'] = 'OK'
     except Exception as exc:

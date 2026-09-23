@@ -265,7 +265,7 @@ class FailureEvidenceTests(E.NoLiveActions):
                 patch.object(verifier, 'preservation', side_effect=[expected, OSError('preservation reread failed')]), \
                 patch.object(verifier.engine, 'verify', side_effect=ValueError('negative counter failed')), \
                 E.contextlib.redirect_stdout(output):
-            code = E.REMOTE.main(verifier.req, E.BASE_SOURCE)
+            code = E.REMOTE.main(verifier.req, E.BASE_SOURCE, E.KERNEL_SOURCE)
         result = json.loads(output.getvalue())
         self.assertEqual(code, 2)
         self.assertEqual(result['status'], 'STOP')
@@ -282,7 +282,8 @@ class ControllerPinnedDependencyTests(E.NoLiveActions):
         directory = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         tools = directory / 'tools'
         tools.mkdir()
-        for filename in ('ntp-post-egress.py', 'ntp-onepass.py', 'ntp-post-egress-remote.py'):
+        for filename in ('ntp-post-egress.py', 'ntp-onepass.py', 'ntp-post-egress-remote.py',
+                         'ntp-kernel-contract.py'):
             (tools / filename).write_bytes((E.ROOT / 'tools' / filename).read_bytes())
         remote = tools / 'ntp-post-egress-remote.py'
         marker = directory / 'UNREVIEWED_MODULE_EXECUTED'
@@ -296,6 +297,28 @@ class ControllerPinnedDependencyTests(E.NoLiveActions):
     def test_embedded_remote_pin_matches_exact_file_bytes(self):
         self.assertEqual(E.CONTROLLER.REMOTE_SHA256,
                          hashlib.sha256((E.ROOT / 'tools/ntp-post-egress-remote.py').read_bytes()).hexdigest())
+
+    def test_kernel_module_hash_is_checked_before_any_module_body_executes(self):
+        directory = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        tools = directory / 'tools'
+        tools.mkdir()
+        for filename in ('ntp-post-egress.py', 'ntp-onepass.py', 'ntp-post-egress-remote.py',
+                         'ntp-kernel-contract.py'):
+            (tools / filename).write_bytes((E.ROOT / 'tools' / filename).read_bytes())
+        kernel = tools / 'ntp-kernel-contract.py'
+        marker = directory / 'UNREVIEWED_KERNEL_EXECUTED'
+        kernel.write_text('from pathlib import Path\nPath(%r).write_text("executed")\n' % str(marker) +
+                          kernel.read_text())
+        with self.assertRaisesRegex(ValueError, 'dependency bytes differ'):
+            E.load_module('tampered_kernel_contract_local_fixture', tools / 'ntp-post-egress.py')
+        self.assertFalse(marker.exists())
+
+    def test_only_the_exact_pinned_kernel_source_loads(self):
+        self.assertEqual(E.REMOTE.KERNEL_SHA256,
+                         hashlib.sha256(E.KERNEL_SOURCE.encode()).hexdigest())
+        for source in (None, E.KERNEL_SOURCE + '\n', '# unreviewed kernel contract\n'):
+            with self.subTest(source_type=type(source).__name__), self.assertRaises(ValueError):
+                E.REMOTE.load_kernel(source)
 
     def test_expired_controller_window_refuses_before_clock_or_probe_submission(self):
         fixture = E.PipelineFixture(self)

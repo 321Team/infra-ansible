@@ -1,8 +1,8 @@
 """Independent LOCAL/MOCK checks for the bounded post-egress verifier.
 
-The retained pdv_sd3n firewall output is real field evidence. All process,
-network, identity and time progression used below are local fixtures; passing
-these tests is not evidence that the follow-up ran on any target host.
+The retained pdv_sd3n and 2026-09-21 16:14 firewall outputs are real field
+evidence. All process, network, identity and time progression used below are
+local fixtures; passing these tests does not prove a follow-up ran on any host.
 """
 import argparse
 import contextlib
@@ -31,6 +31,8 @@ from test_onepass_kernel_layout import ReplayFirewall
 ROOT = Path(__file__).resolve().parents[2]
 FIELD = json.loads((Path(__file__).parent /
                     'fixtures/onepass_post_egress_pdv_sd3n.json').read_text())
+CURRENT_FIELD = json.loads((Path(__file__).parent /
+                            'fixtures/current_kernel_20260921_1614.json').read_text())
 
 
 def load_module(name, path):
@@ -45,6 +47,8 @@ REMOTE = load_module('post_egress_remote_tests', ROOT / 'tools/ntp-post-egress-r
 CONTROLLER = load_module('post_egress_controller_tests', ROOT / 'tools/ntp-post-egress.py')
 BASE_SOURCE = (ROOT / 'tools/ntp-onepass-remote.py').read_text()
 BASE = REMOTE.load_base(BASE_SOURCE)
+KERNEL_SOURCE = (ROOT / 'tools/ntp-kernel-contract.py').read_text()
+KERNEL = REMOTE.load_kernel(KERNEL_SOURCE)
 START = '2026-09-21T13:00:00+09:00'
 END = '2026-09-21T14:00:00+09:00'
 NOW = datetime.datetime.fromisoformat('2026-09-21T13:05:00+09:00')
@@ -121,12 +125,14 @@ class PreservationNormalizationTests(NoLiveActions):
             with self.subTest(change=(old, new)):
                 self.assertNotEqual(baseline, REMOTE.normalize_iptables(original.replace(old, new)))
 
-    def test_unreviewed_nonfilter_rule_is_refused(self):
-        original = FIELD['hosts']['k8s-control01']['commands']['iptables-save']
+    def test_unreviewed_nonfilter_rule_is_refused_by_current_contract(self):
+        commands = CURRENT_FIELD['hosts']['k8s-control01']['commands']
+        original = commands['iptables-save']
         for table in ('mangle', 'nat', 'raw', 'security'):
             raw = original + '\n*' + table + '\n:OUTPUT ACCEPT [0:0]\n-A OUTPUT -j ACCEPT\nCOMMIT\n'
             with self.subTest(table=table), self.assertRaises(ValueError):
-                REMOTE.normalize_iptables(raw)
+                KERNEL.validate_kernel('k8s-control01', raw, commands['ip6tables-save'],
+                                       commands['nft-ruleset'], commands['ipset-save'])
 
     def test_nft_only_counter_values_are_ignored(self):
         raw = ('table inet firewalld {\n chain filter_OUTPUT {\n'
@@ -281,14 +287,16 @@ class ReadOnlyJournalTests(NoLiveActions):
 
 
 class ObservationFixture:
-    """Real retained firewall text, synthetic bounded file/journal observations."""
+    """Current raw kernel contract, synthetic bounded file/journal observations."""
     def __init__(self, case, host='k8s-control01'):
         self.case, self.host = case, host
         self.firewall = ReplayFirewall(host)
+        self.firewall.commands.update(copy.deepcopy(CURRENT_FIELD['hosts'][host]['commands']))
         self.raw_journal = b'field-journal-bytes-for-local-fixture'
         self.data = {'snapshot': {'status': 'COMPLETE'}, 'operations': []}
         self.journal = types.SimpleNamespace(data=self.data, read=lambda: self.raw_journal)
-        self.nft = 'table inet firewalld {\n chain filter_OUTPUT { counter packets 1 bytes 76 drop }\n}\n'
+        self.nft = self.firewall.commands['nft-ruleset']
+        self.ipset = self.firewall.commands['ipset-save']
         self.files = {name: {'path': name, 'exists': False} for name in BASE.FILES}
         for name in ('/etc/chrony.conf', '/etc/chrony.d/50-cr-p1-ntp-01-01.conf',
                      '/etc/firewalld/direct.xml'):
@@ -325,6 +333,8 @@ class ObservationFixture:
             result['stdout'] = 'public\n'
         elif argv == ['/usr/sbin/nft', 'list', 'ruleset']:
             result['stdout'] = self.nft
+        elif argv == ['/usr/sbin/ipset', 'save']:
+            result['stdout'] = self.ipset
         elif argv[0] == '/usr/sbin/iptables' and '-L' in argv:
             result['stdout'] = ('Chain FDS_NTP_0101 (1 references)\n'
                                 'num pkts bytes target prot opt in out source destination\n'
@@ -346,7 +356,8 @@ class ObservationFixture:
 
     def verifier(self, action='preflight', expected=None):
         verifier = REMOTE.Verifier(remote_request(action, self.host, expected), BASE,
-                                   self.journal, runner=self.runner, sender=self.sender)
+                                   self.journal, runner=self.runner, sender=self.sender,
+                                   kernel_contract=KERNEL)
         self.case.stack.enter_context(patch.object(verifier.engine, 'read_file',
                                                   side_effect=lambda name: copy.deepcopy(self.files[name])))
         return verifier
@@ -485,7 +496,7 @@ class RemoteFailureReceiptTests(NoLiveActions):
                 patch.object(REMOTE, 'Verifier', return_value=verifier), \
                 patch.object(REMOTE, 'load_base', return_value=BASE), \
                 patch.object(BASE.Engine, 'identity'), contextlib.redirect_stdout(output):
-            code = REMOTE.main(verifier.req, BASE_SOURCE)
+            code = REMOTE.main(verifier.req, BASE_SOURCE, KERNEL_SOURCE)
         result = json.loads(output.getvalue())
         self.assertEqual(code, 2)
         self.assertEqual(result['status'], 'STOP')
@@ -506,7 +517,7 @@ class RemoteFailureReceiptTests(NoLiveActions):
         with patch.object(REMOTE, 'validate_request'), patch.object(REMOTE, 'load_base', return_value=BASE), \
                 patch.object(BASE.Engine, 'identity'), patch.object(REMOTE, 'ReadOnlyJournal', return_value=journal), \
                 patch.object(REMOTE, 'Verifier', return_value=verifier), contextlib.redirect_stdout(output):
-            code = REMOTE.main(req, BASE_SOURCE)
+            code = REMOTE.main(req, BASE_SOURCE, KERNEL_SOURCE)
         result = json.loads(output.getvalue())
         self.assertEqual(code, 2)
         self.assertEqual(result['status'], 'STOP')
@@ -738,8 +749,22 @@ class ResponseBindingTests(NoLiveActions):
         baseline = CONTROLLER.R.BASELINE[host]
         files = {name: dict(path=name, **copy.deepcopy(baseline['files'][name])) if name in baseline['files']
                  else {'path': name, 'exists': False} for name in BASE.FILES}
-        preservation = {'files': files,
-                        'kernel': copy.deepcopy(baseline['kernel']),
+        raw = CURRENT_FIELD['hosts'][host]['commands']
+        commands = [{'argv': argv, 'rc': 0, 'stdout': raw[name], 'stderr': ''}
+                    for argv, name in (
+                        (['/usr/sbin/iptables-save'], 'iptables-save'),
+                        (['/usr/sbin/ip6tables-save'], 'ip6tables-save'),
+                        (['/usr/sbin/nft', 'list', 'ruleset'], 'nft-ruleset'),
+                        (['/usr/sbin/ipset', 'save'], 'ipset-save'))]
+        kernel = {label: REMOTE.digest(normalizer(raw[name]).encode())
+                  for label, name, normalizer in (
+                      ('iptables', 'iptables-save', REMOTE.normalize_iptables),
+                      ('ip6tables', 'ip6tables-save', REMOTE.normalize_iptables),
+                      ('nft', 'nft-ruleset', REMOTE.normalize_nft),
+                      ('ipset', 'ipset-save', KERNEL.normalize_ipset))}
+        preservation = {'files': files, 'kernel': kernel,
+                        'kernel_contract': KERNEL.validate_kernel(host, raw['iptables-save'],
+                            raw['ip6tables-save'], raw['nft-ruleset'], raw['ipset-save']),
                         'journal_sha256': baseline['journal_sha256']}
         controller.preflight_receipts[host] = preservation
 
@@ -748,6 +773,7 @@ class ResponseBindingTests(NoLiveActions):
             request = json.loads((destination.parent / 'REQUEST.json').read_text())
             response = dict(request, status='OK', changed=False,
                             journal_sha256_after=baseline['journal_sha256'],
+                            commands=copy.deepcopy(commands),
                             details={'configuration_unchanged': True, 'journal_unchanged': True,
                                      'preservation_before': copy.deepcopy(preservation),
                                      'preservation_after': copy.deepcopy(preservation),
@@ -807,7 +833,44 @@ class ResponseBindingTests(NoLiveActions):
             for key in ('preservation_before', 'preservation_after'):
                 response['details'][key]['files'].pop('/etc/sysconfig/chronyd')
 
-        for transform in (missing, empty, bad_hash, missing_optional_file):
+        def missing_ipset_hash(response):
+            for key in ('preservation_before', 'preservation_after'):
+                response['details'][key]['kernel'].pop('ipset')
+
+        def missing_contract(response):
+            for key in ('preservation_before', 'preservation_after'):
+                response['details'][key].pop('kernel_contract')
+
+        for transform in (missing, empty, bad_hash, missing_optional_file,
+                          missing_ipset_hash, missing_contract):
+            with self.subTest(variant=transform.__name__), self.assertRaises(CONTROLLER.W.StateUncertain):
+                self.exchange(transform=transform)
+
+    def test_remote_kernel_claim_requires_matching_complete_raw_commands(self):
+        def missing(response):
+            response.pop('commands')
+
+        def short(response):
+            response['commands'].pop()
+
+        def reordered(response):
+            response['commands'].reverse()
+
+        def truncated(response):
+            response['commands'][-1]['stdout_truncated'] = True
+
+        def failed(response):
+            response['commands'][-1]['rc'] = 1
+
+        def forged_claim(response):
+            for key in ('preservation_before', 'preservation_after'):
+                response['details'][key]['kernel_contract']['ipset_contract'] = 'f' * 64
+
+        def changed_raw(response):
+            response['commands'][0]['stdout'] = response['commands'][0]['stdout'].replace(
+                '-A FDS_NTP_0101 -j DROP', '-A FDS_NTP_0101 -j ACCEPT')
+
+        for transform in (missing, short, reordered, truncated, failed, forged_claim, changed_raw):
             with self.subTest(variant=transform.__name__), self.assertRaises(CONTROLLER.W.StateUncertain):
                 self.exchange(transform=transform)
 

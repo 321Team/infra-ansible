@@ -20,7 +20,7 @@ import uuid
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER_SHA256 = '0f8b653565f268b1a5a33e3bcd3afc985a3468a1db9669fccec28b5fa4602646'
-REMOTE_SHA256 = '839f2b0fec93541b7dfc39404b0897efedfab2253831253c2d4bff67451c5fd9'
+REMOTE_SHA256 = 'bafd8587e30e84c67369e63241f21fad92f8b1de147d62bed83076dd3dc246ce'
 
 
 def module(name, path, expected=None):
@@ -38,6 +38,7 @@ def module(name, path, expected=None):
 
 W = module('ntp_post_approved_wrapper', ROOT / 'tools/ntp-onepass.py', WRAPPER_SHA256)
 R = module('ntp_post_remote', ROOT / 'tools/ntp-post-egress-remote.py', REMOTE_SHA256)
+K = module('ntp_post_kernel_contract', ROOT / 'tools/ntp-kernel-contract.py', R.KERNEL_SHA256)
 # The unchanged wrapper's dependency loader must also execute current source bytes.
 W.load_tool = module
 
@@ -107,6 +108,8 @@ class Followup(W.OnePass):
             raise ValueError('Approved PR32 engine dependency changed')
         if W.sha256((self.repo / 'tools/ntp-post-egress-remote.py').read_bytes()) != REMOTE_SHA256:
             raise ValueError('Pinned followup remote dependency changed')
+        if W.sha256((self.repo / 'tools/ntp-kernel-contract.py').read_bytes()) != R.KERNEL_SHA256:
+            raise ValueError('Pinned kernel contract dependency changed')
         self.wrapper_tree = bindings['followup']['tree']
         return bindings
 
@@ -137,6 +140,7 @@ class Followup(W.OnePass):
         self.followup_remote_hash = W.sha256((self.repo / 'tools/ntp-post-egress-remote.py').read_bytes())
         self.summary.update(input_sha256=self.input_hash, reviewed_followup_sha=value['reviewed_followup_sha'],
                             reviewed_source_sha=W.ROLLOUT_SHA, approval_ref=value['approval_ref'],
+                            kernel_contract_source_sha256=R.KERNEL_SHA256,
                             approval_reference_supplied_by_operator=True,
                             window_start=value['window_start'], window_end=value['window_end'])
         W.write_json(self.root / 'SOURCE.json', self.assert_sources())
@@ -265,13 +269,16 @@ class Followup(W.OnePass):
                    'clock_binding': self.clock_binding(host)}
         code = (self.repo / 'tools/ntp-post-egress-remote.py').read_text()
         base = (self.repo / 'tools/ntp-onepass-remote.py').read_text()
-        if W.sha256(code.encode()) != self.followup_remote_hash or W.sha256(base.encode()) != R.BASE_SHA256:
+        kernel = (self.repo / 'tools/ntp-kernel-contract.py').read_text()
+        if (W.sha256(code.encode()) != self.followup_remote_hash or W.sha256(base.encode()) != R.BASE_SHA256 or
+                W.sha256(kernel.encode()) != R.KERNEL_SHA256):
             raise ValueError('Remote source bytes changed')
         operation = self.root / 'remote' / (action + '-' + host + '-' + uuid.uuid4().hex[:10])
         operation.mkdir(mode=0o700)
         payload = ('import json\n_scope = {"__name__": "fds_ntp_post_egress"}\n' +
                    'exec(compile(' + repr(code) + ', "ntp-post-egress-remote.py", "exec"), _scope)\n' +
-                   'raise SystemExit(_scope["main"](json.loads(' + repr(json.dumps(request)) + '), ' + repr(base) + '))\n')
+                   'raise SystemExit(_scope["main"](json.loads(' + repr(json.dumps(request)) + '), ' +
+                   repr(base) + ', ' + repr(kernel) + '))\n')
         (operation / 'stdin.py').write_text(payload)
         W.write_json(operation / 'REQUEST.json', request)
         rawdir = operation / 'ansible-results'
@@ -307,13 +314,22 @@ class Followup(W.OnePass):
             details = value.get('details', {})
             if not isinstance(details, dict):
                 raise W.StateUncertain('Successful followup lacks structured details')
+            commands = value.get('commands')
+            try:
+                if not isinstance(commands, list):
+                    raise ValueError('Successful followup lacks raw kernel command receipts')
+                kernel_receipt = R.kernel_receipt(host, commands[-len(R.KERNEL_COMMANDS):], K)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise W.StateUncertain('Successful followup lacks a reviewed current kernel path: ' + str(exc)) from exc
             preservation = details.get('preservation_after')
             if (details.get('configuration_unchanged') is not True or details.get('journal_unchanged') is not True or
                     details.get('preservation_before') != details.get('preservation_after') or
-                    not isinstance(preservation, dict) or set(preservation) != {'files', 'kernel', 'journal_sha256'} or
+                    not isinstance(preservation, dict) or
+                    set(preservation) != {'files', 'kernel', 'kernel_contract', 'journal_sha256'} or
                     not isinstance(preservation.get('files'), dict) or
                     set(preservation['files']) != set(R.PRESERVED_FILES) or
-                    preservation.get('kernel') != R.BASELINE[host]['kernel'] or
+                    preservation.get('kernel') != kernel_receipt['kernel'] or
+                    preservation.get('kernel_contract') != kernel_receipt['kernel_contract'] or
                     preservation.get('journal_sha256') != R.BASELINE[host]['journal_sha256'] or
                     (expected is not None and preservation != expected) or
                     value.get('journal_sha256_after') != R.BASELINE[host]['journal_sha256']):
