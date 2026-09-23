@@ -1,9 +1,18 @@
 # Actions 정상·고의 결함 인수 기준과 현재 상태
 
-2026-09-17 갱신. 기존 시험 전용 source의 정상·count 결함 실제 Actions 증적은 인수했다.
-그 뒤 artifact export 진단 수정 `a9785da3485ffd61840a82a3e9bd14ceb4edb50b`는 LOCAL 58/58 PASS이며,
-수정 코드를 포함한 새 source의 실제 Actions는 NOT_RUN이다. 일반 Workflow 활성화·독립 승인·병합은 별도다.
-사전 검토: [ACCEPTANCE_DEEP_REVIEW.md](ACCEPTANCE_DEEP_REVIEW.md).
+2026-09-23 갱신. **일반 PR CI 활성화와 Issue #5 최종 AC는 미완료**다.
+
+## 최신 확인과 남은 작업
+
+- 코드 [PR17](https://github.com/321Team/infra-ansible/pull/17)·[PR19](https://github.com/321Team/infra-ansible/pull/19)는 9/18 독립 승인·병합 완료다.
+- 정상 PR20, count 고의결함 PR21, export-fix 정상 [PR22](https://github.com/321Team/infra-ansible/pull/22)의 제한된 격리 Actions·Runtime·정리 증적은 각 source/Run/Attempt에 귀속한다. 수정 source의 시험 전체를 NOT_RUN으로 되돌리지 않는다.
+- [증적 PR13](https://github.com/321Team/fds-project-evidence/pull/13)은 재환의 HEAD `b90c1d39decb6bfc5adeeebd8591133304a7a9c5` APPROVED를 유지하여 9/23 merge `e51b15ed587af165282a43ef57ca5b677495ea7c`로 편입했다.
+- 9/23 GitHub 관리 화면 직접 확인: [Ansible Runners](https://github.com/321Team/infra-ansible/settings/actions/runners) 0개, [Repository Variables](https://github.com/321Team/infra-ansible/settings/variables/actions) 0개. `ANSIBLE_CI_ENABLED`·`ANSIBLE_CI_RUNNER_LABELS`가 없다. 당시 main `65b279c`에는 활성 Workflow가 없으며 이 문서 변경도 Workflow를 추가하지 않는다.
+- 기존 일반 활성화 초안 `claude/bold-einstein-44hhmr`의 `2c617f3`은 Workflow 한 파일 추가이며 템플릿과 byte-for-byte 동일하다. 9/23에 당시 main으로 patch 적용·역적용 가능성을 로컬에서 확인했다. 새로 작성할 필요는 없으나 실제 착수 시 최신 base/HEAD를 대조한다.
+- 남은 순서: **Ansible용 Runner 공급·사용 범위 확정 → Variables/정확한 라벨 확인 → 일반 Workflow 변경 검토와 정상/고의결함 인수 → Lead 최종 AC 판단**. CI Workflow는 Pre-check 예외 대상이 아니다. 증적 저장소 편입은 독립 리뷰를 유지하며, 동일 승인 코드의 Runtime 결과 수용·AC 인수마다 별도 Support 승인을 반복 요구하지 않는다.
+- 과거 임시 Runner 격리 시험 완료와 앞으로의 일반 CI Runner 공급 미확인은 구분한다. PR20/21/22는 TEST ONLY / DO NOT MERGE다. 원 시험을 처음부터 반복하거나 엔진 운영 전환을 완료로 올리지 않는다.
+
+아래 수치·source는 작성 당시 시험 이력이다. 기존 인수 기준과 원본을 보존하며, 이후 완료 사실은 위 최신 확인을 따른다. 사전 검토: [ACCEPTANCE_DEEP_REVIEW.md](ACCEPTANCE_DEEP_REVIEW.md).
 
 ## 인수한 실제 시험과 변경 후 검증
 
@@ -64,19 +73,19 @@ Workflow 대상이 이미 있거나 patch 충돌이 있으면 중단하여 검�
 모든 격리 시험 준비 전에 독립 승인을 일괄 요구하는 것으로 확대하지 않는다.
 일반 자동 실행 활성화·최종 인수·병합의 독립 검토 통제는 유지한다.
 
-1. PR17/19와 증적 PR13의 최신 HEAD·독립 검토 결과를 고정한다. 이번 자체 준비를 승인으로 간주하지 않는다.
+1. PR17/19와 증적 PR13의 기존 승인·병합을 재사용하고, 일반 활성화 후보의 최신 HEAD와 이후 diff를 고정한다. 자체 준비를 새 코드의 독립 승인으로 간주하지 않는다.
 2. 정상 후보용 새 브랜치에서 활성화 patch만 적용한다. diff가 Workflow 추가 한 파일인지 확인하고
    별도 활성화 변경으로 검토한다. main 병합 없이 동일 저장소의 main 대상 PR로 인수를 준비할 수 있다.
 3. 승인된 고정 라벨과 설정을 확인한다. ANSIBLE_CI_RUNNER_LABELS는
    `["self-hosted","Linux","X64","fds-ci","ansible-isolated"]`, enabled는 승인된 시점에 true로 설정한다.
-   현재 저장소 변수의 값은 이번 문서 갱신에서 조회·변경하지 않았다. 비활성/불일치 라벨의 skipped는 정상 인수 PASS가 아니다.
+   9/23 조회에서는 해당 변수가 미등록이었다. 이번 문서 갱신은 설정을 변경하지 않았으며 활성화 시 다시 확인한다. 비활성/불일치 라벨의 skipped는 정상 인수 PASS가 아니다.
 4. 정상 후보의 전체 HEAD와 Workflow blob을 기록하고 1-job ephemeral Runner에서 실제 PR Job을 실행한다.
    serve 완료만으로 Job 성공을 판정하지 말고 아래 API·artifact 증적을 대조한다.
 5. 정상 후보에서 파생한 별도 임시 브랜치에 결함 patch 한 개만 적용하고, 정상 대비 한 줄 diff와 새 전체 HEAD를 기록한다.
    검토된 결함 PR을 실제로 실행한다. 두 실행에 같은 Workflow blob을 사용한다.
 6. 정상/결함 세션 각각 종료·정리·그때의 Runner ID 또는 정확한 이름의 API 부재를 확인한다.
    기존 ID3/ID5/ID6 정리 증적을 새 세션에 재사용하지 않는다. 결함 PR은 병합하지 않고 최종 인수·검토 후 종결을 별도로 판단한다.
-7. 실제 결과를 독립 검토한 뒤 Issue #5 AC와 수동 병합 여부를 판단한다. 자동 병합은 없다.
+7. 일반 Workflow 코드와 증적 저장소 PR의 독립 검토를 확인하고, Lead가 실제 결과를 근거로 Issue #5 AC와 수동 병합 여부를 판단한다. 동일 승인 코드의 결과 수용에 별도 반복 승인을 추가하지 않는다. 자동 병합은 없다.
 
 수동 workflow_dispatch를 쓸 경우 Workflow가 기본 브랜치에 있어야 하는 조건을 별도로 확인한다.
 PR의 기본 merge SHA와 exact checkout source SHA를 섞지 않기 위해 첫 인수는 동일 저장소 PR 경로를 기준으로 한다.
