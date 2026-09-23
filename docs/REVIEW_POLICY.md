@@ -7,10 +7,36 @@
 | 변경 | 검토와 병합 |
 |---|---|
 | 코드·실행 설정·혼합 PR | 작성자 외 적격 검토자 최소 1인의 정확한 HEAD 독립 리뷰 후 Lead가 병합 판단 |
+| 사전 검증(Pre-check) 코드 | 별도 코드 리뷰 없이 담당 Lead가 즉시 병합 가능. 운영 서버 Runtime 적용 전 해당 SHA 독립 리뷰 필수 (아래 Pre-check 절) |
 | 이 저장소의 문서·증적만 변경 | 책임 Lead의 검토·병합 판단. 작성자와 Lead가 같아도 자기 GitHub APPROVE는 요구하지 않음 |
 | fds-project-evidence의 모든 PR | 코드 포함 여부와 무관하게 독립 리뷰 유지. 이 저장소 문서 절차를 적용해 생략하지 않음 |
 
 코드에는 앱·테스트·스크립트·IaC/Ansible·manifest·Workflow·의존성·인증서 profile·실행 시 소비되는 정책/설정이 포함된다. 제목이나 확장자 대신 실제 diff와 사용처로 판단한다. 실행 결과와 당시 사용 소스의 보존 사본은 새 실행 코드 변경과 구분한다. 기록 경로를 새 실행 입력으로 소비하도록 바꾸면 코드 변경이다.
+
+## 사전 검증(Pre-check) 코드 예외 — 2026-09-23
+
+적용 기준: 프로젝트 중간 결과 회고에 따른 2026-09-23 KST 사용자 정책 변경 안내. 상세 기준은 [중앙 리뷰 권한 정책 §3.2](https://github.com/321Team/fds-project-baseline/blob/ea2488b33a870d35c16bd303af568c5fe48c2e44/governance/REVIEW_AUTHORITY_POLICY.md)([PR #93](https://github.com/321Team/fds-project-baseline/pull/93))를 따른다. 중앙 PR 병합 전까지 이 절은 제안 상태다.
+
+| 단계 | 검토와 병합 |
+|---|---|
+| Pre-check 코드 병합 | 사전 검증 단계의 점검·수집·판정용 스크립트·검증기와 그 시험 코드는 별도 코드 리뷰 없이 책임 티켓의 담당 Lead 권한으로 즉시 병합할 수 있다. |
+| 운영(Production) 서버 Runtime 적용 | 운영 서버에서 실행·설치·배포·영구 반영하거나 운영 배포 경로에 편입하는 시점부터 코드 리뷰가 필수다. 읽기 전용 실행도 포함한다. |
+
+- **Pre-check 병합 기록.**
+  - PR은 계속 사용한다. main 직접 push·force push·자동 병합은 금지다.
+  - PR에 `Pre-check` 분류, 책임 티켓, 병합 SHA, 담당 Lead, KST 시각을 남긴다.
+  - 리뷰 상태는 `REVIEW=NOT PERFORMED (Pre-check)`로 표기한다. 이 병합을 리뷰 완료, Runtime PASS, AC 인수로 표시하지 않는다.
+- **운영 적용 전 절차.**
+  - 적용할 SHA를 고정한다.
+  - 직전 독립 리뷰 SHA 이후 전체 diff를 작성자 외 적격 검토자가 리뷰한다. 리뷰 이력이 없으면 적용 대상 코드 전체가 범위다.
+  - Lead는 리뷰 완료 SHA와 적용 SHA의 일치를 실행 기록에 남긴다.
+  - 리뷰 후 수정 PR은 일반 코드 PR 절차를 따른다.
+- **대상 외(기존 독립 리뷰 유지).**
+  - Pre-check 코드와 운영 Runtime 코드·manifest·IaC·배포 설정이 섞인 혼합 PR
+  - 병합·Release 게이트 CI workflow
+  - 시크릿·무결성 등 보안 통제 코드
+  - fds-project-evidence의 모든 PR
+- **유지 통제.** 비밀정보 커밋 금지, 필수 AC·시험·보안 기준, 운영 적용 시 선행조건·중단·복구 기준은 완화하지 않는다.
 
 ## PR와 확인
 
