@@ -28,6 +28,7 @@
 | `module_utils/fds_ntp_hep_kernel.py` | Felix가 만든 ens160 HEP egress 체인의 구조 검사와 DROP 카운터 |
 | `tests/ntp_source/test_gnp_followup.py` | LOCAL/MOCK 시험 |
 | `tests/ntp_source/fixtures/calico_gate2_20260922.json` | Gate 2 수신 증적 HEP/GNP 원문. SHA-256과 출처 포함 |
+| `tests/ntp_source/fixtures/recapture_20260924/` | 2026-09-24 재수집 원문: 현재 HEP/GNP/Felix, 6대 `iptables-save -c`, `PROVENANCE.json` |
 
 양의 경로 검사에는 기존에 리뷰된 `fds_ntp_probe`의 `pathcheck` 게이트를 그대로 쓴다.
 기존 onepass/post-egress 도구, 적용 엔진, journal은 변경하지 않는다.
@@ -98,16 +99,34 @@ ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-i
 - 정책이나 커널이 바뀌었으면 원인을 확인한 뒤 새 `run_id`로 다시 실행한다.
   이미 쓴 run 디렉터리는 재사용하지 않는다.
 
+## 2026-09-24 재수집 오프라인 판정
+
+대상: `fds-project-evidence` `evidence/CR-P1-NTP-01-01-recapture-20260924` @ `2c840a0`.
+확인한 범위: 원본 tar.gz 7개와 내부 SHA256SUMS를 대조했다. 판정은 LOCAL 오프라인 평가이며, 패킷 시험은 하지 않았다.
+
+| 항목 | 결과 |
+|---|---|
+| 정책 계약 | 6대 PASS. 클라이언트 5대는 UDP/123 egress를 CP1 `/32`만 Allow한 뒤 Deny. CP1은 Cloudflare 2개만 Allow, ingress는 클라이언트 5개만 Allow |
+| 추가 GNP | `nodeport-30080-allow`(TCP preDNAT). UDP/123과 무관하다 |
+| Felix failsafe | 노드별 설정에 UDP/123 없음(TCP 22/6443/2379/2380만). default에는 failsafe 설정이 없다 |
+| 커널 구조 | 6대 PASS (`cali-th-ens160`). raw 테이블에 untracked 규칙 0개 |
+| firewalld | 6대 모두 `inactive` + `disabled`. `FDS_NTP_0101` 체인 없음(`iptables -L` rc 1) |
+| chrony 관측 1회 | 클라이언트 5대는 `10.1.93.102` 선택, CP1은 `162.159.200.123` 선택. offset은 모두 1ms 미만 |
+
 ## 리뷰 포인트와 한계
 
 - **kubeconfig**: 기본값은 control01의 `/etc/kubernetes/admin.conf`(cluster-admin)이며 `get`만 호출한다.
   권장안은 3개 CRD에 get/list 권한만 가진 전용 read-only kubeconfig를 만들어
   `cr_ntp_followup_kubeconfig`로 지정하는 것이다.
-- **커널 fixture는 합성본이다.** HEP 적용 이후의 `iptables-save -c` 원문은 아직 수집되지 않았다.
-  Felix 체인 이름·dispatch 형태(`cali-th-*`, `-g`, `ens+`)는 새 읽기 전용 수집본으로 확인하고,
-  확인 후 합성 fixture를 교체해야 한다.
-  9/21 실제 원문(HEP 적용 전)으로는 `OUTPUT → cali-OUTPUT → cali-to-host-endpoint`까지 확인했다.
-  cali-th 체인이 없는 상태에서는 STOP하는 것도 확인했다.
+- **커널 fixture는 실측 원문이다.** 2026-09-24 읽기 전용 재수집본을 사용한다.
+  - 수집: 11:27:40Z, 수집자 GWONUK. 원본은 `fds-project-evidence`
+    `evidence/CR-P1-NTP-01-01-recapture-20260924` @ `2c840a0`에 있으며, 편입 PR은 아직 리뷰 전이다.
+  - fixture 위치: `tests/ntp_source/fixtures/recapture_20260924/`. 파일마다 SHA-256을 `PROVENANCE.json`에 기록했다.
+  - 실측으로 확인한 Felix 경로(6대 모두):
+    `OUTPUT → cali-OUTPUT → cali-to-host-endpoint → (-o ens160 -g) cali-th-ens160 → cali-po-*`
+  - end-of-tier DROP은 conntrack 상태와 무관한 DROP만 인정한다. INVALID용 DROP은 제외한다.
+  - mangle 테이블의 `cali-to-host-endpoint`는 DNAT 연결용이다.
+    host에서 나가는 chronyd UDP는 DNAT가 아니므로 filter 경로만 검사한다.
 - **카운터 귀속의 한계**: 같은 시간대의 다른 차단 트래픽이 idle 구간보다 probe 구간에 몰리면 오귀속될 수 있다.
   응답 부재와 계약 PASS를 함께 요구하는 것으로 보완하지만, 단독 증명은 아니다.
 - **적용 범위**

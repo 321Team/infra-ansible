@@ -1,0 +1,153 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T17:01:52Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-control01",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "control-plane"
+                },
+                "name": "fds-k8s-k8s-control01",
+                "resourceVersion": "1000282",
+                "uid": "a947480d-4b53-4994-82be-285e12b1834d"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.102"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-control01"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T17:29:06Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-control02",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "control-plane"
+                },
+                "name": "fds-k8s-k8s-control02",
+                "resourceVersion": "1004549",
+                "uid": "6120fda0-2f52-4e06-b33e-31613b2eb8c5"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.103"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-control02"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T17:58:58Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-control03",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "control-plane"
+                },
+                "name": "fds-k8s-k8s-control03",
+                "resourceVersion": "1009138",
+                "uid": "6bd35726-0d43-4a57-b6c7-18bd56910600"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.104"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-control03"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T10:08:45Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-worker01",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "worker"
+                },
+                "name": "fds-k8s-k8s-worker01",
+                "resourceVersion": "939295",
+                "uid": "aa7effb8-d409-4da5-ab84-6a066ac5036b"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.105"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-worker01"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T16:19:02Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-worker02",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "worker"
+                },
+                "name": "fds-k8s-k8s-worker02",
+                "resourceVersion": "993761",
+                "uid": "52f1ff1b-c1dd-4ca7-9ef6-759a4cab52bf"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.107"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-worker02"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "HostEndpoint",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T16:41:02Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/bootstrap": "p1-k8s-01-v4",
+                    "fds.example/node": "k8s-worker03",
+                    "fds.example/package": "p1-k8s-01-v4",
+                    "fds.example/role": "worker"
+                },
+                "name": "fds-k8s-k8s-worker03",
+                "resourceVersion": "997111",
+                "uid": "76f476c5-b695-4da7-a921-2db875635dc8"
+            },
+            "spec": {
+                "expectedIPs": [
+                    "10.1.93.108"
+                ],
+                "interfaceName": "ens160",
+                "node": "k8s-worker03"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

@@ -8,7 +8,9 @@ negative packet tests can attribute a drop to Calico policy:
   filter OUTPUT (first rule) -> cali-OUTPUT -> cali-to-host-endpoint
       -> [-o ens160 dispatch] -> exactly one cali-th-* chain -> DROP present
 
-Input is `iptables-save -c` (IPv4).  Unsupported syntax stops.
+Input is `iptables-save -c` (IPv4).  Unsupported syntax stops.  Only the
+filter path (`! --ctstate DNAT`) is checked: host-originated chronyd UDP is not
+DNAT.  The mangle POSTROUTING copy for DNAT connections is out of scope.
 """
 import hashlib
 import json
@@ -125,8 +127,10 @@ def host_endpoint_chain(tables):
     if len(found) != 1:
         raise KernelStop("Expected exactly one cali-th-* chain for %s, found %s" % (INTERFACE, sorted(found)))
     chain = found.pop()
-    if not any(_target(r["row"]) == "DROP" for r in table["rules"][chain]):
-        raise KernelStop(chain + " has no DROP (end-of-tier) rule; HostEndpoint not enforced")
+    # The conntrack INVALID drop does not enforce policy; require a drop that
+    # is not conditioned on connection state (Felix end-of-tier/no-profile).
+    if not any(_target(r["row"]) == "DROP" and "--ctstate" not in r["row"] for r in table["rules"][chain]):
+        raise KernelStop(chain + " has no end-of-tier DROP rule; HostEndpoint not enforced")
     return chain
 
 

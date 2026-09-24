@@ -1,0 +1,545 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "annotations": {
+                    "projectcalico.org/metadata": "{\"creationTimestamp\":\"2026-09-09T12:36:49Z\"}"
+                },
+                "creationTimestamp": "2026-09-09T12:36:49Z",
+                "generation": 1,
+                "name": "default",
+                "resourceVersion": "647",
+                "uid": "c4a70cfb-198d-47df-a666-1abc28c8476b"
+            },
+            "spec": {
+                "bpfConnectTimeLoadBalancing": "TCP",
+                "bpfHostNetworkedNATWithoutCTLB": "Enabled",
+                "bpfLogLevel": "",
+                "floatingIPs": "Disabled",
+                "logSeverityScreen": "Info",
+                "nftablesMode": "Auto",
+                "reportingInterval": "0s"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T16:59:42Z",
+                "generation": 1,
+                "name": "node.k8s-control01",
+                "resourceVersion": "999959",
+                "uid": "7cdca883-da30-4710-b700-eb2f41f4a534"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.105/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.107/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.108/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T17:27:39Z",
+                "generation": 1,
+                "name": "node.k8s-control02",
+                "resourceVersion": "1004330",
+                "uid": "4159bf99-a79f-4343-9cd9-98bb02b42b74"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.105/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.107/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.108/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T17:56:52Z",
+                "generation": 1,
+                "name": "node.k8s-control03",
+                "resourceVersion": "1008826",
+                "uid": "26ff9da4-3ac6-4d36-91c1-a0376f8a53b9"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.105/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.107/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.108/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2379,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 2380,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T10:06:03Z",
+                "generation": 1,
+                "name": "node.k8s-worker01",
+                "resourceVersion": "938898",
+                "uid": "42e72ba0-5a5e-421a-b25a-97c152800292"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T16:14:51Z",
+                "generation": 1,
+                "name": "node.k8s-worker02",
+                "resourceVersion": "993132",
+                "uid": "189f3683-32a2-4658-8d8d-a72c6403596b"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "FelixConfiguration",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T16:39:38Z",
+                "generation": 1,
+                "name": "node.k8s-worker03",
+                "resourceVersion": "996898",
+                "uid": "0bbd624f-4086-40f5-a799-6d49755f9248"
+            },
+            "spec": {
+                "failsafeInboundHostPorts": [
+                    {
+                        "net": "10.250.10.10/32",
+                        "port": 22,
+                        "protocol": "tcp"
+                    }
+                ],
+                "failsafeOutboundHostPorts": [
+                    {
+                        "net": "10.1.93.109/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.102/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.103/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    },
+                    {
+                        "net": "10.1.93.104/32",
+                        "port": 6443,
+                        "protocol": "tcp"
+                    }
+                ],
+                "nftablesMode": "Auto"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

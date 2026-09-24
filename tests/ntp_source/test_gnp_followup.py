@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Plan A follow-up: Calico contract, HEP kernel wiring and gate logic (LOCAL/MOCK).
 
-The contract fixture is the received Gate 2 snapshot (see its provenance).
-The kernel fixture below is SYNTHETIC in Felix's documented shape: no
-post-HEP iptables-save has been captured yet.  Replace it with the new
-read-only capture before treating kernel parsing as field-validated.
+Fixtures are received read-only evidence (see each PROVENANCE):
+- calico_gate2_20260922.json: Gate 2 HEP/GNP snapshot (2026-09-22).
+- recapture_20260924/: current HEP/GNP/FelixConfiguration and all six nodes'
+  `iptables-save -c`, collected 2026-09-24T11:27Z (collector GWONUK).
 """
 import copy
 import importlib.util
@@ -35,6 +35,7 @@ G = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(G)
 
 FIXTURE = json.loads((ROOT / "tests/ntp_source/fixtures/calico_gate2_20260922.json").read_text())
+RECAPTURE = ROOT / "tests/ntp_source/fixtures/recapture_20260924"
 UPSTREAMS = ["162.159.200.1", "162.159.200.123"]  # Fixture inputs, never contacted.
 FELIX = {"items": [{"kind": "FelixConfiguration", "metadata": {"name": "default"}, "spec": {}}]}
 # nodeport-30080-allow as recorded in infra-kubernetes GATE2_RUNTIME_EXECUTION_20260922.md.
@@ -154,78 +155,88 @@ class ContractTests(unittest.TestCase):
         self.assertNotEqual(base, G.canonical_digest({"h": heps, "g": gnps}))
 
 
-# SYNTHETIC Felix-shaped wiring (see module docstring).
-KERNEL = """# synthetic
-*raw
-:PREROUTING ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:cali-OUTPUT - [0:0]
-:cali-to-host-endpoint - [0:0]
-[9:9] -A OUTPUT -m comment --comment "cali:tVnHkvAo15HuiPy0" -j cali-OUTPUT
-[9:9] -A cali-OUTPUT -m comment --comment "cali:ZbkN6P8OdRcBRPpU" -j cali-to-host-endpoint
-COMMIT
-*filter
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:cali-OUTPUT - [0:0]
-:cali-to-host-endpoint - [0:0]
-:cali-th-ens160 - [0:0]
-:cali-po-default.fds-k8s-host-k8s-worker01 - [0:0]
-[50:5000] -A OUTPUT -m comment --comment "cali:tVnHkvAo15HuiPy0" -j cali-OUTPUT
-[0:0] -A cali-OUTPUT -m comment --comment "cali:Mq1_rAdXXH3YkrzW" -m mark --mark 0x10000/0x10000 -j ACCEPT
-[3:300] -A cali-OUTPUT -o vxlan.calico -m comment --comment "cali:x" -j RETURN
-[40:4000] -A cali-OUTPUT -m comment --comment "cali:IpTGXsDHURPUaLjJ" -m conntrack ! --ctstate DNAT -j cali-to-host-endpoint
-[40:4000] -A cali-to-host-endpoint -o ens160 -m comment --comment "cali:y" -g cali-th-ens160
-[30:3000] -A cali-th-ens160 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-[10:1000] -A cali-th-ens160 -j MARK --set-xmark 0x0/0x20000
-[10:1000] -A cali-th-ens160 -j cali-po-default.fds-k8s-host-k8s-worker01
-[8:800] -A cali-th-ens160 -m mark --mark 0x10000/0x10000 -j RETURN
-[1:100] -A cali-th-ens160 -m comment --comment "End of tier default. Drop if no policies passed packet" -m mark --mark 0x0/0x20000 -j DROP
-[8:800] -A cali-po-default.fds-k8s-host-k8s-worker01 -p udp -d 10.1.93.102/32 -m multiport --dports 123 -j MARK --set-xmark 0x10000/0x10000
-[8:800] -A cali-po-default.fds-k8s-host-k8s-worker01 -m mark --mark 0x10000/0x10000 -j RETURN
-[2:200] -A cali-po-default.fds-k8s-host-k8s-worker01 -j DROP
-COMMIT
-"""
+def recaptured(name):
+    return (RECAPTURE / name).read_text()
 
 
-def kernel(**drops):
-    text = KERNEL
-    for old, new in drops.items():
-        text = text.replace(old, new)
-    return text
+KERNEL = recaptured("k8s-worker01.iptables-save-c")
+DROP_ROW = ('[4722:283516] -A cali-po-_IZ_dpYgvbSNCZTvi1r- -m comment --comment "cali:Bd85RR6ZEmhDMjPQ" '
+            '-m mark --mark 0x40000/0x40000 -j DROP')
+
+
+def in_filter(text, old, new):
+    """Mutate exactly one occurrence inside the filter table only."""
+    head, sep, tail = text.partition("*filter\n")
+    body, commit, rest = tail.partition("COMMIT\n")
+    assert body.count(old) == 1, old
+    return head + sep + body.replace(old, new) + commit + rest
+
+
+class RecaptureTests(unittest.TestCase):
+    def test_provenance_hashes(self):
+        import hashlib
+        provenance = json.loads(recaptured("PROVENANCE.json"))
+        self.assertEqual(provenance["collector"], "GWONUK")
+        for name, entry in provenance["files"].items():
+            with self.subTest(name):
+                self.assertEqual(hashlib.sha256((RECAPTURE / name).read_bytes()).hexdigest(), entry["sha256"])
+
+    def test_current_calico_objects_pass(self):
+        docs = [json.loads(recaptured("calico-%s.json" % k)) for k in ("hep", "gnp", "felix")]
+        report = run(*docs)
+        self.assertEqual(report["k8s-worker03"]["egress"]["approved_verdicts"], {"10.1.93.102": "Allow"})
+        self.assertEqual(sorted(report["k8s-control01"]["egress"]["approved_verdicts"]), UPSTREAMS)
+        self.assertTrue(all(isinstance(v, list) for k, v in report["k8s-worker01"]["felix"].items()
+                            if k.startswith("node.")))
+
+    def test_all_six_nodes_are_wired(self):
+        for host in G.HOSTS:
+            with self.subTest(host):
+                value = K.structure(recaptured(host + ".iptables-save-c"))
+                self.assertEqual(value["host_endpoint_chain"], "cali-th-ens160")
+                self.assertFalse(value["legacy_ntp_chain_present"])
+                self.assertEqual(value["raw_host_endpoint_rules"], 0)
 
 
 class KernelTests(unittest.TestCase):
     def test_structure_and_drop_counters(self):
         value = K.structure(KERNEL)
-        self.assertEqual(value["host_endpoint_chain"], "cali-th-ens160")
-        self.assertEqual(value["drop_packets"], 3)
-        self.assertFalse(value["legacy_ntp_chain_present"])
+        self.assertEqual(value["drop_packets"], 4722)
         # Counters change, structure digest does not.
         self.assertEqual(value["structure_sha256"],
-                         K.structure(KERNEL.replace("[2:200] -A cali-po", "[7:700] -A cali-po"))["structure_sha256"])
+                         K.structure(in_filter(KERNEL, DROP_ROW, DROP_ROW.replace("[4722:283516]", "[9999:1]")))["structure_sha256"])
 
     def test_broken_wiring_stops(self):
+        first = '[719724:273111695] -A OUTPUT -m comment --comment "cali:tVnHkvAo15HuiPy0" -j cali-OUTPUT'
+        dispatch = '-o ens160 -m comment --comment "cali:O20OUT3PIb97uOVu" -g cali-th-ens160'
         cases = {
-            "output not first": ("[50:5000] -A OUTPUT -m comment", "[1:1] -A OUTPUT -j ACCEPT\n[50:5000] -A OUTPUT -m comment"),
+            "output not first": (first, "[1:1] -A OUTPUT -j ACCEPT\n" + first),
             "no dispatch": ("-m conntrack ! --ctstate DNAT -j cali-to-host-endpoint", "-j RETURN"),
-            "other interface": ("-o ens160 -m comment --comment \"cali:y\"", "-o ens192 -m comment --comment \"cali:y\""),
-            "no end-of-tier drop": ("-m mark --mark 0x0/0x20000 -j DROP", "-m mark --mark 0x0/0x20000 -j RETURN"),
-            "untracked raw rule": ("[9:9] -A cali-OUTPUT -m comment --comment \"cali:ZbkN6P8OdRcBRPpU\" -j cali-to-host-endpoint",
-                                   "[9:9] -A cali-OUTPUT -m comment --comment \"cali:ZbkN6P8OdRcBRPpU\" -j cali-to-host-endpoint\n"
-                                   "[0:0] -A cali-to-host-endpoint -o ens160 -j ACCEPT"),
-            "no counters": ("[50:5000] -A OUTPUT", "-A OUTPUT"),
+            "other interface": (dispatch, dispatch.replace("-o ens160", "-o ens192")),
+            "no counters": (first, first.split("] ", 1)[1]),
         }
         for name, (old, new) in cases.items():
             with self.subTest(name):
-                self.assertIn(old, KERNEL)
                 with self.assertRaises(K.KernelStop):
-                    K.structure(KERNEL.replace(old, new))
+                    K.structure(in_filter(KERNEL, old, new))
+        with self.subTest("only the INVALID drop left"):
+            text = KERNEL
+            for rule_id, tail in (("cali:E2s1mQUMqL4KnPZX", ' -m mark --mark 0x0/0x20000 -j DROP'),
+                                  ("cali:M8QsBNkL8GhYrahl", ' -j DROP')):
+                row = next(line for line in KERNEL.splitlines() if rule_id in line and "cali-th-ens160" in line)
+                self.assertTrue(row.endswith(tail))
+                text = in_filter(text, row, row[:-len(" DROP")] + " RETURN")
+            with self.assertRaises(K.KernelStop):
+                K.structure(text)
+        with self.subTest("untracked raw rule"):
+            raw = '-A cali-OUTPUT -m comment --comment "cali:ZbkN6P8OdRcBRPpU" -j cali-to-host-endpoint\n'
+            self.assertEqual(KERNEL.count(raw), 1)
+            with self.assertRaises(K.KernelStop):
+                K.structure(KERNEL.replace(raw, raw + "[0:0] -A cali-to-host-endpoint -o ens160 -j ACCEPT\n"))
 
     def test_prefix_dispatch_is_followed(self):
-        text = KERNEL.replace("-o ens160 -m comment --comment \"cali:y\" -g cali-th-ens160",
-                              "-o ens+ -m comment --comment \"cali:y\" -g cali-th-ens160")
+        text = in_filter(KERNEL, '-o ens160 -m comment --comment "cali:O20OUT3PIb97uOVu"',
+                         '-o ens+ -m comment --comment "cali:O20OUT3PIb97uOVu"')
         self.assertEqual(K.structure(text)["host_endpoint_chain"], "cali-th-ens160")
 
 
@@ -248,7 +259,7 @@ class Runner:
                  sources="^* 10.1.93.102  3  6  377  10  +1us[+1us] +/- 1ms\n", documents=None):
         self.host, self.idle, self.probe, self.answered = host, idle, probe, answered
         self.firewalld, self.sources, self.documents = firewalld, sources, documents or {}
-        self.drops, self.saves, self.calls = 3, 0, []
+        self.drops, self.saves, self.calls = 4722, 0, []
 
     def __call__(self, argv, timeout=20):
         self.calls.append(argv)
@@ -257,7 +268,7 @@ class Runner:
         if argv[:2] == ["systemctl", "is-active"]:
             return result(argv, self.firewalld + "\n", 0 if self.firewalld == "active" else 3)
         if argv[0] == "/usr/sbin/iptables-save":
-            return result(argv, KERNEL.replace("[2:200] -A cali-po", "[%d:0] -A cali-po" % (self.drops - 1)))
+            return result(argv, in_filter(KERNEL, DROP_ROW, DROP_ROW.replace("[4722:283516]", "[%d:0]" % self.drops)))
         if argv[0].endswith("chronyd"):
             self.drops += self.probe
             text = "System clock wrong by 0.000100 seconds (ignored)\n" if self.answered else "No suitable source\n"

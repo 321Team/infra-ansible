@@ -1,0 +1,1388 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 3,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-control01",
+                "resourceVersion": "1006855",
+                "uid": "b0f3db6f-d10d-4e66-a496-2026fa4d6b9a"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "162.159.200.1/32",
+                                "162.159.200.123/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.109/32",
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.103/32",
+                                "10.1.93.104/32",
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.103/32",
+                                "10.1.93.104/32",
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-control01\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-control02",
+                "resourceVersion": "937122",
+                "uid": "bffd71d5-90a2-477f-8868-bc5df5d07ff4"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.109/32",
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-control02\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-control03",
+                "resourceVersion": "937123",
+                "uid": "6914fbee-2203-40b9-8902-80fa2520db4c"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.109/32",
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                2379,
+                                2380
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-control03\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-worker01",
+                "resourceVersion": "937118",
+                "uid": "5b30e937-bf16-41c1-8ad2-2d905c55b6fb"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-worker01\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-worker02",
+                "resourceVersion": "937119",
+                "uid": "c744ef50-b58b-4645-af1d-7ec9e510d9d1"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-worker02\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "creationTimestamp": "2026-09-21T09:55:30Z",
+                "generation": 1,
+                "labels": {
+                    "fds.example/package": "p1-k8s-01-v4"
+                },
+                "name": "fds-k8s-host-k8s-worker03",
+                "resourceVersion": "937120",
+                "uid": "597b51e8-13d5-4c29-8599-9e00c44c1e34"
+            },
+            "spec": {
+                "applyOnForward": false,
+                "egress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.109/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.52/32",
+                                "10.1.93.53/32"
+                            ],
+                            "ports": [
+                                53
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32"
+                            ],
+                            "ports": [
+                                123
+                            ]
+                        },
+                        "protocol": "UDP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ],
+                            "ports": [
+                                6443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "nets": [
+                                "10.1.93.54/32"
+                            ],
+                            "ports": [
+                                443
+                            ]
+                        },
+                        "protocol": "TCP"
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                22
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.250.10.10/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                10250
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                4789
+                            ]
+                        },
+                        "protocol": "UDP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.105/32",
+                                "10.1.93.107/32",
+                                "10.1.93.108/32",
+                                "10.1.93.102/32",
+                                "10.1.93.103/32",
+                                "10.1.93.104/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny"
+                    }
+                ],
+                "order": 100,
+                "selector": "fds.example/bootstrap == \"p1-k8s-01-v4\" \u0026\u0026 fds.example/node == \"k8s-worker03\"",
+                "tier": "default",
+                "types": [
+                    "Ingress",
+                    "Egress"
+                ]
+            }
+        },
+        {
+            "apiVersion": "crd.projectcalico.org/v1",
+            "kind": "GlobalNetworkPolicy",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"crd.projectcalico.org/v1\",\"kind\":\"GlobalNetworkPolicy\",\"metadata\":{\"annotations\":{},\"name\":\"nodeport-30080-allow\"},\"spec\":{\"applyOnForward\":true,\"ingress\":[{\"action\":\"Allow\",\"destination\":{\"ports\":[30080]},\"protocol\":\"TCP\",\"source\":{\"nets\":[\"10.1.93.50/32\"]}},{\"action\":\"Deny\",\"destination\":{\"ports\":[30080]},\"protocol\":\"TCP\"}],\"order\":50,\"preDNAT\":true,\"selector\":\"fds.example/role == 'worker'\",\"types\":[\"Ingress\"]}}\n"
+                },
+                "creationTimestamp": "2026-09-22T02:11:55Z",
+                "generation": 1,
+                "name": "nodeport-30080-allow",
+                "resourceVersion": "1083332",
+                "uid": "f9de0f2e-aa29-4545-8d46-ea2e31c4a3f0"
+            },
+            "spec": {
+                "applyOnForward": true,
+                "ingress": [
+                    {
+                        "action": "Allow",
+                        "destination": {
+                            "ports": [
+                                30080
+                            ]
+                        },
+                        "protocol": "TCP",
+                        "source": {
+                            "nets": [
+                                "10.1.93.50/32"
+                            ]
+                        }
+                    },
+                    {
+                        "action": "Deny",
+                        "destination": {
+                            "ports": [
+                                30080
+                            ]
+                        },
+                        "protocol": "TCP"
+                    }
+                ],
+                "order": 50,
+                "preDNAT": true,
+                "selector": "fds.example/role == 'worker'",
+                "tier": "default",
+                "types": [
+                    "Ingress"
+                ]
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

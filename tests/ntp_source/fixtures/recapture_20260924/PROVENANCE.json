@@ -1,0 +1,70 @@
+{
+ "branch": "evidence/CR-P1-NTP-01-01-recapture-20260924",
+ "collected_utc": {
+  "calico": "2026-09-24T11:28:31Z",
+  "nodes": "2026-09-24T11:27:40Z"
+ },
+ "collector": "GWONUK",
+ "commit": "2c840a0bf97d6b3ba3403eed9a0c5db274259355",
+ "copy": "byte-identical member copies; each sha256 matches the member's SHA256SUMS line",
+ "files": {
+  "calico-felix.json": {
+   "archive": "raw/ntp-recapture-calico-20260924T112831Z.tar.gz",
+   "archive_sha256": "fdf96e873f830cb2cb594b9dbc6e4df5d0f3e447a65a76c0fc30ca00563989a7",
+   "member": "ntp-recapture-calico-20260924T112831Z/felix-json.stdout",
+   "sha256": "e16b485e33115bd93dfb5e6a3fd719a1326f8b6d1700f7cb5504e0fb17a58f7d"
+  },
+  "calico-gnp.json": {
+   "archive": "raw/ntp-recapture-calico-20260924T112831Z.tar.gz",
+   "archive_sha256": "fdf96e873f830cb2cb594b9dbc6e4df5d0f3e447a65a76c0fc30ca00563989a7",
+   "member": "ntp-recapture-calico-20260924T112831Z/gnp-json.stdout",
+   "sha256": "7bc10a301aff08df514522ba0e9ee75a1f45b56ddab57c4f2f67e6583d67a882"
+  },
+  "calico-hep.json": {
+   "archive": "raw/ntp-recapture-calico-20260924T112831Z.tar.gz",
+   "archive_sha256": "fdf96e873f830cb2cb594b9dbc6e4df5d0f3e447a65a76c0fc30ca00563989a7",
+   "member": "ntp-recapture-calico-20260924T112831Z/hep-json.stdout",
+   "sha256": "c3810ee3ea513d1033e4b86041dd5f84037e5d1cd642c2211e1416b65c6c153f"
+  },
+  "k8s-control01.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-control01-20260924T112740Z.tar.gz",
+   "archive_sha256": "5bd813f32004e6b31456c85b75715aafc63f740808bfbeb50d7bacffe0853b5e",
+   "member": "ntp-recapture-k8s-control01-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "227b562334bb0f88566916c227d17419c04338b0275aea0788d58d2f59297371"
+  },
+  "k8s-control02.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-control02-20260924T112740Z.tar.gz",
+   "archive_sha256": "8b1dd24e3e87517934fb6e9bb67a9a5482b28ebd99cba6e239e0f61cf19ab0a7",
+   "member": "ntp-recapture-k8s-control02-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "dd323763000832f5bba615ed992db03bc0088e07d6174294e01ba6ae2e2d79df"
+  },
+  "k8s-control03.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-control03-20260924T112740Z.tar.gz",
+   "archive_sha256": "d13f7936dc9ea9b1eb67b188a0b83e516252aec33bff2cf3a201bc04ac319075",
+   "member": "ntp-recapture-k8s-control03-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "21cee6e048a63fedce6c2c5c8a356c56f965cc780b063b0259364d72bba96031"
+  },
+  "k8s-worker01.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-worker01-20260924T112740Z.tar.gz",
+   "archive_sha256": "264b6c579eefe471fd7cf3f6d2a612d38b953ab465653d2b0e93c84206cbb722",
+   "member": "ntp-recapture-k8s-worker01-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "75cfd06a7de801d438b17a1f25f9ab77ee9fe9a753925449e751df378a6359be"
+  },
+  "k8s-worker02.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-worker02-20260924T112740Z.tar.gz",
+   "archive_sha256": "456d955e87334dd8512c0f94787ba1f4b7ef3814b9b1a643113127dc3424f480",
+   "member": "ntp-recapture-k8s-worker02-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "7d12eca7c7a5145055832d06d389454e046c41ec5e89d964c4e9051b12e54435"
+  },
+  "k8s-worker03.iptables-save-c": {
+   "archive": "raw/ntp-recapture-k8s-worker03-20260924T112740Z.tar.gz",
+   "archive_sha256": "f54a8edb4cbf93451634127a53e7df91be8bba30cbeca6a7af215578a09cd930",
+   "member": "ntp-recapture-k8s-worker03-20260924T112740Z/iptables-save-c.stdout",
+   "sha256": "8ca0dd043fb51050a4a680e44ee0077e10e607f88beaac4e4a570cfb9a64b777"
+  }
+ },
+ "path": "evidence/CR-P1-NTP-01-01/recapture-20260924",
+ "repository": "321Team/fds-project-evidence",
+ "schema_version": 1,
+ "status": "Read-only recapture (2nd run; 1st run 09:29Z log overwritten). Intake PR not yet reviewed/merged."
+}
