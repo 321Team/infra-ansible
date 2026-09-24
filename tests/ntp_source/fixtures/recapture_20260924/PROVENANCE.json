@@ -63,7 +63,19 @@
    "sha256": "8ca0dd043fb51050a4a680e44ee0077e10e607f88beaac4e4a570cfb9a64b777"
   }
  },
- "path": "evidence/CR-P1-NTP-01-01/recapture-20260924",
+ "path": "evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924",
+ "path_history": [
+  {
+   "commit": "2c840a0bf97d6b3ba3403eed9a0c5db274259355",
+   "note": "as received",
+   "path": "evidence/CR-P1-NTP-01-01/recapture-20260924"
+  },
+  {
+   "commit": "f240666be18911b5c7f23cc091c50c248bf20123",
+   "note": "moved under parent ticket; all 16 blobs identical",
+   "path": "evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924"
+  }
+ ],
  "repository": "321Team/fds-project-evidence",
  "schema_version": 1,
  "status": "Read-only recapture (2nd run; 1st run 09:29Z log overwritten). Intake PR 321Team/fds-project-evidence#35 (draft, not yet reviewed/merged)."

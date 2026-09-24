@@ -101,7 +101,7 @@ ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-i
 
 ## 2026-09-24 재수집 오프라인 판정
 
-대상: `fds-project-evidence` `evidence/CR-P1-NTP-01-01-recapture-20260924` @ `2c840a0`.
+대상: `fds-project-evidence` `evidence/CR-P1-NTP-01-01-recapture-20260924` @ `2c840a0` (현재 경로 `evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924/`, 바이트 동일).
 확인한 범위: 원본 tar.gz 7개와 내부 SHA256SUMS를 대조했다. 판정은 LOCAL 오프라인 평가이며, 패킷 시험은 하지 않았다.
 
 | 항목 | 결과 |
@@ -120,7 +120,7 @@ ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-i
   `cr_ntp_followup_kubeconfig`로 지정하는 것이다.
 - **커널 fixture는 실측 원문이다.** 2026-09-24 읽기 전용 재수집본을 사용한다.
   - 수집: 11:27:40Z, 수집자 GWONUK. 원본은 `fds-project-evidence`
-    `evidence/CR-P1-NTP-01-01-recapture-20260924` @ `2c840a0`에 있다. 편입은 [fds-project-evidence#35](https://github.com/321Team/fds-project-evidence/pull/35)(Draft, 리뷰 전)에서 진행한다.
+    `evidence/CR-P1-NTP-01-01-recapture-20260924`의 수신 커밋 `2c840a0`에 있다. 이후 `f240666`에서 경로가 `evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924/`로 옮겨졌으며, 바이트는 동일하다. 편입은 [fds-project-evidence#35](https://github.com/321Team/fds-project-evidence/pull/35)(리뷰 대기)에서 진행한다.
   - fixture 위치: `tests/ntp_source/fixtures/recapture_20260924/`. 파일마다 SHA-256을 `PROVENANCE.json`에 기록했다.
   - 실측으로 확인한 Felix 경로(6대 모두):
     `OUTPUT → cali-OUTPUT → cali-to-host-endpoint → (-o ens160 -g) cali-th-ens160 → cali-po-*`
