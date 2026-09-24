@@ -1,6 +1,6 @@
 # Actions 정상·고의 결함 인수 기준과 현재 상태
 
-2026-09-23 갱신. **일반 PR CI 활성화와 Issue #5 최종 AC는 미완료**다.
+2026-09-24 갱신. **일반 PR CI 활성화와 Issue #5 최종 AC는 미완료**다.
 
 ## 최신 확인과 남은 작업
 
@@ -11,6 +11,13 @@
 - 기존 일반 활성화 초안 `claude/bold-einstein-44hhmr`의 `2c617f3`은 Workflow 한 파일 추가이며 템플릿과 byte-for-byte 동일하다. 9/23에 당시 main으로 patch 적용·역적용 가능성을 로컬에서 확인했다. 새로 작성할 필요는 없으나 실제 착수 시 최신 base/HEAD를 대조한다.
 - 남은 순서: **Ansible용 Runner 공급·사용 범위 확정 → Variables/정확한 라벨 확인 → 일반 Workflow 변경 검토와 정상/고의결함 인수 → Lead 최종 AC 판단**. CI Workflow는 Pre-check 예외 대상이 아니다. 증적 저장소 편입은 독립 리뷰를 유지하며, 동일 승인 코드의 Runtime 결과 수용·AC 인수마다 별도 Support 승인을 반복 요구하지 않는다.
 - 과거 임시 Runner 격리 시험 완료와 앞으로의 일반 CI Runner 공급 미확인은 구분한다. PR20/21/22는 TEST ONLY / DO NOT MERGE다. 원 시험을 처음부터 반복하거나 엔진 운영 전환을 완료로 올리지 않는다.
+
+### 2026-09-24 갱신
+
+- [PR47](https://github.com/321Team/infra-ansible/pull/47) HEAD `c6ba5f87711acc3eeeba12c13c72cedd09d178f8`이 활성화 patch를 `.github/workflows/ansible-regression.yml`로 편입했다(main 미병합). hayeounglee의 정확한 HEAD 독립 코드 리뷰 **APPROVED**(2026-09-24T07:28:31Z)를 받았다. 비차단 의견 2건 — ① 파일 첫 줄 Inactive 주석과 본 문서·runbook의 '비활성 초안' 서술이 편입 후 부정확해진다는 지적(본 갱신 및 [`docs/runbooks/Ansible-CI.md`](../runbooks/Ansible-CI.md)에 반영), ② `workflow_dispatch`의 권한 모델을 활성화 기록에 남길 것(아래 절차 끝 참고) — 은 코드 차단 결함이 아니다.
+- Repository Variables 등록을 확인했다: `ANSIBLE_CI_ENABLED=false`, `ANSIBLE_CI_RUNNER_LABELS=["self-hosted","Linux","X64","fds-ci","ansible-isolated"]`(정확한 라벨 일치). enabled=false이므로 PR47 생성 Run [35889332032](https://github.com/321Team/infra-ansible/actions/runs/35889332032)의 regression Check `107277518128`은 `completed/skipped`이며 정상 CI PASS가 아니다.
+- [증적 PR24](https://github.com/321Team/fds-project-evidence/pull/24)(HEAD `1eaa62b6ce96f4e7090da6201e2a6dd56d25648d`, Ready for review, hayeounglee 리뷰 요청 유지·아직 제출 전)에서 cicd-runner01의 기존 PREPARED/rootless image `PASS_PREPARED_IMAGE_READINESS`(2026-09-24 02:00:56–58 KST, rc0) 수신 검증과, 현재 PR47 source의 LOCAL 양 엔진 구문 46/46 rc0(2026-09-24 05:03:00–29 KST)을 확인했다. 둘 다 LOCAL/수신 검증이며 cicd-runner01 Runtime·GitHub Actions 실행·Runner 등록/정리는 포함하지 않는다.
+- 남은 순서는 변경 없음: **1-job ephemeral Runner 공급·등록 → 준비된 시점 `ANSIBLE_CI_ENABLED=true` 전환 → 정상/고의결함 실제 Run·Check·artifact·세션 정리 인수 → 증적 PR24 독립 리뷰 편입 → Lead 최종 AC 판단.** 이 단계는 cicd-runner01/ansible01 실서버 직접 접근이 필요하다.
 
 아래 수치·source는 작성 당시 시험 이력이다. 기존 인수 기준과 원본을 보존하며, 이후 완료 사실은 위 최신 확인을 따른다. 사전 검토: [ACCEPTANCE_DEEP_REVIEW.md](ACCEPTANCE_DEEP_REVIEW.md).
 
@@ -86,6 +93,10 @@ Workflow 대상이 이미 있거나 patch 충돌이 있으면 중단하여 검�
 6. 정상/결함 세션 각각 종료·정리·그때의 Runner ID 또는 정확한 이름의 API 부재를 확인한다.
    기존 ID3/ID5/ID6 정리 증적을 새 세션에 재사용하지 않는다. 결함 PR은 병합하지 않고 최종 인수·검토 후 종결을 별도로 판단한다.
 7. 일반 Workflow 코드와 증적 저장소 PR의 독립 검토를 확인하고, Lead가 실제 결과를 근거로 Issue #5 AC와 수동 병합 여부를 판단한다. 동일 승인 코드의 결과 수용에 별도 반복 승인을 추가하지 않는다. 자동 병합은 없다.
+
+활성화 기록에는 `workflow_dispatch`가 Write 권한을 가진 사용자에게 임의 브랜치를 이 self-hosted Runner에서
+실행할 권한을 준다는 점과, 이는 1-job ephemeral Runner·격리 경계가 유지되는 동안만 허용되는 설계라는 점을
+함께 남긴다(PR47 hayeounglee APPROVED 리뷰 비차단 의견 2).
 
 수동 workflow_dispatch를 쓸 경우 Workflow가 기본 브랜치에 있어야 하는 조건을 별도로 확인한다.
 PR의 기본 merge SHA와 exact checkout source SHA를 섞지 않기 위해 첫 인수는 동일 저장소 PR 경로를 기준으로 한다.

@@ -56,8 +56,12 @@ rc·Job/Check·완전한 manifest·정확한 source/attempt를 함께 확인합�
 
 ## Workflow 활성화와 최소권한
 
-`docs/ci/ansible-regression.workflow.yml`은 **.github/workflows 바깥의 비활성 초안**입니다.
-Runner 입력·경계와 독립 리뷰를 확인한 별도 변경에서 .github/workflows/ansible-regression.yml로 편입합니다.
+`docs/ci/ansible-regression.workflow.yml` 템플릿은 [PR #47](https://github.com/321Team/infra-ansible/pull/47) HEAD
+`c6ba5f87711acc3eeeba12c13c72cedd09d178f8`에서 `.github/workflows/ansible-regression.yml`로 byte-for-byte 편입되어
+hayeounglee의 정확한 HEAD 독립 코드 리뷰 **APPROVED**(2026-09-24T07:28:31Z)를 받았습니다. PR47은 아직 main에
+병합되지 않았고, 파일 첫 줄의 Inactive 주석은 원문 blob 보존을 위해 그대로 남아 있습니다 — 이 주석이 실행 여부를
+결정하지는 않습니다. job 실행 조건(`ANSIBLE_CI_ENABLED=='true'` 및 정확한 라벨 문자열)은 아직 충족되지 않아
+기능적으로는 비활성이며, main 병합·`ANSIBLE_CI_ENABLED=true` 전환·Runner 실공급은 별도 단계로 남아 있습니다.
 기존 PR #20/#21의 제한된 격리 Workflow 실행과 이 일반 활성화 절차는 별개입니다.
 명시적으로 요청된 시험 전용 격리 준비에 독립 승인을 일괄 선행조건으로 추가하지 않습니다.
 `runs-on`은 `[self-hosted, Linux, X64, fds-ci, ansible-isolated]`로 고정하며 변수로 다른 Runner를 선택하지 않습니다.
