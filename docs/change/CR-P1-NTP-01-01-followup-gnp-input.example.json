@@ -1,0 +1,10 @@
+{
+  "cr_ntp_followup_run_id": "",
+  "cr_ntp_followup_source_head": "",
+  "cr_ntp_followup_evidence_dir": "/home/server01_ansible/ntp-followup-evidence",
+  "cr_ntp_followup_packets": false,
+  "cr_ntp_source_upstreams": [
+    "162.159.200.1",
+    "162.159.200.123"
+  ]
+}

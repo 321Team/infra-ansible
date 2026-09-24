@@ -1,0 +1,196 @@
+---
+# CR-P1-NTP-01-01 follow-up verification, Plan A (Calico HEP/GNP enforcement).
+# Controlled from ansible01; no policy, service, clock or file change on nodes.
+#
+# Default (cr_ntp_followup_packets=false): contract + kernel structure only,
+# no NTP packets.  Packets (positive path, negative drop attribution and the
+# 6 x 60s sampling) require cr_ntp_followup_packets=true in an approved window.
+# Every phase re-checks at the end; a policy/kernel change during the run STOPs.
+
+- name: Bind the run to a clean reviewed checkout and evidence directory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Require complete run inputs
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_followup_run_id is match('^[A-Za-z0-9_-]{1,64}$')
+          - cr_ntp_followup_source_head is match('^[0-9a-f]{40}$')
+          - cr_ntp_followup_evidence_dir is match('^/.+')
+          - cr_ntp_followup_packets is boolean
+          - cr_ntp_source_upstreams | length in [2, 3]
+        fail_msg: "STOP: follow-up run inputs are incomplete"
+
+    - name: Read the controller checkout HEAD and cleanliness
+      ansible.builtin.command:
+        argv: [git, -C, "{{ playbook_dir }}/..", status, --porcelain=v1, --branch, --untracked-files=all]
+      register: cr_ntp_followup_git_status
+      changed_when: false
+      check_mode: false
+
+    - name: Read the controller commit
+      ansible.builtin.command:
+        argv: [git, -C, "{{ playbook_dir }}/..", rev-parse, HEAD]
+      register: cr_ntp_followup_git_head
+      changed_when: false
+      check_mode: false
+
+    - name: Stop on an uncommitted or different checkout
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_followup_git_head.stdout == cr_ntp_followup_source_head
+          - cr_ntp_followup_git_status.stdout_lines | length == 1
+        fail_msg: "STOP: checkout differs from the reviewed commit or has local changes"
+
+    - name: Bind packet receipts to the exact run inputs
+      ansible.builtin.set_fact:
+        cr_ntp_followup_input_sha256: >-
+          {{ {'run_id': cr_ntp_followup_run_id, 'source_head': cr_ntp_followup_source_head,
+              'packets': cr_ntp_followup_packets | bool, 'upstreams': cr_ntp_source_upstreams}
+             | to_json(sort_keys=true) | hash('sha256') }}
+
+    - name: Create the run evidence directory (must not exist yet)
+      ansible.builtin.file:
+        path: "{{ cr_ntp_followup_evidence_dir }}/{{ cr_ntp_followup_run_id }}"
+        state: directory
+        mode: '0700'
+      register: cr_ntp_followup_dir
+      check_mode: false
+
+    - name: Refuse to reuse an existing run directory
+      ansible.builtin.assert:
+        that: cr_ntp_followup_dir.changed
+        fail_msg: "STOP: run directory already exists; use a new run id"
+
+- name: Policy contract (start)
+  hosts: k8s-control01
+  gather_facts: false
+  become: true
+  tasks:
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: contract
+        cr_ntp_followup_phase: start
+
+- name: Kernel HostEndpoint wiring (start)
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Require the exact six-host scope
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | sort == ['k8s-control01', 'k8s-control02', 'k8s-control03', 'k8s-worker01', 'k8s-worker02', 'k8s-worker03']
+
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: kernel
+        cr_ntp_followup_phase: start
+
+- name: Packet tests and sampling (explicit opt-in)
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Skip packets unless explicitly requested
+      ansible.builtin.meta: end_play
+      when: not (cr_ntp_followup_packets | bool)
+
+    - name: Positive path with the reviewed pathcheck probe
+      fds_ntp_probe:
+        gate: pathcheck
+        run_id: "{{ cr_ntp_followup_run_id }}"
+        source_head: "{{ cr_ntp_followup_source_head }}"
+        input_sha256: "{{ hostvars['localhost'].cr_ntp_followup_input_sha256 }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        ansible_host: "{{ ansible_host }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams }}"
+      register: cr_ntp_followup_positive
+
+    - name: Preserve the positive receipt
+      ansible.builtin.copy:
+        content: "{{ cr_ntp_followup_positive.receipt | to_nice_json }}\n"
+        dest: "{{ cr_ntp_followup_evidence_dir }}/{{ cr_ntp_followup_run_id }}/packets-positive--{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      check_mode: false
+
+    - name: Stop when the approved path fails
+      ansible.builtin.assert:
+        that: cr_ntp_followup_positive.receipt.gate_pass | bool
+        fail_msg: "Positive NTP path failed: {{ cr_ntp_followup_positive.receipt.errors }}"
+
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: negative
+        cr_ntp_followup_phase: packets
+
+    - name: Sample tracking/sources six times at 60 second intervals
+      fds_ntp_gnp_followup:
+        gate: sample
+        phase: packets
+        run_id: "{{ cr_ntp_followup_run_id }}"
+        source_head: "{{ cr_ntp_followup_source_head }}"
+        inventory_hostname: "{{ inventory_hostname }}"
+        ansible_host: "{{ ansible_host }}"
+        source_upstreams: "{{ cr_ntp_source_upstreams }}"
+        offset_limit_ms: "{{ cr_ntp_offset_max_ms }}"
+      loop: "{{ range(cr_ntp_followup_samples | default(6) | int) | list }}"
+      loop_control:
+        pause: "{{ cr_ntp_followup_interval | default(60) | int }}"
+        label: "sample {{ item }}"
+      register: cr_ntp_followup_samples_result
+
+    - name: Preserve all samples
+      ansible.builtin.copy:
+        content: "{{ cr_ntp_followup_samples_result.results | map(attribute='receipt') | list | to_nice_json }}\n"
+        dest: "{{ cr_ntp_followup_evidence_dir }}/{{ cr_ntp_followup_run_id }}/packets-sample--{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      check_mode: false
+
+    - name: Require every sample to pass
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_followup_samples_result.results | length == (cr_ntp_followup_samples | default(6) | int)
+          - cr_ntp_followup_samples_result.results | map(attribute='receipt.gate_pass') | select | list | length
+            == (cr_ntp_followup_samples | default(6) | int)
+        fail_msg: "Sampling failed on {{ inventory_hostname }}"
+
+- name: Policy contract (end) and drift comparison
+  hosts: k8s-control01
+  gather_facts: false
+  become: true
+  tasks:
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: contract
+        cr_ntp_followup_phase: end
+
+    - name: Stop when Calico objects changed during the run
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_followup_receipts.start.result.calico_digest == cr_ntp_followup_receipts.end.result.calico_digest
+        fail_msg: "STOP: HEP/GNP/FelixConfiguration changed during the run"
+
+- name: Kernel wiring (end) and drift comparison
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: kernel
+        cr_ntp_followup_phase: end
+
+    - name: Stop when the HostEndpoint chain structure changed during the run
+      ansible.builtin.assert:
+        that:
+          - cr_ntp_followup_receipts.start.result.structure_sha256 == cr_ntp_followup_receipts.end.result.structure_sha256
+        fail_msg: "STOP: Felix HostEndpoint chain structure changed during the run"

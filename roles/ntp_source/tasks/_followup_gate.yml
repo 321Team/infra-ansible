@@ -1,0 +1,36 @@
+---
+# One Plan A follow-up gate: run, preserve the receipt on the controller
+# (also on failure), remember it per phase, then stop unless it passed.
+- name: "Run follow-up gate {{ cr_ntp_followup_gate }} ({{ cr_ntp_followup_phase }})"
+  fds_ntp_gnp_followup:
+    gate: "{{ cr_ntp_followup_gate }}"
+    phase: "{{ cr_ntp_followup_phase }}"
+    run_id: "{{ cr_ntp_followup_run_id }}"
+    source_head: "{{ cr_ntp_followup_source_head }}"
+    inventory_hostname: "{{ inventory_hostname }}"
+    ansible_host: "{{ ansible_host }}"
+    source_upstreams: "{{ cr_ntp_source_upstreams }}"
+    kubeconfig: "{{ cr_ntp_followup_kubeconfig | default('/etc/kubernetes/admin.conf') }}"
+  register: cr_ntp_followup_gate_result
+
+- name: Preserve the gate receipt on the controller
+  ansible.builtin.copy:
+    content: "{{ cr_ntp_followup_gate_result.receipt | to_nice_json }}\n"
+    dest: "{{ cr_ntp_followup_evidence_dir }}/{{ cr_ntp_followup_run_id }}/{{ cr_ntp_followup_phase }}-{{ cr_ntp_followup_gate }}--{{ inventory_hostname }}.json"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  check_mode: false
+
+- name: Remember the receipt for end-of-run drift comparison
+  ansible.builtin.set_fact:
+    cr_ntp_followup_receipts: >-
+      {{ cr_ntp_followup_receipts | default({}) | combine({cr_ntp_followup_phase: cr_ntp_followup_gate_result.receipt}) }}
+  when: cr_ntp_followup_gate in ['contract', 'kernel']
+
+- name: "Stop unless {{ cr_ntp_followup_gate }} passed"
+  ansible.builtin.assert:
+    that: cr_ntp_followup_gate_result.receipt.gate_pass | bool
+    fail_msg: >-
+      {{ cr_ntp_followup_gate }} ({{ cr_ntp_followup_phase }}) on {{ inventory_hostname }}:
+      stops={{ cr_ntp_followup_gate_result.receipt.stops }} errors={{ cr_ntp_followup_gate_result.receipt.errors }}
