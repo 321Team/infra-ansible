@@ -66,5 +66,5 @@
  "path": "evidence/CR-P1-NTP-01-01/recapture-20260924",
  "repository": "321Team/fds-project-evidence",
  "schema_version": 1,
- "status": "Read-only recapture (2nd run; 1st run 09:29Z log overwritten). Intake PR not yet reviewed/merged."
+ "status": "Read-only recapture (2nd run; 1st run 09:29Z log overwritten). Intake PR 321Team/fds-project-evidence#35 (draft, not yet reviewed/merged)."
 }
