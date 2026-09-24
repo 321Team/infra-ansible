@@ -79,7 +79,7 @@
 - 새 작업창이 필요하다.
 
 ```bash
-cd ~/infra-ansible && git fetch origin && git checkout --detach <reviewed-commit>
+cd /home/server01_ansible/p1-ans-01 && git fetch origin && git checkout --detach <reviewed-commit>
 cp docs/change/CR-P1-NTP-01-01-followup-gnp-input.example.json ~/ntp-followup-input.json
 # run_id, source_head(=<reviewed-commit>), evidence_dir, packets, upstreams 기입
 ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-input.json
