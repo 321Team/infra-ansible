@@ -185,7 +185,7 @@
       change_id: "{{ cr_dns_change_id }}"
       host: "{{ inventory_hostname }}"
       phase: "{{ cr_dns_phase }}"
-      interface: "{{ ansible_default_ipv4.interface }}"
+      interface: "{{ ansible_facts['default_ipv4'].interface }}"
       connection: "{{ cr_dns_active_connection.stdout | trim }}"
       dns: >-
         {{ (cr_dns_connection_dns_after.stdout | trim | replace(',', ' ')).split() }}

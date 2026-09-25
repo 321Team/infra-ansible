@@ -230,7 +230,7 @@
       {{ {
         'schema_version': 1,
         'change_id': cr_ntp_change_id,
-        'captured_at': ansible_date_time.iso8601,
+        'captured_at': ansible_facts['date_time'].iso8601,
         'inventory_hostname': inventory_hostname,
         'role': (cr_ntp_is_source | bool) | ternary('source', 'client'),
         'dropin_path': cr_ntp_dropin_path,

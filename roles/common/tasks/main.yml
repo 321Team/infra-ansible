@@ -2,16 +2,16 @@
 - name: Verify hostname and operating system
   ansible.builtin.assert:
     that:
-      - ansible_hostname == expected_hostname
-      - ansible_distribution == "CentOS"
-      - ansible_distribution_major_version == "10"
+      - ansible_facts['hostname'] == expected_hostname
+      - ansible_facts['distribution'] == "CentOS"
+      - ansible_facts['distribution_major_version'] == "10"
     fail_msg: >-
       Baseline mismatch:
       inventory={{ inventory_hostname }},
       expected={{ expected_hostname }},
-      actual={{ ansible_hostname }},
-      os={{ ansible_distribution }}
-      {{ ansible_distribution_major_version }}
+      actual={{ ansible_facts['hostname'] }},
+      os={{ ansible_facts['distribution'] }}
+      {{ ansible_facts['distribution_major_version'] }}
 
 - name: Install required common packages
   ansible.builtin.dnf:
