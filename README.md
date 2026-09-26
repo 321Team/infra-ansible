@@ -18,7 +18,8 @@
 | 경로 | 용도 |
 |---|---|
 | `ansible.cfg` | 저장소 공통 Ansible 설정 |
-| `inventory/hosts.yml` | 관리 대상 호스트와 그룹 |
+| `inventory/hosts.yml` | 공통 관리 대상 호스트와 그룹 |
+| `inventory/lb-stageb.yml` | P1-LB-01 Stage B 전용 LB 보조 inventory; 공통 6노드 범위와 분리 |
 | `inventory/group_vars/all.yml` | 공통 변수, SSH 옵션 및 승인된 Resolver 목표값 |
 | `playbooks/precheck.yml` | 구축 전 사전 점검 |
 | `playbooks/site.yml` | 공통 구성 진입점 |
@@ -52,6 +53,25 @@ source ~/.config/ansible/p1-ans-01.env
 ```
 
 로컬 환경 파일은 저장소 외부에 보관하고 권한을 `600`으로 유지합니다. `ANSIBLE_PRIVATE_KEY_FILE`을 통해 키 경로를 제공합니다.
+
+### P1-LB-01 Stage B 보조 inventory
+
+`inventory/lb-stageb.yml`은 P1-LB-01 Stage B Runtime에서 필요한 `k8s-api-lb01` 단일 호스트 연결 정보만 제공합니다. 기존 `inventory/hosts.yml`의 Kubernetes 6노드/egress proxy 그룹에는 LB를 편입하지 않으며, 기존 playbook 대상 범위를 확대하지 않습니다.
+
+이 파일에는 Private Key/Token/Password를 저장하지 않습니다. 제어 노드 `ansible01`에서 기존 로컬 환경 파일을 적용해 `ANSIBLE_PRIVATE_KEY_FILE`을 제공하고, inventory에는 `server01_k8s-api-lb`, `10.1.93.109`, strict host-key 확인 및 `IdentitiesOnly=yes` 같은 비밀정보가 아닌 연결 제약만 둡니다.
+
+독립 리뷰·병합 후 Runtime 접근 점검 시 예시는 다음과 같습니다.
+
+```bash
+source ~/.config/ansible/p1-ans-01.env
+ansible-inventory -i inventory/lb-stageb.yml --host k8s-api-lb01
+# infra-lb의 승인된 Stage B source에서:
+# python3 run_stageb.py --check-access \
+#   --lb-inventory "$HOME/p1-ans-01/inventory/lb-stageb.yml" \
+#   --lb-user server01_k8s-api-lb
+```
+
+이 inventory의 승인·병합은 Runtime 실행 승인을 뜻하지 않습니다.
 
 ## 변경 전 검증
 
