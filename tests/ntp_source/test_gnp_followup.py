@@ -264,9 +264,11 @@ Leap status     : Normal
 class Runner:
     """Fake node: counters advance by `idle` per idle window and `probe` per probe."""
     def __init__(self, host="k8s-worker01", idle=0, probe=2, answered=False, firewalld="inactive",
-                 sources="^* 10.1.93.102  3  6  377  10  +1us[+1us] +/- 1ms\n", documents=None):
+                 sources="^* 10.1.93.102  3  6  377  10  +1us[+1us] +/- 1ms\n", documents=None,
+                 authz_write=False, authz_wildcard=False):
         self.host, self.idle, self.probe, self.answered = host, idle, probe, answered
         self.firewalld, self.sources, self.documents = firewalld, sources, documents or {}
+        self.authz_write, self.authz_wildcard = authz_write, authz_wildcard
         self.drops, self.saves, self.calls = 4722, 0, []
 
     def __call__(self, argv, timeout=20):
@@ -285,6 +287,13 @@ class Runner:
             return result(argv, TRACKING)
         if argv[:3] == ["chronyc", "-n", "sources"]:
             return result(argv, self.sources)
+        if "kubectl" in argv[0] and "auth" in argv:
+            verb, resource = argv[-2], argv[-1]
+            if verb == "*" and resource == "*":
+                return result(argv, "yes\n" if self.authz_wildcard else "no\n")
+            if verb in ("get", "list"):
+                return result(argv, "yes\n")
+            return result(argv, "yes\n" if self.authz_write else "no\n")
         if "kubectl" in argv[0]:
             return result(argv, json.dumps(self.documents[argv[4]]))
         raise AssertionError(argv)
@@ -293,7 +302,7 @@ class Runner:
 def params(host="k8s-worker01", gate="negative"):
     return dict(gate=gate, phase="packets", run_id="fixture-001", source_head="a" * 40,
                 inventory_hostname=host, ansible_host=G.HOSTS[host], source_upstreams=UPSTREAMS,
-                kubeconfig="/etc/kubernetes/admin.conf", kubectl_path="/usr/bin/kubectl",
+                kubeconfig="/etc/kubernetes/fds-ntp-followup-readonly.conf", kubectl_path="/usr/bin/kubectl",
                 chronyd_path="/usr/sbin/chronyd", probe_timeout=5, offset_limit_ms=100)
 
 
@@ -324,6 +333,30 @@ class GateTests(unittest.TestCase):
         self.assertTrue(gate(Runner(), gate="sample")["gate_pass"])
         wrong = Runner(sources="^* 162.159.200.1  3  6  377  10  +1us[+1us] +/- 1ms\n")
         self.assertFalse(gate(wrong, gate="sample")["gate_pass"])
+
+    def test_authz_requires_read_only_kubeconfig(self):
+        runner = Runner(host="k8s-control01")
+        value = G.Gate(params("k8s-control01", gate="authz"), runner=runner,
+                       file_checker=lambda path: True).run()
+        self.assertTrue(value["gate_pass"], value["errors"] + value["stops"])
+        self.assertFalse(value["result"]["wildcard_allowed"])
+        self.assertEqual(len(value["result"]["required"]), 6)
+        self.assertEqual(len(value["result"]["forbidden"]), 18)
+
+        write = Runner(host="k8s-control01", authz_write=True)
+        value = G.Gate(params("k8s-control01", gate="authz"), runner=write,
+                       file_checker=lambda path: True).run()
+        self.assertFalse(value["gate_pass"])
+
+        wildcard = Runner(host="k8s-control01", authz_wildcard=True)
+        value = G.Gate(params("k8s-control01", gate="authz"), runner=wildcard,
+                       file_checker=lambda path: True).run()
+        self.assertFalse(value["gate_pass"])
+
+        bad = params("k8s-control01", gate="authz")
+        bad["kubeconfig"] = "/etc/kubernetes/admin.conf"
+        value = G.Gate(bad, runner=runner, file_checker=lambda path: True).run()
+        self.assertFalse(value["gate_pass"])
 
     def test_contract_gate_reads_calico_and_digests(self):
         heps, gnps, felix = objects()
