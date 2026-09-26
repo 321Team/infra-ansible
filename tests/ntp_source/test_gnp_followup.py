@@ -146,6 +146,14 @@ class ContractTests(unittest.TestCase):
                                                          "destination": {"selector": "x == 'y'"}})
         run(heps, gnps, felix)
 
+    def test_omitted_types_follow_calico_default(self):
+        allow = [{"action": "Allow"}]
+        self.assertEqual(C._types({}), {"Ingress"})
+        self.assertEqual(C._types({"ingress": allow}), {"Ingress"})
+        self.assertEqual(C._types({"egress": allow}), {"Egress"})
+        self.assertEqual(C._types({"ingress": allow, "egress": allow}), {"Ingress", "Egress"})
+        self.assertEqual(C._types({"types": ["Ingress"], "egress": allow}), {"Ingress"})
+
     def test_digest_ignores_volatile_metadata_only(self):
         heps, gnps, felix = objects()
         base = G.canonical_digest({"h": heps, "g": gnps})

@@ -175,7 +175,7 @@
     - name: Stop when Calico objects changed during the run
       ansible.builtin.assert:
         that:
-          - cr_ntp_followup_receipts.start.result.calico_digest == cr_ntp_followup_receipts.end.result.calico_digest
+          - cr_ntp_followup_receipts.contract_start.result.calico_digest == cr_ntp_followup_receipts.contract_end.result.calico_digest
         fail_msg: "STOP: HEP/GNP/FelixConfiguration changed during the run"
 
 - name: Kernel wiring (end) and drift comparison
@@ -192,5 +192,5 @@
     - name: Stop when the HostEndpoint chain structure changed during the run
       ansible.builtin.assert:
         that:
-          - cr_ntp_followup_receipts.start.result.structure_sha256 == cr_ntp_followup_receipts.end.result.structure_sha256
+          - cr_ntp_followup_receipts.kernel_start.result.structure_sha256 == cr_ntp_followup_receipts.kernel_end.result.structure_sha256
         fail_msg: "STOP: Felix HostEndpoint chain structure changed during the run"

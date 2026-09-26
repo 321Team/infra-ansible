@@ -27,6 +27,7 @@
 | `module_utils/fds_ntp_gnp_contract.py` | HEP/GNP/FelixConfiguration 선언적 UDP/123 계약 평가 |
 | `module_utils/fds_ntp_hep_kernel.py` | Felix가 만든 ens160 HEP egress 체인의 구조 검사와 DROP 카운터 |
 | `tests/ntp_source/test_gnp_followup.py` | LOCAL/MOCK 시험 |
+| `tests/ntp_source/test_gnp_followup_flow.py` | 실제 playbook·gate task 흐름 시험(모듈 stub, 가짜 6대 local 인벤토리) |
 | `tests/ntp_source/fixtures/calico_gate2_20260922.json` | Gate 2 수신 증적 HEP/GNP 원문. SHA-256과 출처 포함 |
 | `tests/ntp_source/fixtures/recapture_20260924/` | 2026-09-24 재수집 원문: 현재 HEP/GNP/Felix, 6대 `iptables-save -c`, `PROVENANCE.json` |
 
@@ -71,6 +72,8 @@
 4. **실행 중 drift**: 종료 시 계약과 커널을 다시 검사한다.
    - Calico 객체의 labels/spec digest가 시작 시점과 다르면 STOP한다.
    - 카운터를 제외한 HEP 체인 구조 digest가 시작 시점과 다르면 STOP한다.
+   - 결과는 게이트·단계별 키(`contract_start`/`contract_end`, `kernel_start`/`kernel_end`)로 따로 보관해 비교한다.
+     control01은 start에서 contract와 kernel을 모두 실행하므로 단계만 키로 쓰면 서로 덮어쓴다.
 
 ## 실행 (ansible01)
 
@@ -91,6 +94,12 @@ ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-i
   샘플링에만 최소 5분이 걸리고, 음성 시험은 대상마다 idle 구간과 probe 구간이 추가로 걸린다.
 - 결과는 `<evidence_dir>/<run_id>/`에 게이트·단계·호스트별 JSON으로 남는다. 실패 결과도 보존한다.
   이 디렉터리를 `fds-project-evidence` 절차로 편입한다.
+
+로컬 흐름 시험(서버 접속 없음, 리뷰 시 재현용):
+
+```bash
+python3 -B tests/ntp_source/test_gnp_followup_flow.py --output <새 디렉터리> --ansible-playbook "$(command -v ansible-playbook)"
+```
 
 정상 판정은 플레이북이 실패 없이 끝나고 모든 결과의 `gate_pass: true`인 것이다.
 중단·복구:
@@ -130,6 +139,8 @@ ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-i
 - **카운터 귀속의 한계**: 같은 시간대의 다른 차단 트래픽이 idle 구간보다 probe 구간에 몰리면 오귀속될 수 있다.
   응답 부재와 계약 PASS를 함께 요구하는 것으로 보완하지만, 단독 증명은 아니다.
 - **적용 범위**
+  - 커널 구조 검사는 egress 경로(`OUTPUT → … → cali-th-ens160`)만 본다.
+    CP1의 UDP/123 ingress(`cali-from-host-endpoint → cali-fh-ens160`)는 정책 계약으로만 확인하며, 커널 배선과 패킷으로는 검증하지 않는다.
   - IPv4만 다룬다. IPv6, 비허용 ingress 실측, 장애·회복, 재부팅 지속성, 최종 AC 인수는 이 도구의 범위 밖이다.
     이 항목들은 [네트워크·복구 인수 계약](CR-P1-NTP-01-01-network-recovery.md)에 따라 별도로 수행한다.
   - Gate 2 이후 추가된 GNP(예: `nodeport-30080-allow`, TCP preDNAT)는 UDP/123과 무관해 PASS에 영향이 없다.

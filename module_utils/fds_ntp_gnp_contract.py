@@ -88,8 +88,11 @@ def _types(spec):
         if not isinstance(spec["types"], list) or not set(spec["types"]) <= {"Ingress", "Egress"}:
             raise ContractStop("Unsupported policy types")
         return set(spec["types"])
-    # Calico default when types is omitted.
-    return {"Ingress"} | ({"Egress"} if spec.get("egress") else set())
+    # Calico default when types is omitted (projectcalico/api v3 GlobalNetworkPolicySpec.Types):
+    # [Egress] with egress rules only, [Ingress, Egress] with both, otherwise [Ingress].
+    if spec.get("egress"):
+        return {"Egress"} | ({"Ingress"} if spec.get("ingress") else set())
+    return {"Ingress"}
 
 
 def _ports_match(ports):

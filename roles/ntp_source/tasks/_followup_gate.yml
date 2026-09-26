@@ -1,6 +1,6 @@
 ---
 # One Plan A follow-up gate: run, preserve the receipt on the controller
-# (also on failure), remember it per phase, then stop unless it passed.
+# (also on failure), remember it per gate and phase, then stop unless it passed.
 - name: "Run follow-up gate {{ cr_ntp_followup_gate }} ({{ cr_ntp_followup_phase }})"
   fds_ntp_gnp_followup:
     gate: "{{ cr_ntp_followup_gate }}"
@@ -25,7 +25,7 @@
 - name: Remember the receipt for end-of-run drift comparison
   ansible.builtin.set_fact:
     cr_ntp_followup_receipts: >-
-      {{ cr_ntp_followup_receipts | default({}) | combine({cr_ntp_followup_phase: cr_ntp_followup_gate_result.receipt}) }}
+      {{ cr_ntp_followup_receipts | default({}) | combine({cr_ntp_followup_gate ~ '_' ~ cr_ntp_followup_phase: cr_ntp_followup_gate_result.receipt}) }}
   when: cr_ntp_followup_gate in ['contract', 'kernel']
 
 - name: "Stop unless {{ cr_ntp_followup_gate }} passed"

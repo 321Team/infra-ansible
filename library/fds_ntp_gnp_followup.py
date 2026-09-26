@@ -156,6 +156,8 @@ class Gate:
         try:
             return structure(saved["stdout"])
         except KernelStop as exc:
+            # The wiring itself is under judgement here: evidence that cannot be shown
+            # to enforce the HostEndpoint fails closed as a gate FAIL.
             self.errors.append("FAIL " + str(exc))
             return {}
 
@@ -177,6 +179,8 @@ class Gate:
             for target in targets:
                 results.append(self._negative_one(chain, target, timeout))
         except KernelStop as exc:
+            # Wiring already passed above; a failure while re-reading counters means the
+            # measurement could not finish, so it STOPs instead of judging the policy.
             self.stops.append("STOP " + str(exc))
         return {"kernel": kernel, "targets": results}
 
