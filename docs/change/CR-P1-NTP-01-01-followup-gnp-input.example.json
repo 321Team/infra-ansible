@@ -6,5 +6,6 @@
   "cr_ntp_source_upstreams": [
     "162.159.200.1",
     "162.159.200.123"
-  ]
+  ],
+  "cr_ntp_followup_kubeconfig": "/etc/kubernetes/fds-ntp-followup-readonly.conf"
 }
