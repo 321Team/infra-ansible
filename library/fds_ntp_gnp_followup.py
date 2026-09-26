@@ -3,6 +3,8 @@
 
 Gates (all run from ansible01 through the playbook; none changes policy,
 service state, clock or files on the node):
+  authz     k8s-control01: prove the supplied kubeconfig is least-privilege
+            before any Calico object read.
   contract  k8s-control01: read HEP/GNP/FelixConfiguration with kubectl get
             and evaluate the declarative UDP/123 contract for all six hosts.
   kernel    each node: firewalld inactive and the Felix ens160 HostEndpoint
@@ -89,8 +91,8 @@ def tracking_values(text, limit_ms):
 
 
 class Gate:
-    def __init__(self, params, runner=command, sleeper=time.sleep):
-        self.p, self.runner, self.sleep = params, runner, sleeper
+    def __init__(self, params, runner=command, sleeper=time.sleep, file_checker=os.path.isfile):
+        self.p, self.runner, self.sleep, self.file_checker = params, runner, sleeper, file_checker
         self.errors, self.stops, self.observations = [], [], {}
         if params["inventory_hostname"] not in HOSTS or HOSTS[params["inventory_hostname"]] != params["ansible_host"]:
             raise ValueError("Inventory binding is outside the reviewed six-host topology")
@@ -116,6 +118,45 @@ class Gate:
             local = []
         if self.p["ansible_host"] not in local:
             self.errors.append("Expected host IP is not configured locally")
+
+    # --- authz ----------------------------------------------------------
+    def authz(self):
+        if self.p["inventory_hostname"] != SOURCE:
+            raise ValueError("Authz gate runs only on " + SOURCE)
+        path = self.p["kubeconfig"]
+        if path == "/etc/kubernetes/admin.conf" or not os.path.isabs(path):
+            self.stops.append("STOP dedicated read-only kubeconfig is required")
+            return {}
+        if not self.file_checker(path):
+            self.stops.append("STOP dedicated read-only kubeconfig is missing")
+            return {}
+        allowed, denied = [], []
+        write_verbs = ("create", "update", "patch", "delete", "deletecollection", "watch")
+        for _, resource in CALICO_RESOURCES:
+            for verb in ("get", "list"):
+                result = self.observe("auth_allow_%s_%s" % (verb, resource),
+                                      [self.p["kubectl_path"], "--kubeconfig", path,
+                                       "auth", "can-i", verb, resource])
+                ok = result["returncode"] == 0 and result["stdout"].strip() == "yes"
+                allowed.append({"verb": verb, "resource": resource, "allowed": ok})
+                if not ok:
+                    self.errors.append("Required read-only permission denied: %s %s" % (verb, resource))
+            for verb in write_verbs:
+                result = self.observe("auth_deny_%s_%s" % (verb, resource),
+                                      [self.p["kubectl_path"], "--kubeconfig", path,
+                                       "auth", "can-i", verb, resource])
+                has_write = result["returncode"] == 0 and result["stdout"].strip() == "yes"
+                denied.append({"verb": verb, "resource": resource, "allowed": has_write})
+                if has_write:
+                    self.errors.append("Write/watch permission must be denied: %s %s" % (verb, resource))
+        wildcard = self.observe("auth_wildcard",
+                                [self.p["kubectl_path"], "--kubeconfig", path,
+                                 "auth", "can-i", "*", "*"])
+        wildcard_allowed = wildcard["returncode"] == 0 and wildcard["stdout"].strip() == "yes"
+        if wildcard_allowed:
+            self.errors.append("Wildcard cluster-admin-equivalent permission must be denied")
+        return {"kubeconfig": path, "required": allowed, "forbidden": denied,
+                "wildcard_allowed": wildcard_allowed}
 
     # --- contract -------------------------------------------------------
     def contract(self):
@@ -236,14 +277,14 @@ class Gate:
 def main():
     from ansible.module_utils.basic import AnsibleModule
     module = AnsibleModule(argument_spec={
-        "gate": {"choices": ["contract", "kernel", "negative", "sample"], "required": True},
+        "gate": {"choices": ["authz", "contract", "kernel", "negative", "sample"], "required": True},
         "phase": {"choices": ["start", "packets", "end"], "required": True},
         "run_id": {"type": "str", "required": True},
         "source_head": {"type": "str", "required": True},
         "inventory_hostname": {"type": "str", "required": True},
         "ansible_host": {"type": "str", "required": True},
         "source_upstreams": {"type": "list", "elements": "str", "required": True},
-        "kubeconfig": {"type": "path", "default": "/etc/kubernetes/admin.conf"},
+        "kubeconfig": {"type": "path", "required": True},
         "kubectl_path": {"type": "path", "default": "/usr/bin/kubectl"},
         "chronyd_path": {"type": "path", "default": "/usr/sbin/chronyd"},
         "probe_timeout": {"type": "int", "default": 10},
