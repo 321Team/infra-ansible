@@ -1,5 +1,10 @@
 # CR-P1-NTP-01-01 — 중단 실행의 후속 검증 후보
 
+> 2026-09-24: Gate 2 이후 노드 보호가 firewalld에서 Calico HEP/GNP로 바뀌었다. 이 문서의
+> firewalld direct(`FDS_NTP_0101`) 기반 후속 검증은 A안
+> [Calico GNP 기준 후속 검증](CR-P1-NTP-01-01-followup-gnp.md)으로 대체하는 것을 검토 중이다.
+> 최종 인수 항목은 [네트워크·복구 인수 계약](CR-P1-NTP-01-01-network-recovery.md)을 그대로 유지한다.
+
 상태: **별도 코드 리뷰 대상 / 운영 실행 NOT RUN / 새 작업창 미정**.
 PR34 R1은 승인·병합됐으며, 현재 R2 보완은 별도 후속 PR의 리뷰 대상이다.
 PR32·PR34 R1 코드 승인을 새 R2 코드의 승인으로 대신하지 않는다.
