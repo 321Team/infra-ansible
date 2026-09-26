@@ -23,7 +23,7 @@
 |---|---|
 | `playbooks/cr-p1-ntp-01-01-followup-gnp.yml` | ansible01에서 실행하는 전체 흐름. checkout·입력 바인딩 → 시작 검사 → (선택) 패킷 → 종료 재검사 |
 | `roles/ntp_source/tasks/_followup_gate.yml` | 단일 게이트 실행, 결과 파일(receipt)의 controller 보존(실패 포함), 통과 여부 판정 |
-| `library/fds_ntp_gnp_followup.py` | 노드 측 게이트: `contract`, `kernel`, `negative`, `sample` |
+| `library/fds_ntp_gnp_followup.py` | 노드 측 게이트: `authz`, `contract`, `kernel`, `negative`, `sample` |
 | `module_utils/fds_ntp_gnp_contract.py` | HEP/GNP/FelixConfiguration 선언적 UDP/123 계약 평가 |
 | `module_utils/fds_ntp_hep_kernel.py` | Felix가 만든 ens160 HEP egress 체인의 구조 검사와 DROP 카운터 |
 | `tests/ntp_source/test_gnp_followup.py` | LOCAL/MOCK 시험 |
@@ -36,7 +36,13 @@
 
 ## 판정 계층
 
-1. **정책 계약** (`contract`, control01에서 `kubectl get`만 실행)
+1. **최소권한 사전검사** (`authz`, control01)
+   - 전용 kubeconfig가 존재하고 `/etc/kubernetes/admin.conf`가 아니어야 한다.
+   - 3개 Calico CRD에 `get/list`는 모두 `yes`여야 한다.
+   - 같은 CRD의 `create/update/patch/delete/deletecollection/watch`는 모두 `no`여야 한다.
+   - wildcard `*/*` 권한이 `yes`면 FAIL한다.
+   - 이 검사가 PASS한 뒤에만 정책 객체를 읽는다.
+2. **정책 계약** (`contract`, control01에서 `kubectl get`만 실행)
    - HEP: 노드마다 정확히 1개이고, `interfaceName: ens160`이며, `expectedIPs`에 인벤토리 IP가 있어야 한다.
    - egress UDP/123
      - 클라이언트 5대: `10.1.93.102/32`만 Allow
@@ -53,14 +59,14 @@
      기본 외 tier, named port, `notNets`/selector 매치, preDNAT UDP/123 ingress.
      단, UDP를 매치할 수 없는 규칙(TCP 등)은 해석하지 않고 건너뛴다.
    - 기대값은 리뷰된 입력(토폴로지·승인 upstream)에서 온다. live 객체로 기준을 학습하지 않는다.
-2. **커널 구조** (`kernel`, 각 노드에서 읽기 전용)
+3. **커널 구조** (`kernel`, 각 노드에서 읽기 전용)
    - firewalld가 `inactive`여야 한다.
    - `iptables-save -c`에서 다음 경로가 있어야 한다:
      filter `OUTPUT` 첫 규칙 → `cali-OUTPUT` → `cali-to-host-endpoint` → `-o ens160` dispatch →
      `cali-th-*` 체인 정확히 1개 → 그 안의 DROP(end-of-tier)
    - raw 테이블 `cali-to-host-endpoint`에 ens160 규칙(untracked)이 있으면 STOP한다.
    - 규칙 의미는 해석하지 않는다. 의미 판정은 1번(정책 계약)과 3번(패킷 시험)이 맡는다.
-3. **패킷 시험** (`cr_ntp_followup_packets=true`일 때만)
+4. **패킷 시험** (`cr_ntp_followup_packets=true`일 때만)
    - 양의 경로: 기존 `pathcheck`로 클라이언트 → CP1 응답을 확인한다. CP1은 승인 upstream 선택·ACL·listener를 확인한다.
    - 음성
      - 대상: 모든 노드는 TEST-NET `192.0.2.123`, 클라이언트는 추가로 승인 upstream(직접 공인 NTP 차단 확인).
@@ -69,7 +75,7 @@
        timeout만으로는 PASS하지 않는다.
    - 관측: 60초 간격으로 6회 `chronyc tracking/sources`를 수집한다.
      - 판정 기준: 승인 source 1개가 선택되고, Leap Normal이며, offset이 `cr_ntp_offset_max_ms`(100ms) 이내여야 한다.
-4. **실행 중 drift**: 종료 시 계약과 커널을 다시 검사한다.
+5. **실행 중 drift**: 종료 시 계약과 커널을 다시 검사한다.
    - Calico 객체의 labels/spec digest가 시작 시점과 다르면 STOP한다.
    - 카운터를 제외한 HEP 체인 구조 digest가 시작 시점과 다르면 STOP한다.
    - 결과는 게이트·단계별 키(`contract_start`/`contract_end`, `kernel_start`/`kernel_end`)로 따로 보관해 비교한다.
@@ -129,7 +135,7 @@ python3 -B tests/ntp_source/test_gnp_followup_flow.py --output <새 디렉터리
 
 - **kubeconfig 최소권한 강제**: 기본값은 없다. `/etc/kubernetes/admin.conf`는 입력 단계에서 거부한다.
   `cr_ntp_followup_kubeconfig`에 3개 CRD(`hostendpoints`/`globalnetworkpolicies`/`felixconfigurations`)의 `get/list`만 허용한 전용 read-only kubeconfig를 지정해야 한다.
-  플레이북은 파일 존재를 확인하고 6개 `kubectl auth can-i` 허용과 wildcard `*/* = no`를 검증한 뒤에만 contract gate를 실행한다. 전용 kubeconfig 생성·배포 자체는 이 PR이 수행하지 않는다.
+  `authz` gate는 파일 존재를 확인하고 6개 `get/list` 허용, 18개 write/watch 거부, wildcard `*/* = no`를 검증한 뒤에만 contract gate를 실행한다. 전용 kubeconfig 생성·배포 자체는 이 PR이 수행하지 않는다.
 - **커널 fixture는 실측 원문이다.** 2026-09-24 읽기 전용 재수집본을 사용한다.
   - 수집: 11:27:40Z, 수집자 GWONUK. 원본은 `fds-project-evidence`
     `evidence/CR-P1-NTP-01-01-recapture-20260924`의 수신 커밋 `2c840a0`에 있다. 이후 `f240666`에서 경로가 `evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924/`로 옮겨졌으며, 바이트는 동일하다. 편입은 [fds-project-evidence#35](https://github.com/321Team/fds-project-evidence/pull/35)(리뷰 대기)에서 진행한다.
