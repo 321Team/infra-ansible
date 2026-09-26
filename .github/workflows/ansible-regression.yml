@@ -1,0 +1,55 @@
+# Inactive template. Activate under .github/workflows/ only after Runner inputs are approved.
+name: Ansible regression
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ansible-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    # Skipped is NOT the evidence required by Issue #5; enable only on an isolated Runner.
+    if: >-
+      vars.ANSIBLE_CI_ENABLED == 'true' &&
+      vars.ANSIBLE_CI_RUNNER_LABELS == '["self-hosted","Linux","X64","fds-ci","ansible-isolated"]' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
+    # Settings acknowledge this reviewed selector; they cannot redirect the job.
+    # Empty, broader or malformed label settings must skip the job above.
+    runs-on: [self-hosted, Linux, X64, fds-ci, ansible-isolated]
+    timeout-minutes: 30
+    env:
+      CI_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      CI_WHEEL_DIR: ${{ vars.ANSIBLE_CI_WHEEL_DIR }}
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-09-15
+        with:
+          ref: ${{ env.CI_SOURCE_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+      - name: Create a new run directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d "${RUNNER_TEMP:?}/ansible-ci-${GITHUB_RUN_ID:?}-${GITHUB_RUN_ATTEMPT:?}-XXXXXXXX")
+          printf 'CI_OUTPUT=%s\n' "$work/result" >> "$GITHUB_ENV"
+      - name: Syntax and both pinned engines
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--repo "$GITHUB_WORKSPACE" --commit "$CI_SOURCE_SHA" --output "$CI_OUTPUT")
+          if [[ -n "$CI_WHEEL_DIR" ]]; then args+=(--wheels "$CI_WHEEL_DIR"); fi
+          python3.12 -I -B tools/run-ansible-ci.py "${args[@]}"
+      - name: Preserve result and original logs on success or failure
+        if: ${{ always() && env.CI_OUTPUT != '' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ansible-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ env.CI_SOURCE_SHA }}
+          path: ${{ env.CI_OUTPUT }}/artifact/
+          if-no-files-found: error
+          retention-days: 14
