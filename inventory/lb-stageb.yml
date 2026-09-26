@@ -13,7 +13,7 @@ all:
           ansible_ssh_common_args: >-
             -o BatchMode=yes
             -o StrictHostKeyChecking=yes
-            -o UserKnownHostsFile=/home/server01_ansible/.ssh/known_hosts
+            -o UserKnownHostsFile=%d/.ssh/known_hosts
             -o IdentitiesOnly=yes
             -o ConnectionAttempts=1
             -o ConnectTimeout=5
