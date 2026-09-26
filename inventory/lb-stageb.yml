@@ -9,7 +9,6 @@ all:
           ansible_connection: ssh
           ansible_user: server01_k8s-api-lb
           ansible_python_interpreter: /usr/bin/python3
-          ansible_ssh_private_key_file: /home/server01_ansible/.ssh/p1_ansible_ed25519
           ansible_become: false
           ansible_ssh_common_args: >-
             -o BatchMode=yes
