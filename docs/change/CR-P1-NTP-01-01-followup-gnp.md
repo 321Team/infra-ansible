@@ -80,12 +80,15 @@
 전제:
 - 리뷰·병합된 정확한 commit에 clean checkout 상태여야 한다.
 - 기존 승인 계정(`svc_ansible`, 비대화형 sudo)을 사용한다.
+- `cr_ntp_followup_kubeconfig`는 **필수 입력**이다. `/etc/kubernetes/admin.conf`는 명시적으로 거부한다.
+- 전용 kubeconfig는 `hostendpoints`, `globalnetworkpolicies`, `felixconfigurations` CRD의 `get/list`만 허용해야 하며, 실행 전 `kubectl auth can-i` 6개 허용과 wildcard `*/* = no`를 확인한다.
+- 전용 read-only kubeconfig가 준비되지 않았거나 권한 검사가 다르면 즉시 STOP한다.
 - 새 작업창이 필요하다.
 
 ```bash
 cd /home/server01_ansible/p1-ans-01 && git fetch origin && git checkout --detach <reviewed-commit>
 cp docs/change/CR-P1-NTP-01-01-followup-gnp-input.example.json ~/ntp-followup-input.json
-# run_id, source_head(=<reviewed-commit>), evidence_dir, packets, upstreams 기입
+# run_id, source_head(=<reviewed-commit>), evidence_dir, packets, upstreams, read-only kubeconfig 경로 기입
 ansible-playbook playbooks/cr-p1-ntp-01-01-followup-gnp.yml -e @~/ntp-followup-input.json
 ```
 
@@ -124,9 +127,9 @@ python3 -B tests/ntp_source/test_gnp_followup_flow.py --output <새 디렉터리
 
 ## 리뷰 포인트와 한계
 
-- **kubeconfig**: 기본값은 control01의 `/etc/kubernetes/admin.conf`(cluster-admin)이며 `get`만 호출한다.
-  권장안은 3개 CRD에 get/list 권한만 가진 전용 read-only kubeconfig를 만들어
-  `cr_ntp_followup_kubeconfig`로 지정하는 것이다.
+- **kubeconfig 최소권한 강제**: 기본값은 없다. `/etc/kubernetes/admin.conf`는 입력 단계에서 거부한다.
+  `cr_ntp_followup_kubeconfig`에 3개 CRD(`hostendpoints`/`globalnetworkpolicies`/`felixconfigurations`)의 `get/list`만 허용한 전용 read-only kubeconfig를 지정해야 한다.
+  플레이북은 파일 존재를 확인하고 6개 `kubectl auth can-i` 허용과 wildcard `*/* = no`를 검증한 뒤에만 contract gate를 실행한다. 전용 kubeconfig 생성·배포 자체는 이 PR이 수행하지 않는다.
 - **커널 fixture는 실측 원문이다.** 2026-09-24 읽기 전용 재수집본을 사용한다.
   - 수집: 11:27:40Z, 수집자 GWONUK. 원본은 `fds-project-evidence`
     `evidence/CR-P1-NTP-01-01-recapture-20260924`의 수신 커밋 `2c840a0`에 있다. 이후 `f240666`에서 경로가 `evidence/P1-K8S-01/cr-p1-ntp-01-01-recapture-20260924/`로 옮겨졌으며, 바이트는 동일하다. 편입은 [fds-project-evidence#35](https://github.com/321Team/fds-project-evidence/pull/35)(리뷰 대기)에서 진행한다.
