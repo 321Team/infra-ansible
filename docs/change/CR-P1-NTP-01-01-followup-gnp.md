@@ -65,7 +65,7 @@
      filter `OUTPUT` 첫 규칙 → `cali-OUTPUT` → `cali-to-host-endpoint` → `-o ens160` dispatch →
      `cali-th-*` 체인 정확히 1개 → 그 안의 DROP(end-of-tier)
    - raw 테이블 `cali-to-host-endpoint`에 ens160 규칙(untracked)이 있으면 STOP한다.
-   - 규칙 의미는 해석하지 않는다. 의미 판정은 1번(정책 계약)과 3번(패킷 시험)이 맡는다.
+   - 규칙 의미는 해석하지 않는다. 의미 판정은 2번(정책 계약)과 4번(패킷 시험)이 맡는다.
 4. **패킷 시험** (`cr_ntp_followup_packets=true`일 때만)
    - 양의 경로: 기존 `pathcheck`로 클라이언트 → CP1 응답을 확인한다. CP1은 승인 upstream 선택·ACL·listener를 확인한다.
    - 음성
@@ -87,7 +87,7 @@
 - 리뷰·병합된 정확한 commit에 clean checkout 상태여야 한다.
 - 기존 승인 계정(`svc_ansible`, 비대화형 sudo)을 사용한다.
 - `cr_ntp_followup_kubeconfig`는 **필수 입력**이다. `/etc/kubernetes/admin.conf`는 명시적으로 거부한다.
-- 전용 kubeconfig는 `hostendpoints`, `globalnetworkpolicies`, `felixconfigurations` CRD의 `get/list`만 허용해야 하며, 실행 전 `kubectl auth can-i` 6개 허용과 wildcard `*/* = no`를 확인한다.
+- 전용 kubeconfig는 `hostendpoints`, `globalnetworkpolicies`, `felixconfigurations` CRD의 `get/list`만 허용해야 하며, 실행 전 `kubectl auth can-i`로 6개 get/list 허용, 18개 write/watch 거부, wildcard `*/* = no`를 확인한다.
 - 전용 read-only kubeconfig가 준비되지 않았거나 권한 검사가 다르면 즉시 STOP한다.
 - 새 작업창이 필요하다.
 
