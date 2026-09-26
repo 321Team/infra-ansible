@@ -106,6 +106,7 @@ def scenario(output, name, spec, ansible_playbook):
     inventory_path.write_text(yaml.safe_dump(inventory, sort_keys=False))
     extra = dict(cr_ntp_followup_run_id='flow-' + name.replace('_', '-'), cr_ntp_followup_source_head=head,
                  cr_ntp_followup_evidence_dir=str(evidence), cr_ntp_followup_packets=spec['packets'],
+                 cr_ntp_followup_kubeconfig='/tmp/fds-ntp-followup-readonly.conf',
                  cr_ntp_source_upstreams=UPSTREAMS, cr_ntp_offset_max_ms=100,
                  cr_ntp_followup_samples=2, cr_ntp_followup_interval=0)
     env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'PYTHON'))}
