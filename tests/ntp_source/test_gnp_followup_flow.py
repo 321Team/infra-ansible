@@ -64,7 +64,7 @@ SCENARIOS = {
 
 
 def expected_receipts(packets, drift):
-    names = {'start-contract--k8s-control01.json'} | {'start-kernel--%s.json' % h for h in HOSTS}
+    names = {'start-authz--k8s-control01.json', 'start-contract--k8s-control01.json'} | {'start-kernel--%s.json' % h for h in HOSTS}
     if packets:
         for h in HOSTS:
             names |= {'packets-positive--%s.json' % h, 'packets-negative--%s.json' % h,
