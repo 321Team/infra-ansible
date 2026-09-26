@@ -72,52 +72,10 @@
   gather_facts: false
   become: true
   tasks:
-    - name: Verify the dedicated Calico read-only kubeconfig exists
-      ansible.builtin.stat:
-        path: "{{ cr_ntp_followup_kubeconfig }}"
-      register: cr_ntp_followup_kubeconfig_stat
-
-    - name: Stop unless the kubeconfig is a regular file
-      ansible.builtin.assert:
-        that:
-          - cr_ntp_followup_kubeconfig_stat.stat.exists | default(false)
-          - cr_ntp_followup_kubeconfig_stat.stat.isreg | default(false)
-        fail_msg: "STOP: dedicated read-only kubeconfig is missing"
-
-    - name: Verify read-only access to reviewed Calico resources
-      ansible.builtin.command:
-        argv:
-          - /usr/bin/kubectl
-          - --kubeconfig
-          - "{{ cr_ntp_followup_kubeconfig }}"
-          - auth
-          - can-i
-          - "{{ item.0 }}"
-          - "{{ item.1 }}"
-      loop: "{{ ['get', 'list'] | product(['hostendpoints.crd.projectcalico.org', 'globalnetworkpolicies.crd.projectcalico.org', 'felixconfigurations.crd.projectcalico.org']) | list }}"
-      register: cr_ntp_followup_kubeconfig_allow
-      changed_when: false
-      check_mode: false
-
-    - name: Require all reviewed get/list permissions
-      ansible.builtin.assert:
-        that:
-          - cr_ntp_followup_kubeconfig_allow.results | map(attribute='stdout') | map('trim') | list | unique == ['yes']
-        fail_msg: "STOP: kubeconfig lacks required Calico get/list permissions"
-
-    - name: Verify wildcard cluster-admin permission is absent
-      ansible.builtin.command:
-        argv: [/usr/bin/kubectl, --kubeconfig, "{{ cr_ntp_followup_kubeconfig }}", auth, can-i, '*', '*']
-      register: cr_ntp_followup_kubeconfig_admin
-      changed_when: false
-      failed_when: false
-      check_mode: false
-
-    - name: Stop on cluster-admin-equivalent wildcard access
-      ansible.builtin.assert:
-        that:
-          - cr_ntp_followup_kubeconfig_admin.stdout | trim == 'no'
-        fail_msg: "STOP: kubeconfig has wildcard cluster-admin-equivalent access"
+    - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
+      vars:
+        cr_ntp_followup_gate: authz
+        cr_ntp_followup_phase: start
 
     - ansible.builtin.import_tasks: ../roles/ntp_source/tasks/_followup_gate.yml
       vars:
