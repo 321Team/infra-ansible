@@ -7,28 +7,37 @@
   any_errors_fatal: true
 
   vars:
-    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
     p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_expected_client_ca: /etc/kubernetes/pki/ca.crt
     p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
 
   pre_tasks:
-    - name: Require explicit target attempt and approval token
+    - name: Require explicit target attempt external approval record and operator confirmation
       ansible.builtin.assert:
         that:
           - p1_kubelet_tls_target is defined
           - p1_kubelet_tls_target in groups['k8s_nodes']
           - p1_kubelet_tls_attempt_id is defined
           - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
-          - p1_kubelet_tls_apply_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_apply_approval_ref is defined
+          - p1_kubelet_tls_apply_approval_ref is match('^https://github\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
+          - p1_kubelet_tls_apply_confirmed | default(false) | bool
         fail_msg: >-
-          Provide one k8s_nodes target, a 4-64 character attempt ID, and
-          p1_kubelet_tls_apply_approved=P1-K8S-01-KUBELET-TLS.
+          Provide one k8s_nodes target, a 4-64 character attempt ID, a concrete
+          GitHub approval comment/review URL, and p1_kubelet_tls_apply_confirmed=true.
+          The URL is traceability only; external authorization must already exist.
 
     - name: End non-target hosts before any mutation
       ansible.builtin.meta: end_host
       when: inventory_hostname != p1_kubelet_tls_target
 
   tasks:
+    - name: Revalidate effective kubelet CLI contract immediately before apply
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
+
+    - name: Revalidate kubelet authentication and authorization immediately before apply
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
+
     - name: Inspect kubelet config before change
       ansible.builtin.stat:
         path: "{{ p1_kubelet_tls_config_path }}"
@@ -58,6 +67,14 @@
         owner: root
         group: root
         mode: "0700"
+
+    - name: Record external apply approval reference
+      ansible.builtin.copy:
+        dest: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/apply-approval-ref.txt"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ p1_kubelet_tls_apply_approval_ref }}\n"
 
     - name: Preserve exact pre-change kubelet config once
       ansible.builtin.command:
@@ -119,7 +136,7 @@
         checksum_algorithm: sha256
       register: p1_kubelet_tls_after
 
-    - name: Persist staged SHA-256 for restart binding
+    - name: Persist staged SHA-256 for restart and rollback binding
       ansible.builtin.copy:
         dest: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/after.sha256"
         owner: root
@@ -132,6 +149,7 @@
         msg:
           host: "{{ inventory_hostname }}"
           attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
+          approval_ref: "{{ p1_kubelet_tls_apply_approval_ref }}"
           changed: "{{ p1_kubelet_tls_edit.changed }}"
           staged_sha256: "{{ p1_kubelet_tls_after.stat.checksum }}"
           restart: NOT_RUN

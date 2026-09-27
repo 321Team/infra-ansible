@@ -8,6 +8,7 @@
 
   vars:
     p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_expected_client_ca: /etc/kubernetes/pki/ca.crt
 
   tasks:
     - name: Read host identity
@@ -22,51 +23,8 @@
           - p1_kubelet_tls_hostname.stdout | trim == inventory_hostname
         fail_msg: Inventory hostname does not match the managed host.
 
-    - name: Validate kubelet config path and serving TLS CLI overrides
-      ansible.builtin.shell:
-        cmd: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-
-          pid = subprocess.check_output(['pgrep', '-xo', 'kubelet'], text=True).strip()
-          args = [x.decode() for x in Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0') if x]
-
-          def option_values(argv, name):
-              flag = f'--{name}'
-              prefix = flag + '='
-              values = []
-              i = 0
-              while i < len(argv):
-                  arg = argv[i]
-                  if arg.startswith(prefix):
-                      values.append(arg[len(prefix):])
-                  elif arg == flag:
-                      if i + 1 < len(argv) and not argv[i + 1].startswith('--'):
-                          values.append(argv[i + 1])
-                          i += 1
-                      else:
-                          values.append(None)
-                  i += 1
-              return values
-
-          configs = option_values(args, 'config')
-          forbidden_count = sum(
-              len(option_values(args, name))
-              for name in (
-                  'config-dir',
-                  'tls-cert-file',
-                  'tls-private-key-file',
-                  'rotate-server-certificates',
-              )
-          )
-          ok = configs == ['/var/lib/kubelet/config.yaml']
-          print('CONFIG_PATH_OK=' + ('1' if ok else '0'))
-          print('CONFIG_OR_TLS_OVERRIDE_COUNT=' + str(forbidden_count))
-          raise SystemExit(0 if ok and forbidden_count == 0 else 2)
-          PY
-      register: p1_kubelet_tls_cli
-      changed_when: false
+    - name: Validate effective kubelet CLI contract
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
 
     - name: Inspect kubelet config
       ansible.builtin.stat:
@@ -80,6 +38,9 @@
           - p1_kubelet_tls_config.stat.exists
           - p1_kubelet_tls_config.stat.isreg
         fail_msg: Expected kubelet config is missing or is not a regular file.
+
+    - name: Validate kubelet authentication and authorization contract
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
 
     - name: Count top-level serverTLSBootstrap keys
       ansible.builtin.shell:
@@ -101,6 +62,14 @@
         argv: [systemctl, is-active, kubelet]
       register: p1_kubelet_tls_service
       changed_when: false
+      failed_when: false
+
+    - name: Require active kubelet service
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_service.rc == 0
+          - p1_kubelet_tls_service.stdout | trim == 'active'
+        fail_msg: Kubelet service is not active.
 
     - name: Report precheck without changing the node
       ansible.builtin.debug:
@@ -110,3 +79,4 @@
           key_count: "{{ p1_kubelet_tls_key_count.stdout | int }}"
           current_value: "{{ p1_kubelet_tls_line.stdout | default('NOT_PRESENT', true) }}"
           kubelet: "{{ p1_kubelet_tls_service.stdout | trim }}"
+          authn_authz: PASS

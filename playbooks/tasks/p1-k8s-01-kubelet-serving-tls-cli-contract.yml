@@ -1,0 +1,69 @@
+---
+- name: Locate the running kubelet process
+  ansible.builtin.command:
+    argv: [pgrep, -xo, kubelet]
+  register: p1_kubelet_tls_pid
+  changed_when: false
+  failed_when: false
+
+- name: Require a running kubelet process
+  ansible.builtin.assert:
+    that:
+      - p1_kubelet_tls_pid.rc == 0
+      - p1_kubelet_tls_pid.stdout | trim is match('^[0-9]+$')
+    fail_msg: Kubelet process is not running; stop before evaluating the effective CLI.
+
+- name: Validate effective kubelet config path and serving TLS CLI overrides
+  ansible.builtin.shell:
+    cmd: |
+      python3 - "{{ p1_kubelet_tls_pid.stdout | trim }}" <<'PY'
+      from pathlib import Path
+      import sys
+
+      pid = sys.argv[1]
+      try:
+          args = [
+              item.decode()
+              for item in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+              if item
+          ]
+      except (OSError, UnicodeError):
+          print("KUBELET_CMDLINE_READABLE=0")
+          raise SystemExit(3)
+
+      def option_values(argv, name):
+          flag = f"--{name}"
+          prefix = flag + "="
+          values = []
+          i = 0
+          while i < len(argv):
+              arg = argv[i]
+              if arg.startswith(prefix):
+                  values.append(arg[len(prefix):])
+              elif arg == flag:
+                  if i + 1 < len(argv) and not argv[i + 1].startswith("--"):
+                      values.append(argv[i + 1])
+                      i += 1
+                  else:
+                      values.append(None)
+              i += 1
+          return values
+
+      configs = option_values(args, "config")
+      forbidden_count = sum(
+          len(option_values(args, name))
+          for name in (
+              "config-dir",
+              "tls-cert-file",
+              "tls-private-key-file",
+              "rotate-server-certificates",
+          )
+      )
+      config_ok = configs == ["/var/lib/kubelet/config.yaml"]
+      print("KUBELET_CMDLINE_READABLE=1")
+      print("CONFIG_PATH_OK=" + ("1" if config_ok else "0"))
+      print("CONFIG_OR_TLS_OVERRIDE_COUNT=" + str(forbidden_count))
+      raise SystemExit(0 if config_ok and forbidden_count == 0 else 2)
+      PY
+  register: p1_kubelet_tls_cli_contract
+  changed_when: false

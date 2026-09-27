@@ -1,0 +1,20 @@
+---
+- name: Read kubelet configuration for authentication and authorization contract
+  ansible.builtin.slurp:
+    src: "{{ p1_kubelet_tls_config_path }}"
+  register: p1_kubelet_tls_config_raw
+
+- name: Decode kubelet authentication and authorization configuration
+  ansible.builtin.set_fact:
+    p1_kubelet_tls_config_object: "{{ p1_kubelet_tls_config_raw.content | b64decode | from_yaml }}"
+
+- name: Require approved kubelet authentication and authorization controls
+  ansible.builtin.assert:
+    that:
+      - not (p1_kubelet_tls_config_object.get('authentication', {}).get('anonymous', {}).get('enabled', true) | bool)
+      - p1_kubelet_tls_config_object.get('authentication', {}).get('webhook', {}).get('enabled', false) | bool
+      - p1_kubelet_tls_config_object.get('authentication', {}).get('x509', {}).get('clientCAFile', '') == p1_kubelet_tls_expected_client_ca
+      - p1_kubelet_tls_config_object.get('authorization', {}).get('mode', '') == 'Webhook'
+    fail_msg: >-
+      Kubelet authn/authz drift detected: require anonymous=false, webhook authentication,
+      the cluster client CA, and Webhook authorization.

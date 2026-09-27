@@ -7,41 +7,54 @@
   any_errors_fatal: true
 
   vars:
-    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
     p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
     p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
 
   pre_tasks:
-    - name: Require explicit guarded rollback inputs
+    - name: Require explicit guarded rollback inputs and separate restart confirmation
       ansible.builtin.assert:
         that:
           - p1_kubelet_tls_target is defined
           - p1_kubelet_tls_target in groups['k8s_nodes']
           - p1_kubelet_tls_attempt_id is defined
           - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
-          - p1_kubelet_tls_rollback_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_rollback_approval_ref is defined
+          - p1_kubelet_tls_rollback_approval_ref is match('^https://github\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
+          - p1_kubelet_tls_rollback_confirmed | default(false) | bool
+          - p1_kubelet_tls_rollback_restart_confirmed | default(false) | bool
           - p1_kubelet_tls_current_sha256 is defined
           - p1_kubelet_tls_current_sha256 is match('^[0-9a-f]{64}$')
         fail_msg: >-
-          Provide one target, a 4-64 character attempt ID, rollback approval token,
-          and the SHA-256 of the current config observed immediately before rollback.
+          Provide one target/attempt, a concrete external rollback approval record,
+          rollback and restart confirmations, and the SHA-256 observed immediately
+          before rollback. These are operator interlocks; authorization is external.
 
     - name: End non-target hosts before rollback
       ansible.builtin.meta: end_host
       when: inventory_hostname != p1_kubelet_tls_target
 
   tasks:
+    - name: Read staged SHA-256 for this attempt
+      ansible.builtin.slurp:
+        src: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/after.sha256"
+      register: p1_kubelet_tls_after_sha_file
+
     - name: Inspect current config
       ansible.builtin.stat:
         path: "{{ p1_kubelet_tls_config_path }}"
         checksum_algorithm: sha256
       register: p1_kubelet_tls_current
 
-    - name: Guard against overwriting unrelated later changes
+    - name: Guard against TOCTOU and unrelated changes since staging
       ansible.builtin.assert:
         that:
           - p1_kubelet_tls_current.stat.checksum == p1_kubelet_tls_current_sha256
-        fail_msg: Current config changed after the rollback decision; stop.
+          - >-
+            p1_kubelet_tls_current.stat.checksum ==
+            (p1_kubelet_tls_after_sha_file.content | b64decode | trim)
+        fail_msg: >-
+          Current config differs from the operator-observed SHA or this attempt's
+          staged after.sha256; stop instead of overwriting unrelated work.
 
     - name: Read original SHA-256
       ansible.builtin.slurp:
@@ -85,7 +98,7 @@
             p1_kubelet_tls_restored.stat.checksum ==
             (p1_kubelet_tls_before_sha_file.content | b64decode | trim)
 
-    - name: Restart kubelet after rollback
+    - name: Restart kubelet after explicitly confirmed rollback
       ansible.builtin.systemd_service:
         name: kubelet
         state: restarted
@@ -95,11 +108,19 @@
         argv: [systemctl, is-active, kubelet]
       register: p1_kubelet_tls_active
       changed_when: false
+      failed_when: false
+
+    - name: Require active kubelet after rollback
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_active.rc == 0
+          - p1_kubelet_tls_active.stdout | trim == 'active'
 
     - name: Report rollback result
       ansible.builtin.debug:
         msg:
           host: "{{ inventory_hostname }}"
+          approval_ref: "{{ p1_kubelet_tls_rollback_approval_ref }}"
           config: RESTORED
           kubelet: "{{ p1_kubelet_tls_active.stdout | trim }}"
           pki_deleted: false
