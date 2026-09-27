@@ -22,6 +22,29 @@
           - p1_kubelet_tls_hostname.stdout | trim == inventory_hostname
         fail_msg: Inventory hostname does not match the managed host.
 
+    - name: Validate kubelet config path and serving TLS CLI overrides
+      ansible.builtin.shell:
+        cmd: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          pid = subprocess.check_output(['pgrep', '-xo', 'kubelet'], text=True).strip()
+          args = [x.decode() for x in Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0') if x]
+          configs = [x for x in args if x.startswith('--config=')]
+          forbidden = [
+              x for x in args
+              if x.startswith('--tls-cert-file=')
+              or x.startswith('--tls-private-key-file=')
+              or x.startswith('--rotate-server-certificates=')
+          ]
+          ok = configs == ['--config=/var/lib/kubelet/config.yaml']
+          print('CONFIG_PATH_OK=' + ('1' if ok else '0'))
+          print('TLS_OVERRIDE_COUNT=' + str(len(forbidden)))
+          raise SystemExit(0 if ok and not forbidden else 2)
+          PY
+      register: p1_kubelet_tls_cli
+      changed_when: false
+
     - name: Inspect kubelet config
       ansible.builtin.stat:
         path: "{{ p1_kubelet_tls_config_path }}"
