@@ -98,6 +98,7 @@ only after a reviewer is ready:
 ansible-playbook -i "$INV" \
   playbooks/p1-k8s-01-kubelet-serving-tls-restart-one.yml \
   -e "p1_kubelet_tls_target=$NODE" \
+  -e "p1_kubelet_tls_attempt_id=$ATTEMPT" \
   -e "p1_kubelet_tls_restart_approved=P1-K8S-01-KUBELET-TLS" \
   -e "p1_kubelet_tls_csr_reviewer_ready=true"
 ```
