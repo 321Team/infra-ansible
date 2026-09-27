@@ -58,7 +58,7 @@ source ~/.config/ansible/p1-ans-01.env
 
 `inventory/lb-stageb.yml`은 P1-LB-01 Stage B Runtime에서 필요한 `k8s-api-lb01` 단일 호스트 연결 정보만 제공합니다. 기존 `inventory/hosts.yml`의 Kubernetes 6노드/egress proxy 그룹에는 LB를 편입하지 않으며, 기존 playbook 대상 범위를 확대하지 않습니다.
 
-이 파일에는 Private Key/Token/Password를 저장하지 않습니다. 제어 노드 `ansible01`에서 기존 로컬 환경 파일을 적용해 `ANSIBLE_PRIVATE_KEY_FILE`을 제공하고, inventory에는 `server01_k8s-api-lb`, `10.1.93.109`, strict host-key 확인 및 `IdentitiesOnly=yes` 같은 비밀정보가 아닌 연결 제약만 둡니다.
+이 파일에는 Private Key/Token/Password를 저장하지 않습니다. 제어 노드 `ansible01`에서 기존 로컬 환경 파일을 적용해 `ANSIBLE_PRIVATE_KEY_FILE`을 제공하고, inventory에는 `server01_k8s-api-lb`, `10.1.93.109`, strict host-key 확인, `IdentitiesOnly=yes`, `RequestTTY=no`, `ansible_ssh_use_tty=false` 같은 비밀정보가 아닌 연결 제약만 둡니다. LB 일반계정은 PTY를 요구하지 않는 자동화 경로를 사용하며 서버의 SSH/PTY 정책은 변경하지 않습니다.
 
 독립 리뷰·병합 후 Runtime 접근 점검 시 예시는 다음과 같습니다.
 
