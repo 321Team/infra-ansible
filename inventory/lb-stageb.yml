@@ -1,0 +1,22 @@
+---
+all:
+  children:
+    lb_stageb:
+      hosts:
+        k8s-api-lb01:
+          ansible_host: 10.1.93.109
+          expected_hostname: k8s-api-lb01
+          ansible_connection: ssh
+          ansible_user: server01_k8s-api-lb
+          ansible_python_interpreter: /usr/bin/python3
+          ansible_become: false
+          ansible_ssh_common_args: >-
+            -o BatchMode=yes
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile=%d/.ssh/known_hosts
+            -o IdentitiesOnly=yes
+            -o ConnectionAttempts=1
+            -o ConnectTimeout=5
+            -o ClearAllForwardings=yes
+            -o PermitLocalCommand=no
+            -o RemoteCommand=none

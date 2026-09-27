@@ -25,10 +25,10 @@
     - name: Verify this host matches its declared inventory identity
       ansible.builtin.assert:
         that:
-          - ansible_hostname == expected_hostname
+          - ansible_facts['hostname'] == expected_hostname
         fail_msg: >-
           Baseline mismatch on {{ inventory_hostname }}: expected hostname
-          {{ expected_hostname }}, actual {{ ansible_hostname }}. Refusing
+          {{ expected_hostname }}, actual {{ ansible_facts['hostname'] }}. Refusing
           to roll back {{ cr_mon_change_id }} against a host that does not
           match its declared inventory identity.
 

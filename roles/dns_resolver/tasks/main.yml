@@ -22,8 +22,8 @@
 - name: Verify the default IPv4 interface is available
   ansible.builtin.assert:
     that:
-      - ansible_default_ipv4.interface is defined
-      - ansible_default_ipv4.interface | length > 0
+      - ansible_facts['default_ipv4'].interface is defined
+      - ansible_facts['default_ipv4'].interface | length > 0
     fail_msg: >-
       No default IPv4 interface was detected on {{ inventory_hostname }}.
 
@@ -35,7 +35,7 @@
       - GENERAL.CONNECTION
       - device
       - show
-      - "{{ ansible_default_ipv4.interface }}"
+      - "{{ ansible_facts['default_ipv4'].interface }}"
   register: cr_dns_active_connection
   changed_when: false
   check_mode: false
@@ -48,7 +48,7 @@
       - cr_dns_active_connection.stdout | trim != '--'
     fail_msg: >-
       An active NetworkManager connection was not found for
-      {{ ansible_default_ipv4.interface }} on {{ inventory_hostname }}.
+      {{ ansible_facts['default_ipv4'].interface }} on {{ inventory_hostname }}.
 
 - name: Read current NetworkManager IPv4 DNS servers
   ansible.builtin.command:
@@ -202,9 +202,9 @@
       {{
         {
           'change_id': cr_dns_change_id,
-          'captured_at': ansible_date_time.iso8601,
+          'captured_at': ansible_facts['date_time'].iso8601,
           'inventory_hostname': inventory_hostname,
-          'interface': ansible_default_ipv4.interface,
+          'interface': ansible_facts['default_ipv4'].interface,
           'connection': cr_dns_active_connection.stdout | trim,
           'ipv4_dns': cr_dns_connection_dns.stdout | trim,
           'ipv4_dns_search': cr_dns_connection_search.stdout | trim,
@@ -243,7 +243,7 @@
           - nmcli
           - device
           - reapply
-          - "{{ ansible_default_ipv4.interface }}"
+          - "{{ ansible_facts['default_ipv4'].interface }}"
       changed_when: true
 
   rescue:
@@ -268,7 +268,7 @@
           - nmcli
           - device
           - reapply
-          - "{{ ansible_default_ipv4.interface }}"
+          - "{{ ansible_facts['default_ipv4'].interface }}"
       changed_when: true
 
     - name: Stop the batch after automatic rollback
@@ -325,7 +325,7 @@
           - nmcli
           - device
           - reapply
-          - "{{ ansible_default_ipv4.interface }}"
+          - "{{ ansible_facts['default_ipv4'].interface }}"
       changed_when: true
       when:
         - cr_dns_phase == 'apply'
