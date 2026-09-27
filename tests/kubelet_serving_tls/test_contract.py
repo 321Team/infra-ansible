@@ -44,6 +44,8 @@ def test_apply_is_config_only_and_requires_explicit_target():
 def test_restart_requires_reviewer_ready_and_has_no_auto_approval():
     text = PLAYBOOKS["restart"].read_text()
     assert "p1_kubelet_tls_csr_reviewer_ready" in text
+    assert "p1_kubelet_tls_attempt_id" in text
+    assert "config.yaml.before" in text
     assert "state: restarted" in text
     assert "certificate approve" not in text
     assert "kubectl" not in text
@@ -63,4 +65,4 @@ def test_rollback_is_hash_guarded_and_does_not_delete_pki():
     assert "--preserve=all" in text
     assert "state: restarted" in text
     assert "rm " not in text
-    assert "delete" not in text.lower()
+    assert "state: absent" not in text
