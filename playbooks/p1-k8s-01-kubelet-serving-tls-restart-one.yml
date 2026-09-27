@@ -43,6 +43,25 @@
           - p1_kubelet_tls_restart_state.stat.isreg
         fail_msg: No preserved pre-change state exists for this target and attempt.
 
+    - name: Read staged SHA-256 for this attempt
+      ansible.builtin.slurp:
+        src: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/after.sha256"
+      register: p1_kubelet_tls_after_sha_file
+
+    - name: Inspect current config before restart
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_restart_current
+
+    - name: Stop if config changed after staging
+      ansible.builtin.assert:
+        that:
+          - >-
+            p1_kubelet_tls_restart_current.stat.checksum ==
+            (p1_kubelet_tls_after_sha_file.content | b64decode | trim)
+        fail_msg: Kubelet config changed after this attempt was staged; do not restart.
+
     - name: Verify staged serverTLSBootstrap field
       ansible.builtin.shell:
         cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
