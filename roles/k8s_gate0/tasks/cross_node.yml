@@ -51,8 +51,8 @@
 - name: Collect identity facts for uniqueness comparison
   ansible.builtin.set_fact:
     k8s_gate0_identity:
-      hostname: "{{ ansible_hostname }}"
-      mac: "{{ ansible_default_ipv4.macaddress | default('') }}"
+      hostname: "{{ ansible_facts['hostname'] }}"
+      mac: "{{ ansible_facts['default_ipv4'].macaddress | default('') }}"
       product_uuid: "{{ k8s_gate0_product_uuid }}"
 
 - name: Assert identity uniqueness across all Gate 0 nodes

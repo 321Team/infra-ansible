@@ -8,16 +8,16 @@
     - name: Verify inventory hostname and operating system
       ansible.builtin.assert:
         that:
-          - ansible_hostname == expected_hostname
-          - ansible_distribution == "CentOS"
-          - ansible_distribution_major_version == "10"
+          - ansible_facts['hostname'] == expected_hostname
+          - ansible_facts['distribution'] == "CentOS"
+          - ansible_facts['distribution_major_version'] == "10"
         fail_msg: >-
           Host or OS mismatch:
           inventory={{ inventory_hostname }},
           expected={{ expected_hostname }},
-          actual={{ ansible_hostname }},
-          distribution={{ ansible_distribution }}
-          {{ ansible_distribution_major_version }}
+          actual={{ ansible_facts['hostname'] }},
+          distribution={{ ansible_facts['distribution'] }}
+          {{ ansible_facts['distribution_major_version'] }}
         success_msg: >-
           Host and OS verified:
           {{ inventory_hostname }} / CentOS Stream 10
@@ -154,10 +154,10 @@
         msg:
           host: "{{ inventory_hostname }}"
           address: "{{ ansible_host }}"
-          hostname: "{{ ansible_hostname }}"
+          hostname: "{{ ansible_facts['hostname'] }}"
           os: >-
-            {{ ansible_distribution }}
-            {{ ansible_distribution_major_version }}
+            {{ ansible_facts['distribution'] }}
+            {{ ansible_facts['distribution_major_version'] }}
           effective_user: "{{ effective_user.stdout | trim }}"
           selinux: "{{ selinux_mode.stdout | trim }}"
           timezone: "{{ timezone_result.stdout | trim }}"

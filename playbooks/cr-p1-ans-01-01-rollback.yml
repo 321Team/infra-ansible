@@ -60,7 +60,7 @@
         that:
           - cr_dns_original_state.change_id == cr_dns_change_id
           - cr_dns_original_state.inventory_hostname == inventory_hostname
-          - cr_dns_original_state.interface == ansible_default_ipv4.interface
+          - cr_dns_original_state.interface == ansible_facts['default_ipv4'].interface
           - >-
             cr_dns_rollback_active_connection.stdout | trim
             == cr_dns_original_state.connection
