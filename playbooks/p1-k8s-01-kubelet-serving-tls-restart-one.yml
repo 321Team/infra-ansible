@@ -12,16 +12,18 @@
     p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
 
   pre_tasks:
-    - name: Require explicit target and restart authorization
+    - name: Require explicit target, attempt, and restart authorization
       ansible.builtin.assert:
         that:
           - p1_kubelet_tls_target is defined
           - p1_kubelet_tls_target in groups['k8s_nodes']
           - p1_kubelet_tls_attempt_id is defined
-          - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}          - p1_kubelet_tls_csr_reviewer_ready | default(false) | bool
+          - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
+          - p1_kubelet_tls_restart_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_csr_reviewer_ready | default(false) | bool
         fail_msg: >-
-          Select one k8s_nodes target, set restart approval to the change ID,
-          and confirm the CSR reviewer is ready.
+          Select one k8s_nodes target, provide the staged attempt ID, set
+          restart approval to the change ID, and confirm the CSR reviewer is ready.
 
     - name: End non-target hosts before restart
       ansible.builtin.meta: end_host
@@ -70,50 +72,7 @@
       ansible.builtin.debug:
         msg:
           host: "{{ inventory_hostname }}"
-          kubelet: ACTIVE
-          csr: MANUAL_REVIEW_REQUIRED
-          auto_approval: DISABLED
-)
-          - p1_kubelet_tls_restart_approved | default('') == p1_kubelet_tls_change_id
-          - p1_kubelet_tls_csr_reviewer_ready | default(false) | bool
-        fail_msg: >-
-          Select one k8s_nodes target, set restart approval to the change ID,
-          and confirm the CSR reviewer is ready.
-
-    - name: End non-target hosts before restart
-      ansible.builtin.meta: end_host
-      when: inventory_hostname != p1_kubelet_tls_target
-
-  tasks:
-    - name: Verify staged serverTLSBootstrap field
-      ansible.builtin.shell:
-        cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
-      register: p1_kubelet_tls_line
-      changed_when: false
-      failed_when: >-
-        p1_kubelet_tls_line.stdout_lines | length != 1 or
-        p1_kubelet_tls_line.stdout_lines[0] != 'serverTLSBootstrap: true'
-
-    - name: Restart exactly the selected kubelet
-      ansible.builtin.systemd_service:
-        name: kubelet
-        state: restarted
-
-    - name: Verify kubelet service returned active
-      ansible.builtin.command:
-        argv: [systemctl, is-active, kubelet]
-      register: p1_kubelet_tls_active
-      changed_when: false
-
-    - name: Require active kubelet
-      ansible.builtin.assert:
-        that:
-          - p1_kubelet_tls_active.stdout | trim == 'active'
-
-    - name: Hand off to manual serving CSR review
-      ansible.builtin.debug:
-        msg:
-          host: "{{ inventory_hostname }}"
+          attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
           kubelet: ACTIVE
           csr: MANUAL_REVIEW_REQUIRED
           auto_approval: DISABLED
