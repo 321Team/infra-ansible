@@ -24,7 +24,7 @@
         fail_msg: Inventory hostname does not match the managed host.
 
     - name: Validate effective kubelet CLI contract
-      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
 
     - name: Inspect kubelet config
       ansible.builtin.stat:
@@ -40,7 +40,7 @@
         fail_msg: Expected kubelet config is missing or is not a regular file.
 
     - name: Validate kubelet authentication and authorization contract
-      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
 
     - name: Count top-level serverTLSBootstrap keys
       ansible.builtin.shell:

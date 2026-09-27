@@ -19,7 +19,7 @@
           - p1_kubelet_tls_attempt_id is defined
           - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
           - p1_kubelet_tls_rollback_approval_ref is defined
-          - p1_kubelet_tls_rollback_approval_ref is match('^https://github\\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
+          - p1_kubelet_tls_rollback_approval_ref is match('^https://github\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
           - p1_kubelet_tls_rollback_confirmed | default(false) | bool
           - p1_kubelet_tls_rollback_restart_confirmed | default(false) | bool
           - p1_kubelet_tls_current_sha256 is defined

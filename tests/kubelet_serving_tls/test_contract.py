@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -61,7 +62,7 @@ class KubeletServingTLSContractTests(unittest.TestCase):
         for play_name, task_name in expected.items():
             task = task_named(load_play(play_name), task_name)
             self.assertEqual(
-                task["ansible.builtin.include_tasks"],
+                task["ansible.builtin.import_tasks"],
                 "tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml",
             )
 
@@ -105,6 +106,28 @@ class KubeletServingTLSContractTests(unittest.TestCase):
                 self.assertIn(item, text)
             self.assertNotIn("_approved", text)
             self.assertNotIn("approval token", text.lower())
+
+    def test_approval_ref_regex_accepts_concrete_github_records(self):
+        cases = {
+            "apply": "p1_kubelet_tls_apply_approval_ref",
+            "restart": "p1_kubelet_tls_restart_approval_ref",
+            "rollback": "p1_kubelet_tls_rollback_approval_ref",
+        }
+        valid = (
+            "https://github.com/321Team/infra-kubernetes/issues/47#issuecomment-123",
+            "https://github.com/321Team/infra-ansible/pull/57#pullrequestreview-456",
+        )
+        invalid = "https://githubXcom/321Team/infra-kubernetes/issues/47#issuecomment-123"
+        for play_name, variable in cases.items():
+            conditions = load_play(play_name)["pre_tasks"][0]["ansible.builtin.assert"]["that"]
+            prefix = f"{variable} is match('"
+            expression = next(item for item in conditions if item.startswith(prefix))
+            self.assertTrue(expression.endswith("')"))
+            pattern = expression[len(prefix):-2]
+            regex = re.compile(pattern)
+            for url in valid:
+                self.assertRegex(url, regex)
+            self.assertNotRegex(invalid, regex)
 
     def test_apply_remains_config_only(self):
         text = PLAYBOOKS["apply"].read_text(encoding="utf-8")

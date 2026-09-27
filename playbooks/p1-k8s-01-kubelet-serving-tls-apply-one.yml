@@ -20,7 +20,7 @@
           - p1_kubelet_tls_attempt_id is defined
           - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
           - p1_kubelet_tls_apply_approval_ref is defined
-          - p1_kubelet_tls_apply_approval_ref is match('^https://github\\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
+          - p1_kubelet_tls_apply_approval_ref is match('^https://github\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
           - p1_kubelet_tls_apply_confirmed | default(false) | bool
         fail_msg: >-
           Provide one k8s_nodes target, a 4-64 character attempt ID, a concrete
@@ -33,10 +33,10 @@
 
   tasks:
     - name: Revalidate effective kubelet CLI contract immediately before apply
-      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
 
     - name: Revalidate kubelet authentication and authorization immediately before apply
-      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
+      ansible.builtin.import_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
 
     - name: Inspect kubelet config before change
       ansible.builtin.stat:
