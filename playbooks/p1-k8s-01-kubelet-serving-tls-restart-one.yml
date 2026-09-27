@@ -1,5 +1,5 @@
 ---
-- name: P1-K8S-01 restart one staged kubelet with CSR reviewer ready
+- name: P1-K8S-01 restart one staged kubelet with manual CSR review
   hosts: k8s_nodes
   gather_facts: false
   become: true
@@ -7,29 +7,40 @@
   any_errors_fatal: true
 
   vars:
-    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
     p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_expected_client_ca: /etc/kubernetes/pki/ca.crt
     p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
 
   pre_tasks:
-    - name: Require explicit target, attempt, and restart authorization
+    - name: Require target attempt external restart approval and named CSR reviewer
       ansible.builtin.assert:
         that:
           - p1_kubelet_tls_target is defined
           - p1_kubelet_tls_target in groups['k8s_nodes']
           - p1_kubelet_tls_attempt_id is defined
           - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
-          - p1_kubelet_tls_restart_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_restart_approval_ref is defined
+          - p1_kubelet_tls_restart_approval_ref is match('^https://github\\.com/321Team/[A-Za-z0-9_.-]+/(issues|pull)/[0-9]+#(issuecomment|pullrequestreview)-[0-9]+$')
+          - p1_kubelet_tls_restart_confirmed | default(false) | bool
+          - p1_kubelet_tls_csr_reviewer is defined
+          - p1_kubelet_tls_csr_reviewer is match('^[A-Za-z0-9-]{1,39}$')
           - p1_kubelet_tls_csr_reviewer_ready | default(false) | bool
         fail_msg: >-
-          Select one k8s_nodes target, provide the staged attempt ID, set
-          restart approval to the change ID, and confirm the CSR reviewer is ready.
+          Provide the target/attempt, a concrete external restart approval record,
+          restart confirmation, and a named ready CSR reviewer. These fields are
+          operator interlocks and traceability, not an authentication mechanism.
 
     - name: End non-target hosts before restart
       ansible.builtin.meta: end_host
       when: inventory_hostname != p1_kubelet_tls_target
 
   tasks:
+    - name: Revalidate effective kubelet CLI contract immediately before restart
+      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
+
+    - name: Revalidate kubelet authentication and authorization immediately before restart
+      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
+
     - name: Require preserved state for the same attempt
       ansible.builtin.stat:
         path: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
@@ -71,6 +82,25 @@
         p1_kubelet_tls_line.stdout_lines | length != 1 or
         p1_kubelet_tls_line.stdout_lines[0] != 'serverTLSBootstrap: true'
 
+    - name: Capture pre-restart CSR inventory from control01
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig=/etc/kubernetes/admin.conf
+          - get
+          - csr
+          - -o
+          - json
+      delegate_to: k8s-control01
+      register: p1_kubelet_tls_pre_csr_json
+      changed_when: false
+
+    - name: Record pre-restart CSR names
+      ansible.builtin.set_fact:
+        p1_kubelet_tls_pre_csr_names: >-
+          {{ (p1_kubelet_tls_pre_csr_json.stdout | from_json).items
+              | map(attribute='metadata.name') | list }}
+
     - name: Restart exactly the selected kubelet
       ansible.builtin.systemd_service:
         name: kubelet
@@ -81,17 +111,74 @@
         argv: [systemctl, is-active, kubelet]
       register: p1_kubelet_tls_active
       changed_when: false
+      failed_when: false
 
     - name: Require active kubelet
       ansible.builtin.assert:
         that:
+          - p1_kubelet_tls_active.rc == 0
           - p1_kubelet_tls_active.stdout | trim == 'active'
 
-    - name: Hand off to manual serving CSR review
+    - name: Wait for exactly one new pending serving CSR for the selected node
+      ansible.builtin.shell:
+        cmd: |
+          python3 - "{{ inventory_hostname }}" {{ p1_kubelet_tls_pre_csr_names | to_json | quote }} <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          node = sys.argv[1]
+          before = set(json.loads(sys.argv[2]))
+          raw = subprocess.check_output(
+              [
+                  "kubectl",
+                  "--kubeconfig=/etc/kubernetes/admin.conf",
+                  "get",
+                  "csr",
+                  "-o",
+                  "json",
+              ],
+              text=True,
+          )
+          items = json.loads(raw).get("items", [])
+          matches = []
+          for item in items:
+              meta = item.get("metadata", {})
+              spec = item.get("spec", {})
+              conditions = item.get("status", {}).get("conditions", [])
+              if (
+                  meta.get("name") not in before
+                  and spec.get("signerName") == "kubernetes.io/kubelet-serving"
+                  and spec.get("username") == f"system:node:{node}"
+                  and not conditions
+              ):
+                  matches.append(
+                      {
+                          "name": meta.get("name"),
+                          "uid": meta.get("uid"),
+                          "resourceVersion": meta.get("resourceVersion"),
+                      }
+                  )
+          print(json.dumps(matches, sort_keys=True))
+          raise SystemExit(0 if len(matches) == 1 else 2)
+          PY
+      args:
+        executable: /bin/bash
+      delegate_to: k8s-control01
+      register: p1_kubelet_tls_pending_csr
+      changed_when: false
+      retries: 12
+      delay: 5
+      until: p1_kubelet_tls_pending_csr.rc == 0
+
+    - name: Hand off the exact pending CSR to the named manual reviewer
       ansible.builtin.debug:
         msg:
           host: "{{ inventory_hostname }}"
           attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
+          approval_ref: "{{ p1_kubelet_tls_restart_approval_ref }}"
+          csr_reviewer: "{{ p1_kubelet_tls_csr_reviewer }}"
+          pending_csr: "{{ p1_kubelet_tls_pending_csr.stdout }}"
           kubelet: ACTIVE
           csr: MANUAL_REVIEW_REQUIRED
           auto_approval: DISABLED

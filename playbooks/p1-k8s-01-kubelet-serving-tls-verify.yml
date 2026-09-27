@@ -10,8 +10,15 @@
     p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
     p1_kubelet_tls_serving_cert: /var/lib/kubelet/pki/kubelet-server-current.pem
     p1_kubelet_tls_ca: /etc/kubernetes/pki/ca.crt
+    p1_kubelet_tls_expected_client_ca: /etc/kubernetes/pki/ca.crt
 
   tasks:
+    - name: Revalidate effective kubelet CLI contract during verification
+      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-cli-contract.yml
+
+    - name: Verify kubelet authentication and authorization controls
+      ansible.builtin.include_tasks: tasks/p1-k8s-01-kubelet-serving-tls-auth-contract.yml
+
     - name: Verify exact serverTLSBootstrap field
       ansible.builtin.shell:
         cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
@@ -26,6 +33,13 @@
         argv: [systemctl, is-active, kubelet]
       register: p1_kubelet_tls_active
       changed_when: false
+      failed_when: false
+
+    - name: Require active kubelet
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_active.rc == 0
+          - p1_kubelet_tls_active.stdout | trim == 'active'
 
     - name: Verify serving certificate chains to cluster CA
       ansible.builtin.command:
@@ -67,6 +81,8 @@
           host: "{{ inventory_hostname }}"
           serverTLSBootstrap: true
           kubelet: "{{ p1_kubelet_tls_active.stdout | trim }}"
+          authn_authz: PASS
+          effective_cli: PASS
           ca_chain: PASS
           ip_san: PASS
           hostname_san: PASS
