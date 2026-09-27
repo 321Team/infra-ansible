@@ -147,6 +147,7 @@
         inventory_hostname: "{{ inventory_hostname }}"
         ansible_host: "{{ ansible_host }}"
         source_upstreams: "{{ cr_ntp_source_upstreams }}"
+        kubeconfig: "{{ cr_ntp_followup_kubeconfig }}"
         offset_limit_ms: "{{ cr_ntp_offset_max_ms }}"
       loop: "{{ range(cr_ntp_followup_samples | default(6) | int) | list }}"
       loop_control:
