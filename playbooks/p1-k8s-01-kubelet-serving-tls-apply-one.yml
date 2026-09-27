@@ -111,11 +111,26 @@
           - p1_kubelet_tls_post_line.stdout_lines[0] == 'serverTLSBootstrap: true'
         fail_msg: serverTLSBootstrap field is not exactly one top-level true value.
 
+    - name: Inspect staged kubelet config
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_after
+
+    - name: Persist staged SHA-256 for restart binding
+      ansible.builtin.copy:
+        dest: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/after.sha256"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ p1_kubelet_tls_after.stat.checksum }}\n"
+
     - name: Report staged state
       ansible.builtin.debug:
         msg:
           host: "{{ inventory_hostname }}"
           attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
           changed: "{{ p1_kubelet_tls_edit.changed }}"
+          staged_sha256: "{{ p1_kubelet_tls_after.stat.checksum }}"
           restart: NOT_RUN
           csr_approval: NOT_RUN
