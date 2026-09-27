@@ -68,7 +68,15 @@ ansible-playbook -i "$INV" playbooks/p1-k8s-01-kubelet-serving-tls-precheck.yml
 ```
 
 STOP on inventory/hostname mismatch, missing config, duplicate top-level
-`serverTLSBootstrap`, or inactive kubelet.
+`serverTLSBootstrap`, a conflicting `--config-dir`/serving-TLS CLI override,
+or inactive kubelet.
+
+**Current Phase 1 reconciliation rule:** if a node already has exactly
+`serverTLSBootstrap: true`, its serving certificate already validates against
+the cluster CA with the expected InternalIP/hostname SANs, and kubelet
+authn/authz remains approved, do not re-run apply/restart just to reproduce the
+2026-09-26 operation. Record live/source equivalence and use the read-only
+verification path. Mutation is only for an actual drifted node.
 
 ## 5. Stage one node without restart
 
