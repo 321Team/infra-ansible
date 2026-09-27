@@ -64,12 +64,17 @@ source ~/.config/ansible/p1-ans-01.env
 
 ```bash
 source ~/.config/ansible/p1-ans-01.env
+test -n "${ANSIBLE_PRIVATE_KEY_FILE:-}"
+test -r "$ANSIBLE_PRIVATE_KEY_FILE"
+export ANSIBLE_PRIVATE_KEY_FILE
 ansible-inventory -i inventory/lb-stageb.yml --host k8s-api-lb01
 # infra-lb의 승인된 Stage B source에서:
 # python3 run_stageb.py --check-access \
 #   --lb-inventory "$HOME/p1-ans-01/inventory/lb-stageb.yml" \
 #   --lb-user server01_k8s-api-lb
 ```
+
+`ANSIBLE_PRIVATE_KEY_FILE`은 저장소가 아니라 로컬 환경 파일에서 읽으며, `run_stageb.py`가 생성하는 `ansible-playbook` subprocess까지 전달되도록 위 절차에서 명시적으로 export합니다. 값이 없거나 읽을 수 없으면 접근 점검을 시작하지 않습니다.
 
 이 inventory의 승인·병합은 Runtime 실행 승인을 뜻하지 않습니다.
 
