@@ -47,7 +47,9 @@
         cmd: "grep -Ec '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
       register: p1_kubelet_tls_key_count
       changed_when: false
-      failed_when: (p1_kubelet_tls_key_count.stdout | int) > 1
+      failed_when: >-
+        p1_kubelet_tls_key_count.rc not in [0, 1] or
+        (p1_kubelet_tls_key_count.stdout | int) > 1
 
     - name: Create protected state directory
       ansible.builtin.file:
