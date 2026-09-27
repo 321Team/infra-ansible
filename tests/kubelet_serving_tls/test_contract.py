@@ -27,7 +27,8 @@ def test_all_remote_playbooks_are_serial_and_fatal():
 def test_precheck_validates_effective_config_path_without_dumping_argv():
     text = PLAYBOOKS["precheck"].read_text()
     assert "CONFIG_PATH_OK=" in text
-    assert "TLS_OVERRIDE_COUNT=" in text
+    assert "CONFIG_OR_TLS_OVERRIDE_COUNT=" in text
+    assert "--config-dir=" in text
     assert "--config=/var/lib/kubelet/config.yaml" in text
 
 
