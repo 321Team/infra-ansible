@@ -32,10 +32,10 @@
 - name: Verify this host matches its declared inventory identity
   ansible.builtin.assert:
     that:
-      - ansible_hostname == expected_hostname
+      - ansible_facts['hostname'] == expected_hostname
     fail_msg: >-
       Baseline mismatch on {{ inventory_hostname }}: expected hostname
-      {{ expected_hostname }}, actual {{ ansible_hostname }}. Refusing to
+      {{ expected_hostname }}, actual {{ ansible_facts['hostname'] }}. Refusing to
       run {{ cr_mon_change_id }} against a host that does not match its
       declared inventory identity.
 
@@ -270,7 +270,7 @@
       {{
         {
           'change_id': cr_mon_change_id,
-          'captured_at': ansible_date_time.iso8601,
+          'captured_at': ansible_facts['date_time'].iso8601,
           'inventory_hostname': inventory_hostname,
           'squid_preinstalled': cr_mon_squid_preinstalled.rc == 0,
           'squid_conf_preexisted': cr_mon_squid_conf_before.stat.exists,

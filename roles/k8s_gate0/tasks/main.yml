@@ -2,22 +2,22 @@
 - name: Assert minimum RAM for kubeadm
   ansible.builtin.assert:
     that:
-      - (ansible_memtotal_mb | int) >= 2048
+      - (ansible_facts['memtotal_mb'] | int) >= 2048
     fail_msg: >-
       Insufficient RAM on {{ inventory_hostname }}:
-      {{ ansible_memtotal_mb }}MB (require >= 2048MB)
+      {{ ansible_facts['memtotal_mb'] }}MB (require >= 2048MB)
     success_msg: >-
-      RAM verified on {{ inventory_hostname }}: {{ ansible_memtotal_mb }}MB
+      RAM verified on {{ inventory_hostname }}: {{ ansible_facts['memtotal_mb'] }}MB
 
 - name: Assert minimum vCPU for control plane nodes
   ansible.builtin.assert:
     that:
-      - (ansible_processor_vcpus | int) >= 2
+      - (ansible_facts['processor_vcpus'] | int) >= 2
     fail_msg: >-
       Insufficient vCPU on {{ inventory_hostname }}:
-      {{ ansible_processor_vcpus }} (require >= 2 for control-plane)
+      {{ ansible_facts['processor_vcpus'] }} (require >= 2 for control-plane)
     success_msg: >-
-      vCPU verified on {{ inventory_hostname }}: {{ ansible_processor_vcpus }}
+      vCPU verified on {{ inventory_hostname }}: {{ ansible_facts['processor_vcpus'] }}
   when: inventory_hostname in groups['k8s_control_plane']
 
 - name: Read SELinux mode
@@ -154,14 +154,14 @@
 - name: Read node network interface count
   ansible.builtin.set_fact:
     k8s_gate0_interface_count: >-
-      {{ ansible_interfaces | reject('equalto', 'lo') | list | length }}
+      {{ ansible_facts['interfaces'] | reject('equalto', 'lo') | list | length }}
 
 - name: Report Gate 0 node-local verdict
   ansible.builtin.debug:
     msg:
       host: "{{ inventory_hostname }}"
-      ram_mb: "{{ ansible_memtotal_mb }}"
-      vcpu: "{{ ansible_processor_vcpus }}"
+      ram_mb: "{{ ansible_facts['memtotal_mb'] }}"
+      vcpu: "{{ ansible_facts['processor_vcpus'] }}"
       selinux: "{{ k8s_gate0_selinux_mode.stdout | trim }}"
       cockpit_units: "{{ k8s_gate0_cockpit_units }}"
       cockpit_dispositions: "{{ k8s_gate0_cockpit_dispositions }}"
