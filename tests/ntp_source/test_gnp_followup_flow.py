@@ -39,6 +39,8 @@ def main():
     with open(SCENARIO) as handle:
         drift = json.load(handle)
     gate, phase, host = p["gate"], p.get("phase") or "packets", p["inventory_hostname"]
+    if gate in ("authz", "contract", "kernel", "negative", "sample") and not p.get("kubeconfig"):
+        module.fail_json(changed=False, msg="missing required arguments: kubeconfig")
     changed = drift.get(gate) == host and phase == "end"
     result = {}
     if gate == "contract":
