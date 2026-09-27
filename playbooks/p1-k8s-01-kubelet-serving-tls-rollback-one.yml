@@ -18,12 +18,13 @@
           - p1_kubelet_tls_target is defined
           - p1_kubelet_tls_target in groups['k8s_nodes']
           - p1_kubelet_tls_attempt_id is defined
+          - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
           - p1_kubelet_tls_rollback_approved | default('') == p1_kubelet_tls_change_id
           - p1_kubelet_tls_current_sha256 is defined
           - p1_kubelet_tls_current_sha256 is match('^[0-9a-f]{64}$')
         fail_msg: >-
-          Provide one target, attempt ID, rollback approval token, and the
-          SHA-256 of the current config observed immediately before rollback.
+          Provide one target, a 4-64 character attempt ID, rollback approval token,
+          and the SHA-256 of the current config observed immediately before rollback.
 
     - name: End non-target hosts before rollback
       ansible.builtin.meta: end_host
