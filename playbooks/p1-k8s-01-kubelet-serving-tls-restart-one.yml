@@ -1,0 +1,97 @@
+---
+- name: P1-K8S-01 restart one staged kubelet with CSR reviewer ready
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
+    p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
+
+  pre_tasks:
+    - name: Require explicit target, attempt, and restart authorization
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_target is defined
+          - p1_kubelet_tls_target in groups['k8s_nodes']
+          - p1_kubelet_tls_attempt_id is defined
+          - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
+          - p1_kubelet_tls_restart_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_csr_reviewer_ready | default(false) | bool
+        fail_msg: >-
+          Select one k8s_nodes target, provide the staged attempt ID, set
+          restart approval to the change ID, and confirm the CSR reviewer is ready.
+
+    - name: End non-target hosts before restart
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != p1_kubelet_tls_target
+
+  tasks:
+    - name: Require preserved state for the same attempt
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_restart_state
+
+    - name: Stop if restart is not bound to a staged attempt
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_restart_state.stat.exists
+          - p1_kubelet_tls_restart_state.stat.isreg
+        fail_msg: No preserved pre-change state exists for this target and attempt.
+
+    - name: Read staged SHA-256 for this attempt
+      ansible.builtin.slurp:
+        src: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/after.sha256"
+      register: p1_kubelet_tls_after_sha_file
+
+    - name: Inspect current config before restart
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_restart_current
+
+    - name: Stop if config changed after staging
+      ansible.builtin.assert:
+        that:
+          - >-
+            p1_kubelet_tls_restart_current.stat.checksum ==
+            (p1_kubelet_tls_after_sha_file.content | b64decode | trim)
+        fail_msg: Kubelet config changed after this attempt was staged; do not restart.
+
+    - name: Verify staged serverTLSBootstrap field
+      ansible.builtin.shell:
+        cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
+      register: p1_kubelet_tls_line
+      changed_when: false
+      failed_when: >-
+        p1_kubelet_tls_line.stdout_lines | length != 1 or
+        p1_kubelet_tls_line.stdout_lines[0] != 'serverTLSBootstrap: true'
+
+    - name: Restart exactly the selected kubelet
+      ansible.builtin.systemd_service:
+        name: kubelet
+        state: restarted
+
+    - name: Verify kubelet service returned active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, kubelet]
+      register: p1_kubelet_tls_active
+      changed_when: false
+
+    - name: Require active kubelet
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_active.stdout | trim == 'active'
+
+    - name: Hand off to manual serving CSR review
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
+          kubelet: ACTIVE
+          csr: MANUAL_REVIEW_REQUIRED
+          auto_approval: DISABLED

@@ -1,0 +1,112 @@
+---
+- name: P1-K8S-01 kubelet serving TLS read-only precheck
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+
+  tasks:
+    - name: Read host identity
+      ansible.builtin.command:
+        argv: [hostname, -s]
+      register: p1_kubelet_tls_hostname
+      changed_when: false
+
+    - name: Verify inventory identity
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_hostname.stdout | trim == inventory_hostname
+        fail_msg: Inventory hostname does not match the managed host.
+
+    - name: Validate kubelet config path and serving TLS CLI overrides
+      ansible.builtin.shell:
+        cmd: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          pid = subprocess.check_output(['pgrep', '-xo', 'kubelet'], text=True).strip()
+          args = [x.decode() for x in Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0') if x]
+
+          def option_values(argv, name):
+              flag = f'--{name}'
+              prefix = flag + '='
+              values = []
+              i = 0
+              while i < len(argv):
+                  arg = argv[i]
+                  if arg.startswith(prefix):
+                      values.append(arg[len(prefix):])
+                  elif arg == flag:
+                      if i + 1 < len(argv) and not argv[i + 1].startswith('--'):
+                          values.append(argv[i + 1])
+                          i += 1
+                      else:
+                          values.append(None)
+                  i += 1
+              return values
+
+          configs = option_values(args, 'config')
+          forbidden_count = sum(
+              len(option_values(args, name))
+              for name in (
+                  'config-dir',
+                  'tls-cert-file',
+                  'tls-private-key-file',
+                  'rotate-server-certificates',
+              )
+          )
+          ok = configs == ['/var/lib/kubelet/config.yaml']
+          print('CONFIG_PATH_OK=' + ('1' if ok else '0'))
+          print('CONFIG_OR_TLS_OVERRIDE_COUNT=' + str(forbidden_count))
+          raise SystemExit(0 if ok and forbidden_count == 0 else 2)
+          PY
+      register: p1_kubelet_tls_cli
+      changed_when: false
+
+    - name: Inspect kubelet config
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_config
+
+    - name: Require existing kubelet config
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_config.stat.exists
+          - p1_kubelet_tls_config.stat.isreg
+        fail_msg: Expected kubelet config is missing or is not a regular file.
+
+    - name: Count top-level serverTLSBootstrap keys
+      ansible.builtin.shell:
+        cmd: "grep -Ec '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
+      register: p1_kubelet_tls_key_count
+      changed_when: false
+      failed_when: >-
+        p1_kubelet_tls_key_count.rc not in [0, 1] or
+        (p1_kubelet_tls_key_count.stdout | int) > 1
+
+    - name: Read top-level serverTLSBootstrap line
+      ansible.builtin.shell:
+        cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }} || true"
+      register: p1_kubelet_tls_line
+      changed_when: false
+
+    - name: Read kubelet service state
+      ansible.builtin.command:
+        argv: [systemctl, is-active, kubelet]
+      register: p1_kubelet_tls_service
+      changed_when: false
+
+    - name: Report precheck without changing the node
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          config_sha256: "{{ p1_kubelet_tls_config.stat.checksum }}"
+          key_count: "{{ p1_kubelet_tls_key_count.stdout | int }}"
+          current_value: "{{ p1_kubelet_tls_line.stdout | default('NOT_PRESENT', true) }}"
+          kubelet: "{{ p1_kubelet_tls_service.stdout | trim }}"
