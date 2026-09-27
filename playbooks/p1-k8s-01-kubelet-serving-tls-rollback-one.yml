@@ -1,0 +1,104 @@
+---
+- name: P1-K8S-01 rollback one kubelet serving TLS config
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
+    p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
+
+  pre_tasks:
+    - name: Require explicit guarded rollback inputs
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_target is defined
+          - p1_kubelet_tls_target in groups['k8s_nodes']
+          - p1_kubelet_tls_attempt_id is defined
+          - p1_kubelet_tls_rollback_approved | default('') == p1_kubelet_tls_change_id
+          - p1_kubelet_tls_current_sha256 is defined
+          - p1_kubelet_tls_current_sha256 is match('^[0-9a-f]{64}$')
+        fail_msg: >-
+          Provide one target, attempt ID, rollback approval token, and the
+          SHA-256 of the current config observed immediately before rollback.
+
+    - name: End non-target hosts before rollback
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != p1_kubelet_tls_target
+
+  tasks:
+    - name: Inspect current config
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_current
+
+    - name: Guard against overwriting unrelated later changes
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_current.stat.checksum == p1_kubelet_tls_current_sha256
+        fail_msg: Current config changed after the rollback decision; stop.
+
+    - name: Read original SHA-256
+      ansible.builtin.slurp:
+        src: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/before.sha256"
+      register: p1_kubelet_tls_before_sha_file
+
+    - name: Inspect preserved original config
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_saved
+
+    - name: Verify saved rollback bytes
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_saved.stat.exists
+          - >-
+            p1_kubelet_tls_saved.stat.checksum ==
+            (p1_kubelet_tls_before_sha_file.content | b64decode | trim)
+        fail_msg: Preserved rollback copy does not match its recorded SHA-256.
+
+    - name: Restore exact preserved config and metadata
+      ansible.builtin.command:
+        argv:
+          - cp
+          - --preserve=all
+          - "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+          - "{{ p1_kubelet_tls_config_path }}"
+      changed_when: true
+
+    - name: Verify restored bytes
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_restored
+
+    - name: Require restored SHA-256
+      ansible.builtin.assert:
+        that:
+          - >-
+            p1_kubelet_tls_restored.stat.checksum ==
+            (p1_kubelet_tls_before_sha_file.content | b64decode | trim)
+
+    - name: Restart kubelet after rollback
+      ansible.builtin.systemd_service:
+        name: kubelet
+        state: restarted
+
+    - name: Verify kubelet returned active after rollback
+      ansible.builtin.command:
+        argv: [systemctl, is-active, kubelet]
+      register: p1_kubelet_tls_active
+      changed_when: false
+
+    - name: Report rollback result
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          config: RESTORED
+          kubelet: "{{ p1_kubelet_tls_active.stdout | trim }}"
+          pki_deleted: false
