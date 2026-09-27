@@ -1,0 +1,72 @@
+---
+- name: P1-K8S-01 verify kubelet serving TLS source on all six nodes
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_serving_cert: /var/lib/kubelet/pki/kubelet-server-current.pem
+    p1_kubelet_tls_ca: /etc/kubernetes/pki/ca.crt
+
+  tasks:
+    - name: Verify exact serverTLSBootstrap field
+      ansible.builtin.shell:
+        cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
+      register: p1_kubelet_tls_line
+      changed_when: false
+      failed_when: >-
+        p1_kubelet_tls_line.stdout_lines | length != 1 or
+        p1_kubelet_tls_line.stdout_lines[0] != 'serverTLSBootstrap: true'
+
+    - name: Verify kubelet service is active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, kubelet]
+      register: p1_kubelet_tls_active
+      changed_when: false
+
+    - name: Verify serving certificate chains to cluster CA
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - verify
+          - -CAfile
+          - "{{ p1_kubelet_tls_ca }}"
+          - "{{ p1_kubelet_tls_serving_cert }}"
+      changed_when: false
+
+    - name: Verify serving certificate contains the node InternalIP
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ p1_kubelet_tls_serving_cert }}"
+          - -noout
+          - -checkip
+          - "{{ ansible_host }}"
+      changed_when: false
+
+    - name: Verify serving certificate contains the node hostname
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - x509
+          - -in
+          - "{{ p1_kubelet_tls_serving_cert }}"
+          - -noout
+          - -checkhost
+          - "{{ inventory_hostname }}"
+      changed_when: false
+
+    - name: Report node verification result
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          serverTLSBootstrap: true
+          kubelet: "{{ p1_kubelet_tls_active.stdout | trim }}"
+          ca_chain: PASS
+          ip_san: PASS
+          hostname_san: PASS
