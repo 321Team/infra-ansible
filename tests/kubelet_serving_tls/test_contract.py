@@ -28,8 +28,24 @@ def test_precheck_validates_effective_config_path_without_dumping_argv():
     text = PLAYBOOKS["precheck"].read_text()
     assert "CONFIG_PATH_OK=" in text
     assert "CONFIG_OR_TLS_OVERRIDE_COUNT=" in text
-    assert "--config-dir=" in text
-    assert "--config=/var/lib/kubelet/config.yaml" in text
+    assert "def option_values" in text
+    assert "arg.startswith(prefix)" in text
+    assert "arg == flag" in text
+    assert "configs == ['/var/lib/kubelet/config.yaml']" in text
+    for name in (
+        "config-dir",
+        "tls-cert-file",
+        "tls-private-key-file",
+        "rotate-server-certificates",
+    ):
+        assert f"'{name}'" in text
+    assert "print(args)" not in text
+
+
+def test_key_count_checks_fail_closed_on_grep_errors():
+    for name in ("precheck", "apply"):
+        text = PLAYBOOKS[name].read_text()
+        assert "p1_kubelet_tls_key_count.rc not in [0, 1]" in text
 
 
 def test_apply_is_config_only_and_requires_explicit_target():
@@ -65,6 +81,7 @@ def test_verify_checks_chain_ip_and_hostname():
 def test_rollback_is_hash_guarded_and_does_not_delete_pki():
     text = PLAYBOOKS["rollback"].read_text()
     assert "p1_kubelet_tls_current_sha256" in text
+    assert "p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')" in text
     assert "--preserve=all" in text
     assert "state: restarted" in text
     assert "rm " not in text
