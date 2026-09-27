@@ -1,0 +1,121 @@
+---
+- name: P1-K8S-01 stage serverTLSBootstrap on exactly one node
+  hosts: k8s_nodes
+  gather_facts: false
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    p1_kubelet_tls_change_id: P1-K8S-01-KUBELET-TLS
+    p1_kubelet_tls_config_path: /var/lib/kubelet/config.yaml
+    p1_kubelet_tls_state_root: /var/lib/fds-change/P1-K8S-01-KUBELET-TLS
+
+  pre_tasks:
+    - name: Require explicit target attempt and approval token
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_target is defined
+          - p1_kubelet_tls_target in groups['k8s_nodes']
+          - p1_kubelet_tls_attempt_id is defined
+          - p1_kubelet_tls_attempt_id is match('^[A-Za-z0-9_-]{4,64}$')
+          - p1_kubelet_tls_apply_approved | default('') == p1_kubelet_tls_change_id
+        fail_msg: >-
+          Provide one k8s_nodes target, a 4-64 character attempt ID, and
+          p1_kubelet_tls_apply_approved=P1-K8S-01-KUBELET-TLS.
+
+    - name: End non-target hosts before any mutation
+      ansible.builtin.meta: end_host
+      when: inventory_hostname != p1_kubelet_tls_target
+
+  tasks:
+    - name: Inspect kubelet config before change
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_before
+
+    - name: Require an existing regular kubelet config
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_before.stat.exists
+          - p1_kubelet_tls_before.stat.isreg
+        fail_msg: Kubelet config is missing or is not a regular file.
+
+    - name: Count existing top-level serverTLSBootstrap keys
+      ansible.builtin.shell:
+        cmd: "grep -Ec '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
+      register: p1_kubelet_tls_key_count
+      changed_when: false
+      failed_when: (p1_kubelet_tls_key_count.stdout | int) > 1
+
+    - name: Create protected state directory
+      ansible.builtin.file:
+        path: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Preserve exact pre-change kubelet config once
+      ansible.builtin.command:
+        argv:
+          - cp
+          - --preserve=all
+          - --no-clobber
+          - "{{ p1_kubelet_tls_config_path }}"
+          - "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+        creates: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+
+    - name: Inspect preserved pre-change copy
+      ansible.builtin.stat:
+        path: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/config.yaml.before"
+        checksum_algorithm: sha256
+      register: p1_kubelet_tls_saved
+
+    - name: Bind saved state to the exact pre-change bytes
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_saved.stat.exists
+          - p1_kubelet_tls_saved.stat.checksum == p1_kubelet_tls_before.stat.checksum
+        fail_msg: Preserved state does not match the current pre-change config.
+
+    - name: Persist original SHA-256 for guarded rollback
+      ansible.builtin.copy:
+        dest: "{{ p1_kubelet_tls_state_root }}/{{ p1_kubelet_tls_attempt_id }}/{{ inventory_hostname }}/before.sha256"
+        owner: root
+        group: root
+        mode: "0600"
+        content: "{{ p1_kubelet_tls_before.stat.checksum }}\n"
+
+    - name: Set serverTLSBootstrap true without restarting kubelet
+      ansible.builtin.lineinfile:
+        path: "{{ p1_kubelet_tls_config_path }}"
+        regexp: '^serverTLSBootstrap:'
+        line: 'serverTLSBootstrap: true'
+        insertafter: EOF
+        create: false
+        backup: false
+      register: p1_kubelet_tls_edit
+
+    - name: Read post-edit field
+      ansible.builtin.shell:
+        cmd: "grep -E '^serverTLSBootstrap:' {{ p1_kubelet_tls_config_path | quote }}"
+      register: p1_kubelet_tls_post_line
+      changed_when: false
+
+    - name: Require one exact top-level true field
+      ansible.builtin.assert:
+        that:
+          - p1_kubelet_tls_post_line.stdout_lines | length == 1
+          - p1_kubelet_tls_post_line.stdout_lines[0] == 'serverTLSBootstrap: true'
+        fail_msg: serverTLSBootstrap field is not exactly one top-level true value.
+
+    - name: Report staged state
+      ansible.builtin.debug:
+        msg:
+          host: "{{ inventory_hostname }}"
+          attempt_id: "{{ p1_kubelet_tls_attempt_id }}"
+          changed: "{{ p1_kubelet_tls_edit.changed }}"
+          restart: NOT_RUN
+          csr_approval: NOT_RUN
