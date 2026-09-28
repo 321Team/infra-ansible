@@ -20,8 +20,25 @@
 #   SAN에 없으면 fail-closed 한다. TLS 자체가 아직 열리지 않은 사전점검 상황은
 #   TLS_UNREACHABLE_NOT_VERIFIED로 구분해 전체 discovery는 계속 진행한다 (R3, AC-01).
 ---
+- name: "[0] 필수 Runtime 입력 검증"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: 필수 실행 입력 확인
+      ansible.builtin.assert:
+        that:
+          - runner_host is defined
+          - cp_host is defined
+          - harbor_host is defined
+          - runner_runtime_user is defined
+        fail_msg: >-
+          runner_host/cp_host/harbor_host/runner_runtime_user를
+          -e로 모두 명시해야 합니다.
+
 - name: Runner — SAN, CA, 이미지, IP
-  hosts: "{{ runner_host }}"
+  hosts: "{{ runner_host | default('localhost') }}"
   become: true
   gather_facts: true
   tasks:
@@ -98,7 +115,7 @@
       when: source_image is defined
 
 - name: Control Plane — Worker IP
-  hosts: "{{ cp_host }}"
+  hosts: "{{ cp_host | default('localhost') }}"
   become: true
   gather_facts: false
   tasks:
@@ -111,7 +128,7 @@
       changed_when: false
 
 - name: harbor01 — 방화벽, 설치 경로
-  hosts: "{{ harbor_host }}"
+  hosts: "{{ harbor_host | default('localhost') }}"
   become: true
   gather_facts: false
   tasks:
