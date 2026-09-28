@@ -1,0 +1,122 @@
+# P1-HBR-01 AC-01 준비용 값 자동 수집 (읽기 전용 — 서버 설정 변경 없음)
+#
+# 이 저장소의 committed inventory(inventory/hosts.yml)에는 harbor01,
+# cicd-runner01, ansible01 호스트가 없다(k8s_nodes/egress_proxy만 정의됨).
+# 따라서 이 플레이북은 hosts.yml만으로는 실행되지 않는다. 실행 시 반드시
+# 해당 호스트를 정의한 별도/임시 inventory를 -i로 지정해야 한다.
+#
+# 실행 (ansible01):
+#   ansible-inventory -i <inventory> --graph        # 그룹/호스트 이름 먼저 확인
+#   ansible-playbook -i <inventory> playbooks/p1-hbr-01-discover.yml \
+#     -e runner_host=<cicd-runner01 그룹/호스트명> \
+#     -e cp_host=k8s_control_plane \
+#     -e harbor_host=<harbor01 그룹/호스트명>
+#
+# 결과: 화면 요약 + ./hbr01-values.env
+---
+- name: Runner — SAN, CA, 이미지, IP
+  hosts: "{{ runner_host | default('runner') }}"
+  become: true
+  gather_facts: true
+  vars:
+    harbor_ip: 10.1.93.54
+  tasks:
+    - name: 서버 인증서 SAN / issuer
+      ansible.builtin.shell: |
+        echo | openssl s_client -connect {{ harbor_ip }}:443 2>/dev/null \
+          | openssl x509 -noout -issuer -nameopt RFC2253 -ext subjectAltName
+      register: srv
+      changed_when: false
+
+    - name: issuer와 subject가 일치하는 CA 파일 찾기
+      ansible.builtin.shell: |
+        iss=$(echo | openssl s_client -connect {{ harbor_ip }}:443 2>/dev/null \
+          | openssl x509 -noout -issuer -nameopt RFC2253 | sed 's/^issuer=//')
+        find /etc/pki/ca-trust/source/anchors /etc/pki/tls/certs /root /home -maxdepth 4 \
+             -type f \( -name '*.pem' -o -name '*.crt' \) 2>/dev/null | while read f; do
+          s=$(openssl x509 -in "$f" -noout -subject -nameopt RFC2253 2>/dev/null | sed 's/^subject=//')
+          [ -n "$s" ] && [ "$s" = "$iss" ] && echo "$f"
+        done
+      register: ca
+      changed_when: false
+
+    - name: 로컬 이미지 목록
+      ansible.builtin.shell: |
+        {% raw %}
+        if command -v podman >/dev/null; then podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+        else nerdctl images --format '{{.Repository}}:{{.Tag}} {{.Size}}'; fi | grep -v '<none>' | head -15
+        {% endraw %}
+      register: imgs
+      changed_when: false
+      failed_when: false
+
+- name: Control Plane — Worker IP
+  hosts: "{{ cp_host | default('k8s_control_plane') }}"
+  become: true
+  gather_facts: false
+  run_once: true
+  tasks:
+    - name: Worker 노드 INTERNAL-IP
+      ansible.builtin.shell: |
+        kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes \
+          -l '!node-role.kubernetes.io/control-plane' \
+          -o jsonpath='{range .items[*]}{.metadata.name}={.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+      register: workers
+      changed_when: false
+
+- name: harbor01 — 방화벽, 설치 경로
+  hosts: "{{ harbor_host | default('harbor01') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 활성 zone 방화벽 설정
+      ansible.builtin.shell: |
+        for z in $(firewall-cmd --get-active-zones | grep -v '^ '); do
+          echo "== zone $z"; firewall-cmd --zone=$z --list-all; done
+      register: fw
+      changed_when: false
+      failed_when: false
+
+    - name: harbor.yml 위치
+      ansible.builtin.shell: |
+        p=$(docker compose ls 2>/dev/null | awk 'NR>1 && /harbor/ {print $NF}' | head -1)
+        [ -z "$p" ] && p=$(find / -xdev -name harbor.yml -not -path '*/proc/*' 2>/dev/null | head -1)
+        dirname "$p"
+      register: hdir
+      changed_when: false
+      failed_when: false
+
+- name: 요약
+  hosts: localhost
+  gather_facts: false
+  vars:
+    r: "{{ hostvars[groups[runner_host | default('runner')][0] if (runner_host | default('runner')) in groups else (runner_host | default('runner'))] }}"
+    c: "{{ hostvars[groups[cp_host | default('k8s_control_plane')][0] if (cp_host | default('k8s_control_plane')) in groups else (cp_host | default('k8s_control_plane'))] }}"
+    h: "{{ hostvars[groups[harbor_host | default('harbor01')][0] if (harbor_host | default('harbor01')) in groups else (harbor_host | default('harbor01'))] }}"
+    san_dns: "{{ r.srv.stdout | regex_findall('DNS:([^,\\s]+)') }}"
+    worker_ips: "{{ c.workers.stdout_lines | map('regex_replace', '^.*=', '') | list }}"
+  tasks:
+    - name: 수집 결과
+      ansible.builtin.debug:
+        msg:
+          - "[H]        SAN DNS 후보: {{ san_dns }}"
+          - "[CA]       issuer 일치 파일: {{ r.ca.stdout_lines | default(['없음 — Runner에 CA 미설치']) }}"
+          - "[SRC_IMG]  로컬 이미지: {{ r.imgs.stdout_lines | default([]) }}"
+          - "[Runner IP] {{ r.ansible_default_ipv4.address | default('?') }}"
+          - "[Workers]  {{ c.workers.stdout_lines }}"
+          - "[HARBOR_DIR] {{ h.hdir.stdout | default('?') }}"
+          - "[Firewall] {{ h.fw.stdout_lines | select('search', 'sources|rich|ports|services|zone') | list }}"
+          - "[서버 인증서] {{ r.srv.stdout_lines }}"
+
+    - name: hbr01-values.env 저장 (hbr01-test.sh 상단에 붙여넣기용)
+      ansible.builtin.copy:
+        dest: ./hbr01-values.env
+        mode: "0644"
+        content: |
+          H={{ san_dns | first | default('CHECK_ME') }}
+          IP=10.1.93.54
+          CA={{ r.ca.stdout_lines | first | default('CHECK_ME') }}
+          SRC_IMG={{ (r.imgs.stdout_lines | first | default('CHECK_ME')).split(' ') | first }}
+          ALLOW_IPS="{{ ([r.ansible_default_ipv4.address | default('')] + worker_ips) | select | join(' ') }}"
+          HARBOR_DIR={{ h.hdir.stdout | default('CHECK_ME') }}
+          # PROJ / PUSH_USER / PULL_USER 는 Harbor UI(Projects → Robot Accounts)에서 확인
