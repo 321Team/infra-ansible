@@ -1,0 +1,215 @@
+# hbr01-test.sh 설정값 자동 수집 (읽기 전용 — 서버 설정 변경 없음)
+# 실행 (ansible01):
+#   ansible-playbook -i <inventory> playbooks/p1-hbr-01-discover.yml \
+#     -e runner_host=<Runner 호스트/그룹> -e cp_host=<control01> -e harbor_host=<harbor01> \
+#     -e runner_runtime_user=<Runner rootless 실행 계정, 예: server01_cicd-runner> \
+#     [-e harbor_ip=<harbor01 IP, 기본값 10.1.93.54>] \
+#     [-e source_image=<repo>@sha256:<64hex>] [-e runner_source_ip=<승인된 Runner 관측 Source IP>]
+# 결과: 화면 요약 + ./hbr01-values.env
+#
+# 주의:
+# - runner_host/cp_host/harbor_host/runner_runtime_user는 이 inventory에 동일한 이름의
+#   그룹/호스트/기본 계정이 없으므로 기본값을 두지 않는다 (R1). 매 실행 시 -e로 명시해야
+#   하며, 누락 시 명확한 오류로 멈춘다. 승인된 Runner 실행 계정은 별도로 확인할 것.
+# - source_image는 digest-pinned(<repo>@sha256:<64hex>) 형식과 rootless 저장소 exact
+#   match를 모두 통과해야 한다. 형식이 틀리거나 존재하지 않으면 fail-closed 하며,
+#   검증에 성공한 경우에만 env 파일의 SRC_IMG에 값이 채워진다 (R2, AC-05 추적성 보호).
+# - runner_source_ip를 지정하지 않으면 env 파일에는 검증되지 않은 자동 수집값 대신
+#   CHECK_ME/후보(candidate) 값만 채워진다 (AC-04).
+# - IP_SAN_MATCH는 실제 env 변수로 기록된다. 인증서 조회에 성공했는데 harbor_ip가 IP
+#   SAN에 없으면 fail-closed 한다. TLS 자체가 아직 열리지 않은 사전점검 상황은
+#   TLS_UNREACHABLE_NOT_VERIFIED로 구분해 전체 discovery는 계속 진행한다 (R3, AC-01).
+---
+- name: "[0] 필수 Runtime 입력 검증"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: 필수 실행 입력 확인
+      ansible.builtin.assert:
+        that:
+          - runner_host is defined
+          - cp_host is defined
+          - harbor_host is defined
+          - runner_runtime_user is defined
+        fail_msg: >-
+          runner_host/cp_host/harbor_host/runner_runtime_user를
+          -e로 모두 명시해야 합니다.
+
+- name: Runner — SAN, CA, 이미지, IP
+  hosts: "{{ runner_host | default('localhost') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: 서버 인증서 SAN / issuer
+      ansible.builtin.shell: |
+        echo | openssl s_client -connect {{ harbor_ip | default('10.1.93.54') }}:443 2>/dev/null \
+          | openssl x509 -noout -issuer -nameopt RFC2253 -ext subjectAltName
+      register: srv
+      changed_when: false
+      failed_when: false
+
+    - name: issuer와 subject가 일치하는 CA 파일 찾기
+      ansible.builtin.shell: |
+        iss=$(echo | openssl s_client -connect {{ harbor_ip | default('10.1.93.54') }}:443 2>/dev/null \
+          | openssl x509 -noout -issuer -nameopt RFC2253 | sed 's/^issuer=//')
+        find /etc/pki/ca-trust/source/anchors /etc/pki/tls/certs /root /home -maxdepth 4 \
+             -type f \( -name '*.pem' -o -name '*.crt' \) 2>/dev/null | while read f; do
+          s=$(openssl x509 -in "$f" -noout -subject -nameopt RFC2253 2>/dev/null | sed 's/^subject=//')
+          [ -n "$s" ] && [ "$s" = "$iss" ] && echo "$f"
+        done
+      register: ca
+      changed_when: false
+      failed_when: false
+
+    # B1: root 저장소가 아니라 Runner가 실제 사용하는 rootless Podman 계정 저장소를 조회한다.
+    # R1: 잘못된 기본 계정으로 조용히 넘어가지 않도록 runner_runtime_user는 필수 입력으로
+    # 둔다 (-e 미지정 시 undefined 변수 오류로 명확히 멈춘다).
+    - name: 로컬 이미지 목록 (rootless Runner 계정 기준)
+      become: true
+      become_user: "{{ runner_runtime_user }}"
+      ansible.builtin.shell: |
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        {% raw %}
+        if command -v podman >/dev/null; then podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+        else nerdctl images --format '{{.Repository}}:{{.Tag}} {{.Size}}'; fi | grep -v '<none>' | head -15
+        {% endraw %}
+      register: imgs
+      changed_when: false
+      failed_when: false
+
+    # B2/R2: source_image는 승인된 digest-pinned 값만 사용한다. 자동으로 첫 이미지를
+    # 고르지 않으며, 형식/존재 검증에 실패하면 fail-closed 한다 (AC-05 추적성 보호).
+    - name: source_image 형식 검증 (digest-pinned, <repo>@sha256:<64hex>만 허용)
+      ansible.builtin.assert:
+        that:
+          - source_image is match('^.+@sha256:[a-f0-9]{64}$')
+        fail_msg: >-
+          source_image={{ source_image }} 형식이 올바르지 않습니다. AC-05 digest
+          추적성을 위해 <repo>@sha256:<64hex> 형식만 허용합니다.
+      when: source_image is defined
+
+    # R-Runtime: raw 블록을 별도 줄에 두면 렌더링 후 파이프가 새 줄 맨 앞에 홀로 남아
+    # "syntax error near unexpected token '|'"가 발생한다. raw 블록을 한 줄에 인라인하고
+    # pipe로 줄을 잇는 방식으로 수정. source_image는 quote 필터로 shell 인자 이스케이프.
+    - name: source_image 로컬 존재 확인 (digest 지정 시에만, rootless 저장소 기준, exact match)
+      become: true
+      become_user: "{{ runner_runtime_user }}"
+      ansible.builtin.shell: |
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        podman images --format {% raw %}'{{.Repository}}@{{.Digest}}'{% endraw %} |
+          grep -Fx -- {{ source_image | quote }}
+      register: src_image_local
+      changed_when: false
+      failed_when: false
+      when: source_image is defined
+
+    - name: source_image 로컬 존재 fail-closed (미발견 시 env에 승인값처럼 기록되지 않도록 차단)
+      ansible.builtin.assert:
+        that:
+          - src_image_local.rc == 0
+        fail_msg: >-
+          source_image={{ source_image }}를 {{ runner_runtime_user }} rootless
+          저장소에서 찾지 못했습니다 (AC-05). Harbor Push/Pull 여부를 먼저 확인하세요.
+      when: source_image is defined
+
+- name: Control Plane — Worker IP
+  hosts: "{{ cp_host | default('localhost') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Worker 노드 INTERNAL-IP
+      ansible.builtin.shell: |
+        kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes \
+          -l '!node-role.kubernetes.io/control-plane' \
+          -o jsonpath='{range .items[*]}{.metadata.name}={.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+      register: workers
+      changed_when: false
+
+- name: harbor01 — 방화벽, 설치 경로
+  hosts: "{{ harbor_host | default('localhost') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: 활성 zone 방화벽 설정
+      ansible.builtin.shell: |
+        for z in $(firewall-cmd --get-active-zones | grep -v '^ '); do
+          echo "== zone $z"; firewall-cmd --zone=$z --list-all; done
+      register: fw
+      changed_when: false
+      failed_when: false
+
+    # B3: 경로를 못 찾았을 때 dirname ''이 '.'을 반환해 false-positive를 만들지 않도록 방지
+    - name: harbor.yml 위치
+      ansible.builtin.shell: |
+        p=$(docker compose ls 2>/dev/null | awk 'NR>1 && /harbor/ {print $NF}' | head -1)
+        if [ -z "$p" ]; then
+          p=$(find / -xdev -name harbor.yml -not -path '*/proc/*' 2>/dev/null | head -1)
+        fi
+        if [ -n "$p" ]; then dirname -- "$p"; fi
+      register: hdir
+      changed_when: false
+      failed_when: false
+
+- name: 요약
+  hosts: localhost
+  gather_facts: false
+  vars:
+    r: "{{ hostvars[groups[runner_host][0] if runner_host in groups else runner_host] }}"
+    c: "{{ hostvars[groups[cp_host][0] if cp_host in groups else cp_host] }}"
+    h: "{{ hostvars[groups[harbor_host][0] if harbor_host in groups else harbor_host] }}"
+    effective_harbor_ip: "{{ harbor_ip | default('10.1.93.54') }}"
+    san_dns: "{{ r.srv.stdout | regex_findall('DNS:([^,\\s]+)') }}"
+    # B4: DNS SAN과 별도로 IP SAN을 파싱해 AC-01 필수 조건(harbor_ip가 IP SAN에 포함)을 확인한다.
+    san_ip: "{{ r.srv.stdout | regex_findall('IP Address:([^,\\s]+)') }}"
+    worker_ips: "{{ c.workers.stdout_lines | map('regex_replace', '^.*=', '') | list }}"
+    # R3: 인증서 조회 자체가 성공했는지(TLS 도달 가능)와 IP SAN 일치 여부를 분리해서 본다.
+    cert_fetched: "{{ (r.srv.stdout | default('')) | trim | length > 0 }}"
+    ip_san_match: "{{ effective_harbor_ip in san_ip }}"
+    # R2: source_image를 지정했고 rootless 저장소 exact match까지 성공한 경우에만 유효로 본다.
+    src_image_verified: "{{ (source_image is defined) and (r.src_image_local is defined) and (r.src_image_local.rc | default(1) == 0) }}"
+  tasks:
+    - name: "R3: 인증서 조회 성공 시 IP SAN 불일치는 fail-closed"
+      ansible.builtin.assert:
+        that:
+          - not cert_fetched or ip_san_match
+        fail_msg: >-
+          Harbor 인증서 IP SAN에 harbor_ip({{ effective_harbor_ip }})가 없습니다
+          (AC-01). 관측된 IP SAN: {{ san_ip }}. TLS 자체가 아직 열리지 않은 사전점검
+          상황이면 harbor01 443/firewall을 먼저 확인하세요 (그 경우는 cert_fetched=false
+          로 구분되어 이 assert에 걸리지 않습니다).
+      when: cert_fetched
+
+    - name: 수집 결과
+      ansible.builtin.debug:
+        msg:
+          - "[H]        SAN DNS 후보: {{ san_dns }}"
+          - "[IP SAN]   {{ san_ip }} — harbor_ip({{ effective_harbor_ip }}) 포함 여부: {{ ip_san_match if cert_fetched else 'TLS_UNREACHABLE_NOT_VERIFIED' }}"
+          - "[CA]       issuer 일치 파일: {{ r.ca.stdout_lines | default(['없음 — Runner에 CA 미설치']) }}"
+          - "[SRC_IMG 후보] 로컬 이미지 목록(참고용, 자동 선택 아님): {{ r.imgs.stdout_lines | default([]) }}"
+          - "[source_image 로컬 존재] {{ r.src_image_local.stdout_lines | default(['source_image 미지정 또는 로컬에 없음']) }}"
+          - "[Runner IP 후보] {{ r.ansible_default_ipv4.address | default('?') }} (승인된 Source가 아니면 ALLOW_IPS에 자동 반영되지 않음)"
+          - "[Workers]  {{ c.workers.stdout_lines }}"
+          - "[HARBOR_DIR] {{ h.hdir.stdout | default('CHECK_ME — harbor.yml 미발견', true) }}"
+          - "[Firewall] {{ h.fw.stdout_lines | select('search', 'sources|rich|ports|services|zone') | list }}"
+          - "[서버 인증서] {{ r.srv.stdout_lines }}"
+
+    - name: hbr01-values.env 저장 (hbr01-test.sh 상단에 붙여넣기용 — CHECK_ME/후보 값은 반드시 직접 검증 후 채울 것)
+      ansible.builtin.copy:
+        dest: ./hbr01-values.env
+        mode: "0644"
+        content: |
+          H={{ san_dns | first | default('CHECK_ME') }}
+          IP={{ effective_harbor_ip }}
+          # IP_SAN_MATCH: AC-01 필수. cert_fetched=false면 TLS 자체가 사전점검 상태(미검증)이며,
+          # cert_fetched=true인데 false면 위 assert에서 이미 fail-closed 되어 이 파일이 생성되지 않는다.
+          IP_SAN_MATCH={{ ip_san_match if cert_fetched else 'TLS_UNREACHABLE_NOT_VERIFIED' }}
+          # SRC_IMG는 형식(digest-pinned) 검증과 rootless 저장소 exact match를 모두 통과한
+          # 경우에만 채워진다 (자동 첫 항목 선택 금지, R2/AC-05 추적성). 미검증이면 CHECK_ME.
+          SRC_IMG={{ source_image if src_image_verified else 'CHECK_ME_REQUIRE_DIGEST_PINNED_SOURCE_IMAGE' }}
+          # RUNNER_SOURCE_CANDIDATE는 자동 수집된 후보일 뿐이며 승인된 관측값이 아니다 (AC-04)
+          RUNNER_SOURCE_CANDIDATE={{ r.ansible_default_ipv4.address | default('CHECK_ME') }}
+          ALLOW_IPS="{{ ([runner_source_ip | default('')] + worker_ips) | select | join(' ') }}"
+          HARBOR_DIR={{ h.hdir.stdout | default('CHECK_ME', true) }}
+          # PROJ / PUSH_USER / PULL_USER 는 Harbor UI(Projects → Robot Accounts)에서 확인
