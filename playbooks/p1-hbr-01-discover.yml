@@ -73,14 +73,16 @@
           추적성을 위해 <repo>@sha256:<64hex> 형식만 허용합니다.
       when: source_image is defined
 
+    # R-Runtime: raw 블록을 별도 줄에 두면 렌더링 후 파이프가 새 줄 맨 앞에 홀로 남아
+    # "syntax error near unexpected token '|'"가 발생한다. raw 블록을 한 줄에 인라인하고
+    # pipe로 줄을 잇는 방식으로 수정. source_image는 quote 필터로 shell 인자 이스케이프.
     - name: source_image 로컬 존재 확인 (digest 지정 시에만, rootless 저장소 기준, exact match)
       become: true
       become_user: "{{ runner_runtime_user }}"
       ansible.builtin.shell: |
         export XDG_RUNTIME_DIR="/run/user/$(id -u)"
-        {% raw %}
-        podman images --format '{{.Repository}}@{{.Digest}}'
-        {% endraw %} | grep -Fx -- "{{ source_image }}"
+        podman images --format {% raw %}'{{.Repository}}@{{.Digest}}'{% endraw %} |
+          grep -Fx -- {{ source_image | quote }}
       register: src_image_local
       changed_when: false
       failed_when: false
