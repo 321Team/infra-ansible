@@ -60,7 +60,7 @@
 
     - name: 형상 판정
       vars:
-        svcs: "{{ (svc_json.stdout | from_json).items }}"
+        svcs: "{{ (svc_json.stdout | from_json)['items'] }}"
         cluster_ip_svc: "{{ svcs | selectattr('metadata.name', 'equalto', 'transaction-api') | first }}"
         nodeport_svc: "{{ svcs | selectattr('metadata.name', 'equalto', 'transaction-api-nodeport') | first }}"
         nodeport_ports: "{{ nodeport_svc.spec.ports }}"
