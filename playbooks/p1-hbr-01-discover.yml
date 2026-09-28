@@ -2,17 +2,23 @@
 # 실행 (ansible01):
 #   ansible-playbook -i <inventory> playbooks/p1-hbr-01-discover.yml \
 #     -e runner_host=<Runner 호스트/그룹> -e cp_host=<control01> -e harbor_host=<harbor01> \
+#     -e runner_runtime_user=<Runner rootless 실행 계정, 예: server01_cicd-runner> \
 #     [-e harbor_ip=<harbor01 IP, 기본값 10.1.93.54>] \
-#     [-e runner_runtime_user=<Runner rootless 실행 계정, 기본값 cicd-runner>] \
 #     [-e source_image=<repo>@sha256:<64hex>] [-e runner_source_ip=<승인된 Runner 관측 Source IP>]
 # 결과: 화면 요약 + ./hbr01-values.env
 #
 # 주의:
-# - runner_host/cp_host/harbor_host는 이 inventory에 동일한 이름의 그룹/호스트가 없으므로
-#   기본값을 두지 않는다. 매 실행 시 -e로 명시해야 하며, 누락 시 명확한 오류로 멈춘다.
-# - source_image / runner_source_ip 를 지정하지 않으면 env 파일에는 검증되지 않은 자동
-#   수집값 대신 CHECK_ME/후보(candidate) 값만 채워진다. hbr01-test.sh에 붙여넣기 전 반드시
-#   승인된 값으로 직접 채워야 한다 (AC-04, AC-05 추적성 보호).
+# - runner_host/cp_host/harbor_host/runner_runtime_user는 이 inventory에 동일한 이름의
+#   그룹/호스트/기본 계정이 없으므로 기본값을 두지 않는다 (R1). 매 실행 시 -e로 명시해야
+#   하며, 누락 시 명확한 오류로 멈춘다. 승인된 Runner 실행 계정은 별도로 확인할 것.
+# - source_image는 digest-pinned(<repo>@sha256:<64hex>) 형식과 rootless 저장소 exact
+#   match를 모두 통과해야 한다. 형식이 틀리거나 존재하지 않으면 fail-closed 하며,
+#   검증에 성공한 경우에만 env 파일의 SRC_IMG에 값이 채워진다 (R2, AC-05 추적성 보호).
+# - runner_source_ip를 지정하지 않으면 env 파일에는 검증되지 않은 자동 수집값 대신
+#   CHECK_ME/후보(candidate) 값만 채워진다 (AC-04).
+# - IP_SAN_MATCH는 실제 env 변수로 기록된다. 인증서 조회에 성공했는데 harbor_ip가 IP
+#   SAN에 없으면 fail-closed 한다. TLS 자체가 아직 열리지 않은 사전점검 상황은
+#   TLS_UNREACHABLE_NOT_VERIFIED로 구분해 전체 discovery는 계속 진행한다 (R3, AC-01).
 ---
 - name: Runner — SAN, CA, 이미지, IP
   hosts: "{{ runner_host }}"
@@ -41,9 +47,11 @@
       failed_when: false
 
     # B1: root 저장소가 아니라 Runner가 실제 사용하는 rootless Podman 계정 저장소를 조회한다.
+    # R1: 잘못된 기본 계정으로 조용히 넘어가지 않도록 runner_runtime_user는 필수 입력으로
+    # 둔다 (-e 미지정 시 undefined 변수 오류로 명확히 멈춘다).
     - name: 로컬 이미지 목록 (rootless Runner 계정 기준)
       become: true
-      become_user: "{{ runner_runtime_user | default('cicd-runner') }}"
+      become_user: "{{ runner_runtime_user }}"
       ansible.builtin.shell: |
         export XDG_RUNTIME_DIR="/run/user/$(id -u)"
         {% raw %}
@@ -54,18 +62,37 @@
       changed_when: false
       failed_when: false
 
-    # B2: source_image는 승인된 digest-pinned 값만 사용한다. 자동으로 첫 이미지를 고르지 않는다.
-    - name: source_image 로컬 존재 확인 (digest 지정 시에만, rootless 저장소 기준)
+    # B2/R2: source_image는 승인된 digest-pinned 값만 사용한다. 자동으로 첫 이미지를
+    # 고르지 않으며, 형식/존재 검증에 실패하면 fail-closed 한다 (AC-05 추적성 보호).
+    - name: source_image 형식 검증 (digest-pinned, <repo>@sha256:<64hex>만 허용)
+      ansible.builtin.assert:
+        that:
+          - source_image is match('^.+@sha256:[a-f0-9]{64}$')
+        fail_msg: >-
+          source_image={{ source_image }} 형식이 올바르지 않습니다. AC-05 digest
+          추적성을 위해 <repo>@sha256:<64hex> 형식만 허용합니다.
+      when: source_image is defined
+
+    - name: source_image 로컬 존재 확인 (digest 지정 시에만, rootless 저장소 기준, exact match)
       become: true
-      become_user: "{{ runner_runtime_user | default('cicd-runner') }}"
+      become_user: "{{ runner_runtime_user }}"
       ansible.builtin.shell: |
         export XDG_RUNTIME_DIR="/run/user/$(id -u)"
         {% raw %}
         podman images --format '{{.Repository}}@{{.Digest}}'
-        {% endraw %} | grep -F -- "{{ source_image }}"
+        {% endraw %} | grep -Fx -- "{{ source_image }}"
       register: src_image_local
       changed_when: false
       failed_when: false
+      when: source_image is defined
+
+    - name: source_image 로컬 존재 fail-closed (미발견 시 env에 승인값처럼 기록되지 않도록 차단)
+      ansible.builtin.assert:
+        that:
+          - src_image_local.rc == 0
+        fail_msg: >-
+          source_image={{ source_image }}를 {{ runner_runtime_user }} rootless
+          저장소에서 찾지 못했습니다 (AC-05). Harbor Push/Pull 여부를 먼저 확인하세요.
       when: source_image is defined
 
 - name: Control Plane — Worker IP
@@ -118,12 +145,28 @@
     # B4: DNS SAN과 별도로 IP SAN을 파싱해 AC-01 필수 조건(harbor_ip가 IP SAN에 포함)을 확인한다.
     san_ip: "{{ r.srv.stdout | regex_findall('IP Address:([^,\\s]+)') }}"
     worker_ips: "{{ c.workers.stdout_lines | map('regex_replace', '^.*=', '') | list }}"
+    # R3: 인증서 조회 자체가 성공했는지(TLS 도달 가능)와 IP SAN 일치 여부를 분리해서 본다.
+    cert_fetched: "{{ (r.srv.stdout | default('')) | trim | length > 0 }}"
+    ip_san_match: "{{ effective_harbor_ip in san_ip }}"
+    # R2: source_image를 지정했고 rootless 저장소 exact match까지 성공한 경우에만 유효로 본다.
+    src_image_verified: "{{ (source_image is defined) and (r.src_image_local is defined) and (r.src_image_local.rc | default(1) == 0) }}"
   tasks:
+    - name: "R3: 인증서 조회 성공 시 IP SAN 불일치는 fail-closed"
+      ansible.builtin.assert:
+        that:
+          - not cert_fetched or ip_san_match
+        fail_msg: >-
+          Harbor 인증서 IP SAN에 harbor_ip({{ effective_harbor_ip }})가 없습니다
+          (AC-01). 관측된 IP SAN: {{ san_ip }}. TLS 자체가 아직 열리지 않은 사전점검
+          상황이면 harbor01 443/firewall을 먼저 확인하세요 (그 경우는 cert_fetched=false
+          로 구분되어 이 assert에 걸리지 않습니다).
+      when: cert_fetched
+
     - name: 수집 결과
       ansible.builtin.debug:
         msg:
           - "[H]        SAN DNS 후보: {{ san_dns }}"
-          - "[IP SAN]   {{ san_ip }} — harbor_ip({{ effective_harbor_ip }}) 포함 여부: {{ effective_harbor_ip in san_ip }}"
+          - "[IP SAN]   {{ san_ip }} — harbor_ip({{ effective_harbor_ip }}) 포함 여부: {{ ip_san_match if cert_fetched else 'TLS_UNREACHABLE_NOT_VERIFIED' }}"
           - "[CA]       issuer 일치 파일: {{ r.ca.stdout_lines | default(['없음 — Runner에 CA 미설치']) }}"
           - "[SRC_IMG 후보] 로컬 이미지 목록(참고용, 자동 선택 아님): {{ r.imgs.stdout_lines | default([]) }}"
           - "[source_image 로컬 존재] {{ r.src_image_local.stdout_lines | default(['source_image 미지정 또는 로컬에 없음']) }}"
@@ -140,10 +183,12 @@
         content: |
           H={{ san_dns | first | default('CHECK_ME') }}
           IP={{ effective_harbor_ip }}
-          # IP_SAN_MATCH={{ effective_harbor_ip in san_ip }} (AC-01: harbor_ip가 IP SAN에 없으면 false)
-          CA={{ r.ca.stdout_lines | first | default('CHECK_ME') }}
-          # SRC_IMG는 승인된 digest-pinned 값만 사용한다 (자동 첫 항목 선택 금지, AC-05 추적성)
-          SRC_IMG={{ source_image | default('CHECK_ME_REQUIRE_DIGEST_PINNED_SOURCE_IMAGE') }}
+          # IP_SAN_MATCH: AC-01 필수. cert_fetched=false면 TLS 자체가 사전점검 상태(미검증)이며,
+          # cert_fetched=true인데 false면 위 assert에서 이미 fail-closed 되어 이 파일이 생성되지 않는다.
+          IP_SAN_MATCH={{ ip_san_match if cert_fetched else 'TLS_UNREACHABLE_NOT_VERIFIED' }}
+          # SRC_IMG는 형식(digest-pinned) 검증과 rootless 저장소 exact match를 모두 통과한
+          # 경우에만 채워진다 (자동 첫 항목 선택 금지, R2/AC-05 추적성). 미검증이면 CHECK_ME.
+          SRC_IMG={{ source_image if src_image_verified else 'CHECK_ME_REQUIRE_DIGEST_PINNED_SOURCE_IMAGE' }}
           # RUNNER_SOURCE_CANDIDATE는 자동 수집된 후보일 뿐이며 승인된 관측값이 아니다 (AC-04)
           RUNNER_SOURCE_CANDIDATE={{ r.ansible_default_ipv4.address | default('CHECK_ME') }}
           ALLOW_IPS="{{ ([runner_source_ip | default('')] + worker_ips) | select | join(' ') }}"
