@@ -2,11 +2,20 @@
 # 실행 (ansible01):
 #   ansible-playbook -i <inventory> playbooks/p1-hbr-01-discover.yml \
 #     -e runner_host=<Runner 호스트/그룹> -e cp_host=<control01> -e harbor_host=<harbor01> \
-#     [-e harbor_ip=<harbor01 IP, 기본값 10.1.93.54>]
+#     [-e harbor_ip=<harbor01 IP, 기본값 10.1.93.54>] \
+#     [-e runner_runtime_user=<Runner rootless 실행 계정, 기본값 cicd-runner>] \
+#     [-e source_image=<repo>@sha256:<64hex>] [-e runner_source_ip=<승인된 Runner 관측 Source IP>]
 # 결과: 화면 요약 + ./hbr01-values.env
+#
+# 주의:
+# - runner_host/cp_host/harbor_host는 이 inventory에 동일한 이름의 그룹/호스트가 없으므로
+#   기본값을 두지 않는다. 매 실행 시 -e로 명시해야 하며, 누락 시 명확한 오류로 멈춘다.
+# - source_image / runner_source_ip 를 지정하지 않으면 env 파일에는 검증되지 않은 자동
+#   수집값 대신 CHECK_ME/후보(candidate) 값만 채워진다. hbr01-test.sh에 붙여넣기 전 반드시
+#   승인된 값으로 직접 채워야 한다 (AC-04, AC-05 추적성 보호).
 ---
 - name: Runner — SAN, CA, 이미지, IP
-  hosts: "{{ runner_host | default('runner') }}"
+  hosts: "{{ runner_host }}"
   become: true
   gather_facts: true
   tasks:
@@ -31,8 +40,12 @@
       changed_when: false
       failed_when: false
 
-    - name: 로컬 이미지 목록
+    # B1: root 저장소가 아니라 Runner가 실제 사용하는 rootless Podman 계정 저장소를 조회한다.
+    - name: 로컬 이미지 목록 (rootless Runner 계정 기준)
+      become: true
+      become_user: "{{ runner_runtime_user | default('cicd-runner') }}"
       ansible.builtin.shell: |
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
         {% raw %}
         if command -v podman >/dev/null; then podman images --format '{{.Repository}}:{{.Tag}} {{.Size}}'
         else nerdctl images --format '{{.Repository}}:{{.Tag}} {{.Size}}'; fi | grep -v '<none>' | head -15
@@ -41,8 +54,22 @@
       changed_when: false
       failed_when: false
 
+    # B2: source_image는 승인된 digest-pinned 값만 사용한다. 자동으로 첫 이미지를 고르지 않는다.
+    - name: source_image 로컬 존재 확인 (digest 지정 시에만, rootless 저장소 기준)
+      become: true
+      become_user: "{{ runner_runtime_user | default('cicd-runner') }}"
+      ansible.builtin.shell: |
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+        {% raw %}
+        podman images --format '{{.Repository}}@{{.Digest}}'
+        {% endraw %} | grep -F -- "{{ source_image }}"
+      register: src_image_local
+      changed_when: false
+      failed_when: false
+      when: source_image is defined
+
 - name: Control Plane — Worker IP
-  hosts: "{{ cp_host | default('control01') }}"
+  hosts: "{{ cp_host }}"
   become: true
   gather_facts: false
   tasks:
@@ -55,7 +82,7 @@
       changed_when: false
 
 - name: harbor01 — 방화벽, 설치 경로
-  hosts: "{{ harbor_host | default('harbor01') }}"
+  hosts: "{{ harbor_host }}"
   become: true
   gather_facts: false
   tasks:
@@ -67,11 +94,14 @@
       changed_when: false
       failed_when: false
 
+    # B3: 경로를 못 찾았을 때 dirname ''이 '.'을 반환해 false-positive를 만들지 않도록 방지
     - name: harbor.yml 위치
       ansible.builtin.shell: |
         p=$(docker compose ls 2>/dev/null | awk 'NR>1 && /harbor/ {print $NF}' | head -1)
-        [ -z "$p" ] && p=$(find / -xdev -name harbor.yml -not -path '*/proc/*' 2>/dev/null | head -1)
-        dirname "$p"
+        if [ -z "$p" ]; then
+          p=$(find / -xdev -name harbor.yml -not -path '*/proc/*' 2>/dev/null | head -1)
+        fi
+        if [ -n "$p" ]; then dirname -- "$p"; fi
       register: hdir
       changed_when: false
       failed_when: false
@@ -80,33 +110,42 @@
   hosts: localhost
   gather_facts: false
   vars:
-    r: "{{ hostvars[groups[runner_host | default('runner')][0] if (runner_host | default('runner')) in groups else (runner_host | default('runner'))] }}"
-    c: "{{ hostvars[groups[cp_host | default('control01')][0] if (cp_host | default('control01')) in groups else (cp_host | default('control01'))] }}"
-    h: "{{ hostvars[groups[harbor_host | default('harbor01')][0] if (harbor_host | default('harbor01')) in groups else (harbor_host | default('harbor01'))] }}"
+    r: "{{ hostvars[groups[runner_host][0] if runner_host in groups else runner_host] }}"
+    c: "{{ hostvars[groups[cp_host][0] if cp_host in groups else cp_host] }}"
+    h: "{{ hostvars[groups[harbor_host][0] if harbor_host in groups else harbor_host] }}"
+    effective_harbor_ip: "{{ harbor_ip | default('10.1.93.54') }}"
     san_dns: "{{ r.srv.stdout | regex_findall('DNS:([^,\\s]+)') }}"
+    # B4: DNS SAN과 별도로 IP SAN을 파싱해 AC-01 필수 조건(harbor_ip가 IP SAN에 포함)을 확인한다.
+    san_ip: "{{ r.srv.stdout | regex_findall('IP Address:([^,\\s]+)') }}"
     worker_ips: "{{ c.workers.stdout_lines | map('regex_replace', '^.*=', '') | list }}"
   tasks:
     - name: 수집 결과
       ansible.builtin.debug:
         msg:
           - "[H]        SAN DNS 후보: {{ san_dns }}"
+          - "[IP SAN]   {{ san_ip }} — harbor_ip({{ effective_harbor_ip }}) 포함 여부: {{ effective_harbor_ip in san_ip }}"
           - "[CA]       issuer 일치 파일: {{ r.ca.stdout_lines | default(['없음 — Runner에 CA 미설치']) }}"
-          - "[SRC_IMG]  로컬 이미지: {{ r.imgs.stdout_lines | default([]) }}"
-          - "[Runner IP] {{ r.ansible_default_ipv4.address | default('?') }}"
+          - "[SRC_IMG 후보] 로컬 이미지 목록(참고용, 자동 선택 아님): {{ r.imgs.stdout_lines | default([]) }}"
+          - "[source_image 로컬 존재] {{ r.src_image_local.stdout_lines | default(['source_image 미지정 또는 로컬에 없음']) }}"
+          - "[Runner IP 후보] {{ r.ansible_default_ipv4.address | default('?') }} (승인된 Source가 아니면 ALLOW_IPS에 자동 반영되지 않음)"
           - "[Workers]  {{ c.workers.stdout_lines }}"
-          - "[HARBOR_DIR] {{ h.hdir.stdout | default('?') }}"
+          - "[HARBOR_DIR] {{ h.hdir.stdout | default('CHECK_ME — harbor.yml 미발견', true) }}"
           - "[Firewall] {{ h.fw.stdout_lines | select('search', 'sources|rich|ports|services|zone') | list }}"
           - "[서버 인증서] {{ r.srv.stdout_lines }}"
 
-    - name: hbr01-values.env 저장 (hbr01-test.sh 상단에 붙여넣기용)
+    - name: hbr01-values.env 저장 (hbr01-test.sh 상단에 붙여넣기용 — CHECK_ME/후보 값은 반드시 직접 검증 후 채울 것)
       ansible.builtin.copy:
         dest: ./hbr01-values.env
         mode: "0644"
         content: |
           H={{ san_dns | first | default('CHECK_ME') }}
-          IP={{ harbor_ip | default('10.1.93.54') }}
+          IP={{ effective_harbor_ip }}
+          # IP_SAN_MATCH={{ effective_harbor_ip in san_ip }} (AC-01: harbor_ip가 IP SAN에 없으면 false)
           CA={{ r.ca.stdout_lines | first | default('CHECK_ME') }}
-          SRC_IMG={{ (r.imgs.stdout_lines | first | default('CHECK_ME')).split(' ') | first }}
-          ALLOW_IPS="{{ ([r.ansible_default_ipv4.address | default('')] + worker_ips) | select | join(' ') }}"
-          HARBOR_DIR={{ h.hdir.stdout | default('CHECK_ME') }}
+          # SRC_IMG는 승인된 digest-pinned 값만 사용한다 (자동 첫 항목 선택 금지, AC-05 추적성)
+          SRC_IMG={{ source_image | default('CHECK_ME_REQUIRE_DIGEST_PINNED_SOURCE_IMAGE') }}
+          # RUNNER_SOURCE_CANDIDATE는 자동 수집된 후보일 뿐이며 승인된 관측값이 아니다 (AC-04)
+          RUNNER_SOURCE_CANDIDATE={{ r.ansible_default_ipv4.address | default('CHECK_ME') }}
+          ALLOW_IPS="{{ ([runner_source_ip | default('')] + worker_ips) | select | join(' ') }}"
+          HARBOR_DIR={{ h.hdir.stdout | default('CHECK_ME', true) }}
           # PROJ / PUSH_USER / PULL_USER 는 Harbor UI(Projects → Robot Accounts)에서 확인
