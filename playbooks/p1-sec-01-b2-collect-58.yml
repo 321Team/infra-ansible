@@ -1,27 +1,30 @@
 # P1-SEC-01 #58 — externalTrafficPolicy: Local Source IP 보존 증적 자동 수집
 #
-# 실행 (ansible 서버에서):
-#   ansible-playbook -i ../inventory/p1-sec-01-b2-collect-58.ini p1-sec-01-b2-collect-58.yml -K
-#   (-K: sudo 비밀번호를 한 번 물어봄. SSH도 비밀번호 방식이면 -k 추가)
+# 실행 (ansible01 제어 노드에서, 기존 CR 스크립트와 동일한 방식):
+#   ansible-playbook -i inventory/hosts.yml playbooks/p1-sec-01-b2-collect-58.yml
 #
-# 결과: ~/evidence-58/ 에 7개 파일 + SUMMARY.txt
+# 정본 inventory/hosts.yml(k8s_control_plane/k8s_workers/edge)을 그대로 쓰며
+# 별도 인벤토리/개인 계정/비밀번호 인증을 추가하지 않는다. Pod IP는 재배치될
+# 수 있으므로 인벤토리에 고정하지 않고 이 playbook이 매 실행마다 조회한다.
+#
+# 결과: {{ out }}(기본 ~/evidence-58/)에 00_cluster-state.txt,
+# tcpdump_<worker>.txt x3, curl_<worker>.txt x3, SUMMARY.txt
 
-- name: "[0] control01 — 클러스터 상태 저장"
-  hosts: ctrl
-  become: true
+- name: "[0] control plane — 클러스터 상태 저장 및 Pod IP 조회"
+  hosts: k8s_control_plane
+  run_once: true
   gather_facts: false
   vars:
     out: "{{ lookup('env', 'HOME') }}/evidence-58"
   tasks:
     - name: 로컬 저장 폴더 생성
       delegate_to: localhost
-      become: false
-      run_once: true
       file:
         path: "{{ out }}"
         state: directory
 
     - name: node / pod / svc 상태 기록
+      become: true
       shell: |
         K="kubectl --kubeconfig=/etc/kubernetes/admin.conf"
         {
@@ -41,11 +44,27 @@
           - state.stdout is search('30080')
         fail_msg: "svc에서 Local / 30080 이 안 보임 — 00_cluster-state.txt 확인 필요"
 
-    - name: Pod IP가 인벤토리 값과 같은지 확인 (Pod 재생성 대비)
+    - name: 워커별 실제 transaction-api Pod IP 조회 (nodeName -> podIP)
+      become: true
+      command: >-
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n fds-app get pod
+        -l app=transaction-api
+        -o jsonpath={.items[*].spec.nodeName}{"|"}{.items[*].status.podIP}
+      register: pod_lookup
+      changed_when: false
+
+    - name: nodeName -> podIP 매핑을 fact로 저장 (다음 Play에서 hostvars로 참조)
+      vars:
+        node_names: "{{ pod_lookup.stdout.split('|')[0].split() }}"
+        pod_ips: "{{ pod_lookup.stdout.split('|')[1].split() }}"
+      set_fact:
+        worker_pod_ips: "{{ dict(node_names | zip(pod_ips)) }}"
+
+    - name: 워커마다 실제 Pod가 존재하는지 확인 (Pod 재생성/미배치 대비)
       assert:
-        that: state.stdout is search(hostvars[item].pod_ip)
-        fail_msg: "{{ item }}의 pod_ip({{ hostvars[item].pod_ip }})가 현재 Pod 목록에 없음 — inventory 수정 후 재실행"
-      loop: "{{ groups['workers'] }}"
+        that: item in worker_pod_ips
+        fail_msg: "{{ item }}에 transaction-api Pod가 없음 — 배치 확인 후 재실행"
+      loop: "{{ groups['k8s_workers'] }}"
 
     - name: 가져오기
       fetch:
@@ -54,13 +73,16 @@
         flat: true
 
 - name: "[1~3] 워커별 tcpdump + edge01 curl"
-  hosts: workers
+  hosts: k8s_workers
   serial: 1                       # 한 대씩 순서대로
   gather_facts: false
   vars:
     out: "{{ lookup('env', 'HOME') }}/evidence-58"
-    td_file: "/tmp/{{ n }}_tcpdump_worker{{ n }}.txt"
-    curl_file: "/tmp/{{ cn }}_curl_worker{{ n }}.txt"
+    control_host: "{{ groups['k8s_control_plane'][0] }}"
+    pod_ip: "{{ hostvars[control_host].worker_pod_ips[inventory_hostname] }}"
+    edge_ip: "{{ hostvars[groups['edge'][0]].ansible_host }}"
+    td_file: "/tmp/tcpdump_{{ inventory_hostname }}.txt"
+    curl_file: "/tmp/curl_{{ inventory_hostname }}.txt"
   tasks:
     - name: Pod veth(cali) 이름 찾기
       shell: ip route | awk '$1=="{{ pod_ip }}" {print $3}'
@@ -73,7 +95,7 @@
       shell: |
         {
           echo "### $(date '+%F %T %Z') host=$(hostname) if={{ ifc.stdout }} pod={{ pod_ip }}"
-          timeout 30 tcpdump -i {{ ifc.stdout }} -n -l -tttt "tcp port 8000 and not host {{ node_ip }}" -c 5 2>&1
+          timeout 30 tcpdump -i {{ ifc.stdout }} -n -l -tttt "tcp port 8000 and not host {{ ansible_host }}" -c 5 2>&1
         } > {{ td_file }}
       async: 45
       poll: 0
@@ -84,11 +106,11 @@
         seconds: 3
 
     - name: edge01에서 curl
-      delegate_to: edge01
+      delegate_to: "{{ groups['edge'][0] }}"
       shell: |
         {
           echo "### $(date '+%F %T %Z') from=$(hostname) $(hostname -I)"
-          curl -sv --max-time 10 http://{{ node_ip }}:30080/readyz 2>&1
+          curl -sv --max-time 10 http://{{ ansible_host }}:30080/readyz 2>&1
         } > {{ curl_file }}
         cat {{ curl_file }}
       register: curl_out
@@ -109,13 +131,13 @@
       register: td_out
       changed_when: false
 
-    - name: 판정 — 출발지 10.1.93.50이 Pod에 도착했는가 / HTTP 200인가
+    - name: "판정 — 출발지 {{ edge_ip }}가 Pod에 도착했는가 / HTTP 200인가"
       assert:
         that:
-          - td_out.stdout is search('10\.1\.93\.50\.[0-9]+ > ' ~ (pod_ip | regex_escape))
+          - td_out.stdout is search('^' ~ (edge_ip | regex_escape()) ~ '\.[0-9]+ > ' ~ (pod_ip | regex_escape()), multiline=True)
           - curl_out.stdout is search('HTTP/1.1 200')
         fail_msg: "{{ inventory_hostname }}: Source IP 보존 또는 200 응답 미확인 — 파일 내용 확인 필요"
-        success_msg: "{{ inventory_hostname }}: 10.1.93.50 → {{ pod_ip }} 보존 확인, HTTP 200"
+        success_msg: "{{ inventory_hostname }}: {{ edge_ip }} → {{ pod_ip }} 보존 확인, HTTP 200"
       ignore_errors: true
       register: verdict
 
@@ -123,14 +145,14 @@
       become: true
       fetch:
         src: "{{ td_file }}"
-        dest: "{{ out }}/{{ n }}_tcpdump_worker{{ n }}.txt"
+        dest: "{{ out }}/tcpdump_{{ inventory_hostname }}.txt"
         flat: true
 
     - name: curl 파일 가져오기
-      delegate_to: edge01
+      delegate_to: "{{ groups['edge'][0] }}"
       fetch:
         src: "{{ curl_file }}"
-        dest: "{{ out }}/{{ cn }}_curl_worker{{ n }}.txt"
+        dest: "{{ out }}/curl_{{ inventory_hostname }}.txt"
         flat: true
 
     - name: 판정 결과 기록
@@ -139,4 +161,4 @@
         path: "{{ out }}/SUMMARY.txt"
         create: true
         regexp: "^{{ inventory_hostname }} "
-        line: "{{ inventory_hostname }} node={{ node_ip }} pod={{ pod_ip }} if={{ ifc.stdout }} => {{ 'PASS' if not (verdict.failed | default(false)) else 'CHECK' }}"
+        line: "{{ inventory_hostname }} node={{ ansible_host }} pod={{ pod_ip }} if={{ ifc.stdout }} => {{ 'PASS' if not (verdict.failed | default(false)) else 'CHECK' }}"
