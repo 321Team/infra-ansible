@@ -1,0 +1,142 @@
+# P1-SEC-01 #58 — externalTrafficPolicy: Local Source IP 보존 증적 자동 수집
+#
+# 실행 (ansible 서버에서):
+#   ansible-playbook -i ../inventory/p1-sec-01-b2-collect-58.ini p1-sec-01-b2-collect-58.yml -K
+#   (-K: sudo 비밀번호를 한 번 물어봄. SSH도 비밀번호 방식이면 -k 추가)
+#
+# 결과: ~/evidence-58/ 에 7개 파일 + SUMMARY.txt
+
+- name: "[0] control01 — 클러스터 상태 저장"
+  hosts: ctrl
+  become: true
+  gather_facts: false
+  vars:
+    out: "{{ lookup('env', 'HOME') }}/evidence-58"
+  tasks:
+    - name: 로컬 저장 폴더 생성
+      delegate_to: localhost
+      become: false
+      run_once: true
+      file:
+        path: "{{ out }}"
+        state: directory
+
+    - name: node / pod / svc 상태 기록
+      shell: |
+        K="kubectl --kubeconfig=/etc/kubernetes/admin.conf"
+        {
+          echo "### $(date '+%F %T %Z') host=$(hostname)"
+          echo "### nodes";  $K get node -o wide
+          echo "### pods";   $K -n fds-app get pod -o wide | grep transaction-api
+          echo "### svc";    $K -n fds-app get svc -o custom-columns=NAME:.metadata.name,TYPE:.spec.type,POLICY:.spec.externalTrafficPolicy,NODEPORT:.spec.ports[*].nodePort
+        } > /tmp/00_cluster-state.txt 2>&1
+        cat /tmp/00_cluster-state.txt
+      register: state
+      changed_when: false
+
+    - name: externalTrafficPolicy=Local + 30080 확인
+      assert:
+        that:
+          - state.stdout is search('Local')
+          - state.stdout is search('30080')
+        fail_msg: "svc에서 Local / 30080 이 안 보임 — 00_cluster-state.txt 확인 필요"
+
+    - name: Pod IP가 인벤토리 값과 같은지 확인 (Pod 재생성 대비)
+      assert:
+        that: state.stdout is search(hostvars[item].pod_ip)
+        fail_msg: "{{ item }}의 pod_ip({{ hostvars[item].pod_ip }})가 현재 Pod 목록에 없음 — inventory 수정 후 재실행"
+      loop: "{{ groups['workers'] }}"
+
+    - name: 가져오기
+      fetch:
+        src: /tmp/00_cluster-state.txt
+        dest: "{{ out }}/00_cluster-state.txt"
+        flat: true
+
+- name: "[1~3] 워커별 tcpdump + edge01 curl"
+  hosts: workers
+  serial: 1                       # 한 대씩 순서대로
+  gather_facts: false
+  vars:
+    out: "{{ lookup('env', 'HOME') }}/evidence-58"
+    td_file: "/tmp/{{ n }}_tcpdump_worker{{ n }}.txt"
+    curl_file: "/tmp/{{ cn }}_curl_worker{{ n }}.txt"
+  tasks:
+    - name: Pod veth(cali) 이름 찾기
+      shell: ip route | awk '$1=="{{ pod_ip }}" {print $3}'
+      register: ifc
+      changed_when: false
+      failed_when: ifc.stdout == ""
+
+    - name: tcpdump 백그라운드 시작 (최대 30초, 노드 자신의 probe 제외)
+      become: true
+      shell: |
+        {
+          echo "### $(date '+%F %T %Z') host=$(hostname) if={{ ifc.stdout }} pod={{ pod_ip }}"
+          timeout 30 tcpdump -i {{ ifc.stdout }} -n -l -tttt "tcp port 8000 and not host {{ node_ip }}" -c 5 2>&1
+        } > {{ td_file }}
+      async: 45
+      poll: 0
+      register: td_job
+
+    - name: tcpdump가 listening 상태가 될 때까지 대기
+      pause:
+        seconds: 3
+
+    - name: edge01에서 curl
+      delegate_to: edge01
+      shell: |
+        {
+          echo "### $(date '+%F %T %Z') from=$(hostname) $(hostname -I)"
+          curl -sv --max-time 10 http://{{ node_ip }}:30080/readyz 2>&1
+        } > {{ curl_file }}
+        cat {{ curl_file }}
+      register: curl_out
+      changed_when: false
+
+    - name: tcpdump 종료 대기
+      become: true
+      async_status:
+        jid: "{{ td_job.ansible_job_id }}"
+      register: td_done
+      until: td_done.finished
+      retries: 15
+      delay: 3
+
+    - name: tcpdump 결과 읽기
+      become: true
+      command: cat {{ td_file }}
+      register: td_out
+      changed_when: false
+
+    - name: 판정 — 출발지 10.1.93.50이 Pod에 도착했는가 / HTTP 200인가
+      assert:
+        that:
+          - td_out.stdout is search('10\.1\.93\.50\.[0-9]+ > ' ~ (pod_ip | regex_escape))
+          - curl_out.stdout is search('HTTP/1.1 200')
+        fail_msg: "{{ inventory_hostname }}: Source IP 보존 또는 200 응답 미확인 — 파일 내용 확인 필요"
+        success_msg: "{{ inventory_hostname }}: 10.1.93.50 → {{ pod_ip }} 보존 확인, HTTP 200"
+      ignore_errors: true
+      register: verdict
+
+    - name: tcpdump 파일 가져오기
+      become: true
+      fetch:
+        src: "{{ td_file }}"
+        dest: "{{ out }}/{{ n }}_tcpdump_worker{{ n }}.txt"
+        flat: true
+
+    - name: curl 파일 가져오기
+      delegate_to: edge01
+      fetch:
+        src: "{{ curl_file }}"
+        dest: "{{ out }}/{{ cn }}_curl_worker{{ n }}.txt"
+        flat: true
+
+    - name: 판정 결과 기록
+      delegate_to: localhost
+      lineinfile:
+        path: "{{ out }}/SUMMARY.txt"
+        create: true
+        regexp: "^{{ inventory_hostname }} "
+        line: "{{ inventory_hostname }} node={{ node_ip }} pod={{ pod_ip }} if={{ ifc.stdout }} => {{ 'PASS' if not (verdict.failed | default(false)) else 'CHECK' }}"
