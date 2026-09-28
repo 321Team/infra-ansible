@@ -1,0 +1,249 @@
+# P1-SEC-01 #58 — externalTrafficPolicy: Local Source IP 보존 증적 자동 수집
+#
+# 실행 (ansible01 제어 노드에서, 기존 CR 스크립트와 동일한 방식):
+#   ansible-playbook -i inventory/hosts.yml playbooks/p1-sec-01-b2-collect-58.yml
+#
+# 정본 inventory/hosts.yml(k8s_control_plane/k8s_workers/edge)을 그대로 쓰며
+# 별도 인벤토리/개인 계정/비밀번호 인증을 추가하지 않는다. Pod IP는 재배치될
+# 수 있으므로 인벤토리에 고정하지 않고 이 playbook이 매 실행마다 조회한다.
+#
+# 결과: {{ out_root }}/<UTC 실행 시각>/에 00_cluster-state.txt,
+# tcpdump_<worker>.txt x3, curl_<worker>.txt x3, SUMMARY.txt.
+# 워커 하나가 실패해도 나머지는 계속 수집하되(block/rescue/always), 하나라도
+# 실패/미판정이면 playbook 전체는 rc!=0으로 끝난다([Final] 판정 게이트).
+#
+# 남겨둔 범위 밖(후속 PR): remote /tmp 임시 경로의 run 격리, 실행된 collector
+# git SHA/RUN_METADATA 기록, 이 playbook 로직에 대한 unit test, Service
+# port:80->targetPort:8000 exact assert, edge01 접속 preflight.
+
+- name: "[0] control plane — 클러스터 상태 저장 및 Ready endpoint 조회"
+  hosts: k8s_control_plane
+  run_once: true
+  gather_facts: false
+  vars:
+    out_root: "{{ lookup('env', 'HOME') }}/evidence-58"
+  tasks:
+    - name: 이번 실행의 run_id 고정 (재실행 시 이전 증적과 섞이지 않도록 매번 새 디렉터리)
+      set_fact:
+        run_id: "{{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}"
+
+    - name: 실행 전용 저장 폴더 생성
+      delegate_to: localhost
+      file:
+        path: "{{ out_root }}/{{ run_id }}"
+        state: directory
+
+    - name: transaction-api / transaction-api-nodeport Service 원본 + node/pod 상태 기록
+      become: true
+      shell: |
+        K="kubectl --kubeconfig=/etc/kubernetes/admin.conf"
+        {
+          echo "### $(date '+%F %T %Z') host=$(hostname)"
+          echo "### nodes";  $K get node -o wide
+          echo "### pods";   $K -n fds-app get pod -o wide | grep transaction-api
+          echo "### svc transaction-api (json)";           $K -n fds-app get svc transaction-api -o json
+          echo "### svc transaction-api-nodeport (json)";  $K -n fds-app get svc transaction-api-nodeport -o json
+          echo "### endpointslices transaction-api-nodeport (json)"
+          $K -n fds-app get endpointslices -l kubernetes.io/service-name=transaction-api-nodeport -o json
+        } > /tmp/00_cluster-state.txt 2>&1
+        cat /tmp/00_cluster-state.txt
+      register: state
+      changed_when: false
+
+    - name: "B2 최종 형상 exact assert (#19 승인 형상과 정확히 일치해야 함)"
+      become: true
+      command: >-
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n fds-app
+        get svc transaction-api transaction-api-nodeport -o json
+      register: svc_json
+      changed_when: false
+
+    - name: 형상 판정
+      vars:
+        svcs: "{{ (svc_json.stdout | from_json).items }}"
+        cluster_ip_svc: "{{ svcs | selectattr('metadata.name', 'equalto', 'transaction-api') | first }}"
+        nodeport_svc: "{{ svcs | selectattr('metadata.name', 'equalto', 'transaction-api-nodeport') | first }}"
+        nodeport_ports: "{{ nodeport_svc.spec.ports }}"
+      assert:
+        that:
+          - cluster_ip_svc.spec.type == 'ClusterIP'
+          - nodeport_svc.spec.type == 'NodePort'
+          - nodeport_svc.spec.externalTrafficPolicy == 'Local'
+          - nodeport_ports | length == 1
+          - nodeport_ports[0].nodePort == 30080
+          - (nodeport_ports | selectattr('nodePort', 'equalto', 32085) | list | length) == 0
+        fail_msg: >-
+          transaction-api(ClusterIP)/transaction-api-nodeport(NodePort 30080-only,
+          Local, metrics 32085 미노출) 형상이 #19 B2 최종 형상과 다름 —
+          00_cluster-state.txt 확인 필요
+
+    - name: >-
+        transaction-api-nodeport EndpointSlice의 Ready endpoint를 nodeName -> podIP로
+        취합 (Pending/rolling 중인 Pod, 중복 Node는 여기서 걸러짐)
+      become: true
+      shell: |
+        set -euo pipefail
+        kubectl --kubeconfig=/etc/kubernetes/admin.conf -n fds-app \
+          get endpointslices -l kubernetes.io/service-name=transaction-api-nodeport -o json |
+        python3 -c '
+        import json, sys
+        data = json.load(sys.stdin)
+        ready = []
+        for sl in data["items"]:
+            for ep in sl.get("endpoints", []):
+                if ep.get("conditions", {}).get("ready") and ep.get("addresses"):
+                    ready.append((ep["nodeName"], ep["addresses"][0]))
+        nodes = [n for n, _ in ready]
+        assert len(ready) == 3, "ready endpoint count=%d, expected 3: %r" % (len(ready), ready)
+        assert len(set(nodes)) == 3, "duplicate/missing node in ready endpoints: %r" % (nodes,)
+        for n, ip in ready:
+            print("%s|%s" % (n, ip))
+        '
+      register: eps_lookup
+      changed_when: false
+
+    - name: nodeName -> podIP(Ready endpoint 기준) 매핑을 fact로 저장 (다음 Play에서 hostvars로 참조)
+      set_fact:
+        worker_pod_ips: "{{ dict(eps_lookup.stdout_lines | map('split', '|')) }}"
+
+    - name: Ready endpoint의 node 집합이 k8s_workers 3대와 정확히 일치하는지 확인
+      assert:
+        that: (worker_pod_ips.keys() | sort | list) == (groups['k8s_workers'] | sort | list)
+        fail_msg: "Ready endpoint의 node 집합 {{ worker_pod_ips.keys() | list }}이 k8s_workers {{ groups['k8s_workers'] }}와 다름"
+
+    - name: 가져오기
+      fetch:
+        src: /tmp/00_cluster-state.txt
+        dest: "{{ out_root }}/{{ run_id }}/00_cluster-state.txt"
+        flat: true
+
+- name: "[1~3] 워커별 tcpdump + edge01 curl"
+  hosts: k8s_workers
+  serial: 1                       # 한 대씩 순서대로
+  gather_facts: false
+  vars:
+    control_host: "{{ groups['k8s_control_plane'][0] }}"
+    edge_host: "{{ groups['edge'][0] }}"
+    out: "{{ lookup('env', 'HOME') }}/evidence-58/{{ hostvars[control_host].run_id }}"
+    pod_ip: "{{ hostvars[control_host].worker_pod_ips[inventory_hostname] }}"
+    # delegate_to된 task 안에서 bare ansible_host를 쓰면 delegated host(edge01) 값으로
+    # 재해석되는 Ansible의 잘 알려진 함정이 있어, hostvars로 명시 고정한다.
+    worker_ip: "{{ hostvars[inventory_hostname].ansible_host }}"
+    edge_ip: "{{ hostvars[edge_host].ansible_host }}"
+    td_file: "/tmp/tcpdump_{{ inventory_hostname }}.txt"
+    curl_file: "/tmp/curl_{{ inventory_hostname }}.txt"
+  tasks:
+    - block:
+        - name: Pod veth(cali) 이름 찾기
+          shell: ip route | awk '$1=="{{ pod_ip }}" {print $3}'
+          register: ifc
+          changed_when: false
+          failed_when: ifc.stdout == ""
+
+        - name: tcpdump 백그라운드 시작 (최대 30초, 노드 자신의 probe 제외, 포트는 숫자로 고정)
+          become: true
+          shell: |
+            {
+              echo "### $(date '+%F %T %Z') host=$(hostname) if={{ ifc.stdout }} pod={{ pod_ip }}"
+              timeout 30 tcpdump -i {{ ifc.stdout }} -nn -l -tttt "tcp port 8000 and not host {{ worker_ip }}" -c 5 2>&1
+            } > {{ td_file }}
+          async: 45
+          poll: 0
+          register: td_job
+
+        - name: tcpdump가 실제 listening 상태가 될 때까지 폴링 (고정 sleep 대신)
+          become: true
+          command: grep -q 'listening on' {{ td_file }}
+          register: td_ready
+          until: td_ready.rc == 0
+          retries: 10
+          delay: 1
+          changed_when: false
+          failed_when: false
+
+        - name: edge01에서 curl (대상은 worker_ip로 명시 고정, rc/HTTP 코드 구조화 기록)
+          delegate_to: "{{ edge_host }}"
+          shell: |
+            set +e
+            {
+              echo "### $(date '+%F %T %Z') from=$(hostname) $(hostname -I)"
+              curl -sS --max-time 10 -D - -o /dev/null -w 'HTTP_CODE=%{http_code}\n' "http://{{ worker_ip }}:30080/readyz"
+              printf 'CURL_RC=%s\n' "$?"
+            } > {{ curl_file }} 2>&1
+            cat {{ curl_file }}
+          register: curl_out
+          changed_when: false
+
+        - name: tcpdump 종료 대기 (rc가 0이 아니어도 계속 진행 — 아래에서 raw로 판정)
+          become: true
+          async_status:
+            jid: "{{ td_job.ansible_job_id }}"
+          register: td_done
+          until: td_done.finished
+          retries: 15
+          delay: 3
+          failed_when: false
+
+        - name: tcpdump 결과 읽기 (파일이 비어 있거나 없어도 실패시키지 않음)
+          become: true
+          command: cat {{ td_file }}
+          register: td_out
+          changed_when: false
+          failed_when: false
+
+        - name: "판정 — 출발지 {{ edge_ip }}가 Pod에 도착했는가 / curl이 실제로 성공(rc=0)하고 HTTP 200인가"
+          assert:
+            that:
+              # -nn으로 포트가 숫자로 찍히므로 "IP <edge>.<port> > <pod>.8000:" 형태로 매칭한다.
+              # -tttt 때문에 각 줄이 날짜/시각으로 시작하므로 ^ 앵커는 쓰지 않는다.
+              - td_out.stdout is search('IP ' ~ (edge_ip | regex_escape()) ~ '\.[0-9]+ > ' ~ (pod_ip | regex_escape()) ~ '\.8000:')
+              - curl_out.stdout is search('CURL_RC=0')
+              - curl_out.stdout is search('HTTP_CODE=200')
+            fail_msg: "{{ inventory_hostname }}: Source IP 보존 또는 curl 성공/200 응답 미확인 — tcpdump_/curl_ 파일 확인 필요"
+            success_msg: "{{ inventory_hostname }}: {{ edge_ip }} → {{ pod_ip }} 보존 확인, curl 성공 + HTTP 200"
+          ignore_errors: true
+          register: verdict
+      rescue:
+        - name: 실행 중 오류(veth 미탐지/연결 실패/캡처 시작 실패 등)로 판정 불가 — FAIL로 명시 기록
+          set_fact:
+            verdict:
+              failed: true
+              msg: "worker task 실행 중 오류로 판정 불가 (veth 탐지/SSH/캡처 시작 단계 확인 필요)"
+      always:
+        - name: tcpdump 파일 가져오기 (생성됐으면)
+          become: true
+          fetch:
+            src: "{{ td_file }}"
+            dest: "{{ out }}/tcpdump_{{ inventory_hostname }}.txt"
+            flat: true
+          ignore_errors: true
+
+        - name: curl 파일 가져오기 (생성됐으면)
+          delegate_to: "{{ edge_host }}"
+          fetch:
+            src: "{{ curl_file }}"
+            dest: "{{ out }}/curl_{{ inventory_hostname }}.txt"
+            flat: true
+          ignore_errors: true
+
+        - name: 판정 결과 기록
+          delegate_to: localhost
+          lineinfile:
+            path: "{{ out }}/SUMMARY.txt"
+            create: true
+            regexp: "^{{ inventory_hostname }} "
+            line: "{{ inventory_hostname }} node={{ worker_ip }} pod={{ pod_ip }} => {{ 'PASS' if not (verdict.failed | default(true)) else 'CHECK' }}"
+
+- name: "[Final] 전체 판정 게이트 — 워커 하나라도 CHECK/미판정이면 playbook 전체를 실패로 종료"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: 워커별 판정 재확인 (verdict가 아예 없는 경우도 FAIL로 취급)
+      assert:
+        that:
+          - hostvars[item].verdict is defined
+          - not ((hostvars[item].verdict | default({'failed': true})).failed | default(true))
+        fail_msg: "{{ item }}: 판정 실패 또는 판정 자체가 생성되지 않음 (CHECK) — 이 실행은 최종 PASS로 보고하면 안 됨"
+        success_msg: "{{ item }}: PASS"
+      loop: "{{ groups['k8s_workers'] }}"
