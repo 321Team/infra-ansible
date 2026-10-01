@@ -110,10 +110,33 @@ DENY_PROBE=10.1.93.26/32
 
 ## Read-only precheck
 
+The reviewed Harbor management path on ansible01 uses the dedicated key below.
+Do not change `authorized_keys` or inventory authentication merely to make the
+precheck pass.
+
 ```bash
+KEY="$HOME/.ssh/p1_ansible_ed25519"
+
+ssh \
+  -o BatchMode=yes \
+  -o IdentitiesOnly=yes \
+  -o ConnectTimeout=5 \
+  -i "$KEY" \
+  svc_ansible@10.1.93.54 \
+  'hostname -s; id -un'
+
+ansible \
+  harbor \
+  -i inventory/hosts.yml \
+  -m ping \
+  --private-key "$KEY" \
+  -e '{"ansible_ssh_common_args":"-o IdentitiesOnly=yes"}'
+
 ansible-playbook \
   -i inventory/hosts.yml \
-  playbooks/p1-hbr-ac04-firewall-precheck.yml
+  playbooks/p1-hbr-ac04-firewall-precheck.yml \
+  --private-key "$KEY" \
+  -e '{"ansible_ssh_common_args":"-o IdentitiesOnly=yes"}'
 ```
 
 Required baseline:
@@ -125,6 +148,7 @@ Required baseline:
 - Docker TCP/443 DNAT exists;
 - generic public 443 exists runtime/permanent;
 - managed nft table/config/unit do not already exist;
+- managed state directory `/var/lib/p1-hbr-ac04-firewall` does not already exist;
 - sealed `original-state.json` does not already exist;
 - candidate nft file passes `nft -c`.
 
@@ -135,9 +159,13 @@ Any mismatch is STOP. Do not normalize the server manually.
 Only in the approved window:
 
 ```bash
+KEY="$HOME/.ssh/p1_ansible_ed25519"
+
 ansible-playbook \
   -i inventory/hosts.yml \
   playbooks/p1-hbr-ac04-firewall-apply.yml \
+  --private-key "$KEY" \
+  -e '{"ansible_ssh_common_args":"-o IdentitiesOnly=yes"}' \
   -e p1_hbr_ac04_source_set_approved=P1-HBR-AC04-FW-01 \
   -e p1_hbr_ac04_control01_ui_confirmed=P1-HBR-AC04-FW-01 \
   -e p1_hbr_ac04_change_window_approved=P1-HBR-AC04-FW-01
@@ -153,7 +181,8 @@ Sequence:
 6. remove public generic 443 permanent;
 7. remove public generic 443 runtime, with no reload;
 8. validate firewalld config;
-9. mark `APPLY_PASS_RETEST_REQUIRED`.
+9. record exact remote apply-completion timestamp;
+10. mark `APPLY_PASS_RETEST_REQUIRED`.
 
 Protected state:
 
@@ -171,9 +200,13 @@ Protected state:
 ## Configuration verify
 
 ```bash
+KEY="$HOME/.ssh/p1_ansible_ed25519"
+
 ansible-playbook \
   -i inventory/hosts.yml \
-  playbooks/p1-hbr-ac04-firewall-verify.yml
+  playbooks/p1-hbr-ac04-firewall-verify.yml \
+  --private-key "$KEY" \
+  -e '{"ansible_ssh_common_args":"-o IdentitiesOnly=yes"}'
 ```
 
 Required:
@@ -215,9 +248,13 @@ the evidence repository and independently reviewed.
 ## Rollback
 
 ```bash
+KEY="$HOME/.ssh/p1_ansible_ed25519"
+
 ansible-playbook \
   -i inventory/hosts.yml \
   playbooks/p1-hbr-ac04-firewall-rollback.yml \
+  --private-key "$KEY" \
+  -e '{"ansible_ssh_common_args":"-o IdentitiesOnly=yes"}' \
   -e p1_hbr_ac04_rollback_approved=P1-HBR-AC04-FW-01
 ```
 
@@ -228,7 +265,8 @@ Rollback order:
 3. stop and disable the managed nft service;
 4. remove only this change's nft/unit files;
 5. verify custom table absent and original broad 443 restored;
-6. retain evidence state with `ROLLED_BACK.json`.
+6. record exact remote rollback-completion timestamp;
+7. retain evidence state with `ROLLED_BACK.json`.
 
 A successful rollback restores the original **noncompliant** state. It is not
 an AC-04 PASS.
@@ -246,8 +284,8 @@ Both removals require separate reviewed changes.
 
 ## Re-run safety
 
-A rollback intentionally leaves `/var/lib/p1-hbr-ac04-firewall/original-state.json`
-and hash evidence in place. Precheck and apply therefore fail closed if that
-sealed prestate already exists. Do not delete or overwrite it ad hoc. A new
+A rollback intentionally leaves `/var/lib/p1-hbr-ac04-firewall/` and its
+sealed evidence in place. Precheck and apply therefore fail closed if the
+managed state directory or sealed prestate already exists. Do not delete or overwrite it ad hoc. A new
 change cycle requires the prior evidence to be archived/reconciled through a
 reviewed procedure before another apply.
