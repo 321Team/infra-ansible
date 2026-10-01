@@ -1,57 +1,18 @@
 ---
-- name: P1-HBR-01 AC-04 verify host firewall source allowlist
-  hosts: hbr
-  gather_facts: true
-  become: true
+# SAFETY HOLD (2026-10-01):
+# There is no approved FORWARD-path apply at this HEAD, so the previous
+# INPUT-only verifier must not emit a false PASS.
+- name: P1-HBR-01 AC-04 verify safety hold
+  hosts: localhost
+  connection: local
+  gather_facts: false
   any_errors_fatal: true
 
   tasks:
-    - name: Observe current harbor01 firewall state
-      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
-
-    - name: Validate permanent firewalld configuration
-      ansible.builtin.command:
-        argv: [firewall-cmd, --check-config]
-      changed_when: false
-
-    - name: Read effective nftables public allow chain
-      ansible.builtin.command:
-        argv: [nft, list, chain, inet, firewalld, filter_IN_public_allow]
-      register: hbr_ac04_nft_public_allow
-      changed_when: false
-
-    - name: Verify exact AC-04 443 contract
-      ansible.builtin.assert:
-        that:
-          - hbr_ac04_runtime_generic.rc == 1
-          - hbr_ac04_permanent_generic.rc == 1
-          - "'https' not in hbr_ac04_runtime_services.stdout.split()"
-          - "'https' not in hbr_ac04_permanent_services.stdout.split()"
-          - >-
-            (hbr_ac04_runtime_rich.stdout_lines
-             | select('search', 'port port="443"') | list | sort)
-            == (hbr_ac04_expected_rules | sort)
-          - >-
-            (hbr_ac04_permanent_rich.stdout_lines
-             | select('search', 'port port="443"') | list | sort)
-            == (hbr_ac04_expected_rules | sort)
-          - >-
-            (hbr_ac04_nft_public_allow.stdout_lines
-             | select('search', 'tcp dport 443')
-             | reject('search', 'ip saddr')
-             | list | length) == 0
-        fail_msg: >-
-          AC-04 verify failed. Generic/unqualified 443 access, a missing
-          approved source, or runtime/permanent drift remains.
-
-    - name: Print verify verdict
-      ansible.builtin.debug:
-        msg:
-          change_id: "{{ hbr_ac04_change_id }}"
-          host: "{{ inventory_hostname }}"
-          runtime_permanent_contract: MATCH
-          generic_443: ABSENT
-          source_specific_rules: "{{ hbr_ac04_expected_rules }}"
-          same_l2_negative_still_required: "{{ hbr_ac04_denied_same_l2_source }}"
-          mgmt_negative_still_required: "{{ hbr_ac04_mgmt_negative_source }}"
-          verdict: FIREWALL_CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING
+    - name: Refuse obsolete INPUT-only verification
+      ansible.builtin.fail:
+        msg: >-
+          NOT RUN: no approved AC-04 FORWARD-path remediation exists at this
+          HEAD. The previous INPUT/public-zone verifier was invalid for Docker
+          published Harbor 443. Review forward discovery and implement the
+          actual enforcement-path verifier before Runtime acceptance.
