@@ -78,6 +78,73 @@
       register: fw_check
       changed_when: false
 
+    - name: Verify sealed prestate hashes before comparison
+      ansible.builtin.shell: |
+        cd {{ p1_hbr_ac04_state_dir | quote }}
+        sha256sum -c PRESTATE_SHA256SUMS
+      args:
+        executable: /bin/bash
+      register: prestate_hash
+      changed_when: false
+
+    - name: Read sealed IPv4 Docker rules
+      ansible.builtin.slurp:
+        src: "{{ p1_hbr_ac04_state_dir }}/iptables-before.txt"
+      register: iptables_before_file
+
+    - name: Read sealed IPv6 Docker rules
+      ansible.builtin.slurp:
+        src: "{{ p1_hbr_ac04_state_dir }}/ip6tables-before.txt"
+      register: ip6tables_before_file
+
+    - name: Capture current IPv4 Docker rules
+      ansible.builtin.command:
+        argv: [iptables-save]
+      register: iptables_after
+      changed_when: false
+
+    - name: Capture current IPv6 Docker rules
+      ansible.builtin.command:
+        argv: [ip6tables-save]
+      register: ip6tables_after
+      changed_when: false
+
+    - name: Normalize Docker-managed rule snapshots
+      ansible.builtin.set_fact:
+        iptables_before_rules: >-
+          {{
+            (iptables_before_file.content | b64decode).splitlines()
+            | reject('match', '^#')
+            | list
+          }}
+        iptables_after_rules: >-
+          {{
+            iptables_after.stdout_lines
+            | reject('match', '^#')
+            | list
+          }}
+        ip6tables_before_rules: >-
+          {{
+            (ip6tables_before_file.content | b64decode).splitlines()
+            | reject('match', '^#')
+            | list
+          }}
+        ip6tables_after_rules: >-
+          {{
+            ip6tables_after.stdout_lines
+            | reject('match', '^#')
+            | list
+          }}
+
+    - name: Verify Docker-managed iptables rules are unchanged
+      ansible.builtin.assert:
+        that:
+          - iptables_after_rules == iptables_before_rules
+          - ip6tables_after_rules == ip6tables_before_rules
+        fail_msg: >-
+          Docker-managed iptables/ip6tables rules changed during AC-04.
+          Stop and review before Runtime acceptance.
+
     - name: Verify allowed sources are present in nft set
       ansible.builtin.assert:
         that:
@@ -97,7 +164,9 @@
           - "'drop' in nft_table.stdout"
           - strict_forward_ports.stdout | trim == 'StrictForwardPorts=no'
           - fw_check.rc == 0
+          - prestate_hash.rc == 0
           - "'docker.service' in service_order.stdout"
+          - "'firewalld.service' in service_order.stdout"
         fail_msg: AC-04 persistent guard verification failed.
 
     - name: Print configuration verification verdict
