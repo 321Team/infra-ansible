@@ -125,6 +125,7 @@ Required baseline:
 - Docker TCP/443 DNAT exists;
 - generic public 443 exists runtime/permanent;
 - managed nft table/config/unit do not already exist;
+- sealed `original-state.json` does not already exist;
 - candidate nft file passes `nft -c`.
 
 Any mismatch is STOP. Do not normalize the server manually.
@@ -183,7 +184,9 @@ Required:
 - all six approved IPv4 addresses in the nft set;
 - deny rule present;
 - `StrictForwardPorts=no` unchanged;
-- firewalld config valid.
+- firewalld config valid;
+- sealed prestate hashes still verify;
+- Docker-managed IPv4/IPv6 iptables rules are unchanged from sealed prestate.
 
 This is CONFIG verification, not Runtime AC acceptance.
 
@@ -239,3 +242,12 @@ candidate push/scan/manual administration, then record the removal in
 baseline#13 and repeat same-L2 negative testing.
 
 Both removals require separate reviewed changes.
+
+
+## Re-run safety
+
+A rollback intentionally leaves `/var/lib/p1-hbr-ac04-firewall/original-state.json`
+and hash evidence in place. Precheck and apply therefore fail closed if that
+sealed prestate already exists. Do not delete or overwrite it ad hoc. A new
+change cycle requires the prior evidence to be archived/reconciled through a
+reviewed procedure before another apply.
