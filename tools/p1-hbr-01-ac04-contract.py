@@ -129,6 +129,13 @@ require(-1 not in (apply_disable, apply_reload, apply_stop)
         and apply_disable < apply_reload < apply_stop,
         "apply rescue must disable -> daemon-reload -> stop guard")
 
+for token in (
+    "Rescue - require Docker active after dependency detach",
+    "Rescue - verify guard is no longer active",
+    "Rescue - require safe service state before nft table removal",
+):
+    require(token in apply, f"apply rescue safety assertion missing: {token}")
+
 rollback_disable = rollback.find("Disable Docker guard dependency before stopping guard")
 rollback_reload = rollback.find("Reload dependency graph after disabling guard")
 rollback_stop = rollback.find("Stop nft guard after dependency detach")
