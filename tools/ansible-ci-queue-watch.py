@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -59,13 +60,18 @@ def gh_json(path: str, *, paginate: bool = False) -> Any:
     if paginate:
         command += ["--paginate", "--slurp"]
     command.append(path)
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        timeout=45,
-        env=clean_env(),
-    )
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            env=clean_env(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise WatchError("GITHUB_API_TIMEOUT") from exc
+    except OSError as exc:
+        raise WatchError("GITHUB_API_EXEC_FAILED") from exc
     if result.returncode != 0:
         raise WatchError("GITHUB_API_READ_FAILED")
     try:
@@ -241,12 +247,42 @@ def observe(
     )
 
 
+def exclusive_write(path: Path, data: bytes) -> None:
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise WatchError("OUTPUT_ALREADY_EXISTS") from exc
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def write_observation(path: Path, observation: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
+    sidecar = Path(str(path) + ".sha256")
+    if path.exists() or sidecar.exists():
         raise WatchError("OUTPUT_ALREADY_EXISTS")
-    text = json.dumps(observation, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    path.write_text(text, encoding="utf-8")
+
+    raw = (json.dumps(observation, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    exclusive_write(path, raw)
+    digest = hashlib.sha256(raw).hexdigest()
+    sidecar_raw = f"{digest}  {path.name}\n".encode("ascii")
+    try:
+        exclusive_write(sidecar, sidecar_raw)
+    except BaseException:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def main() -> int:
@@ -258,7 +294,7 @@ def main() -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="return rc=2 when the observation requires Runner supply action",
+        help="return rc=2 when the observation requires operator action",
     )
     args = parser.parse_args()
 
