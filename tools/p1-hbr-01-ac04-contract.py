@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Static contract gate for P1-HBR-01 AC-04 firewall remediation."""
+"""Static contract gate for P1-HBR-01 AC-04 nftables remediation."""
 from pathlib import Path
 import re
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,55 +22,102 @@ def read(path):
     return (ROOT / path).read_text(encoding="utf-8")
 
 vars_text = read("inventory/group_vars/hbr.yml")
-script = read("templates/p1-hbr-01-ac04-filter.sh.j2")
-unit = read("templates/p1-hbr-01-ac04-filter.service.j2")
+nft = read("templates/p1-hbr-01-ac04.nft.j2")
+unit = read("templates/p1-hbr-01-ac04-guard.service.j2")
+precheck = read("playbooks/p1-hbr-01-ac04-precheck.yml")
 apply = read("playbooks/p1-hbr-01-ac04-apply.yml")
 verify = read("playbooks/p1-hbr-01-ac04-verify.yml")
 rollback = read("playbooks/p1-hbr-01-ac04-rollback.yml")
-precheck = read("playbooks/p1-hbr-01-ac04-precheck.yml")
+nft_verify = read("playbooks/tasks/p1-hbr-01-ac04-nft-verify.yml")
 
-require("hbr_ac04_backend: docker-user" in vars_text, "backend is not docker-user")
+require("hbr_ac04_backend: nftables-guard" in vars_text, "backend is not nftables-guard")
+require("hbr_ac04_nft_family: inet" in vars_text, "nft family drift")
+require("hbr_ac04_nft_table: p1_hbr_ac04" in vars_text, "nft table drift")
+require("hbr_ac04_nft_chain: forward_guard" in vars_text, "nft chain drift")
+require("hbr_ac04_nft_priority: -1" in vars_text, "nft priority drift")
+
 sources = set(re.findall(r"^\s+- address: ([0-9.]+)$", vars_text, re.M))
 require(sources == EXPECTED_SOURCES, f"source set drift: {sorted(sources)}")
 require("hbr_ac04_denied_same_l2_source: 10.1.93.26" in vars_text, "same-L2 negative drift")
 require("hbr_ac04_mgmt_negative_source: 10.250.10.10" in vars_text, "mgmt negative drift")
 
-require("DOCKER-USER" in script, "DOCKER-USER missing from filter template")
-require("--ctorigdst" in script and "--ctorigdstport" in script,
-        "conntrack original-destination match missing")
-require("-I DOCKER-USER 1" in script, "managed jump is not inserted before Docker rules")
-require("-j RETURN" in script, "approved-source RETURN rule missing")
-require('-A "$CHAIN" -j DROP' in script, "default Harbor drop missing")
-require("DOCKER-FORWARD" not in script, "template must not mutate DOCKER-FORWARD")
-require(re.search(r"\bDOCKER\b", script.replace("DOCKER-USER", "")) is None,
-        "template must not mutate Docker-owned DOCKER chain")
+for token in (
+    "destroy table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}",
+    "type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;",
+    'iifname "{{ hbr_ac04_interface }}"',
+    "ct status dnat",
+    "ct original ip daddr {{ hbr_ac04_host_ip }}",
+    "ct original protocol tcp",
+    "ct original proto-dst {{ hbr_ac04_port }}",
+    "ip saddr @approved_v4",
+    "P1-HBR-01-AC04 approved IPv4",
+    "P1-HBR-01-AC04 deny unapproved IPv4",
+    "meta nfproto ipv6",
+    "P1-HBR-01-AC04 deny IPv6 published 443",
+):
+    require(token in nft, f"nft guard contract missing: {token}")
 
-for token in ("After=docker.service firewalld.service", "Requires=docker.service",
-              "PartOf=docker.service", "WantedBy=docker.service", "RemainAfterExit=yes"):
-    require(token in unit, f"systemd persistence contract missing: {token}")
+require(nft.count('comment "P1-HBR-01-AC04') == 3, "nft guard must have exactly 3 managed rules")
+require("DOCKER-USER" not in nft and "DOCKER-FORWARD" not in nft,
+        "nft template must not touch Docker-managed chains")
+require("table inet firewalld" not in nft, "nft template must not touch firewalld managed table")
 
-for gate in ("hbr_ac04_change_approved", "hbr_ac04_ui_fallback_confirmed",
-             "hbr_ac04_change_window_confirmed"):
+for token in (
+    "After=firewalld.service",
+    "Before=docker.service",
+    "Requires=firewalld.service",
+    "RequiredBy=docker.service",
+    "RemainAfterExit=yes",
+):
+    require(token in unit, f"fail-closed systemd contract missing: {token}")
+require("After=docker.service" not in unit, "guard must not start after Docker")
+require("WantedBy=docker.service" not in unit, "guard must be a required dependency, not only wanted")
+
+for gate in (
+    "hbr_ac04_change_approved",
+    "hbr_ac04_ui_fallback_confirmed",
+    "hbr_ac04_change_window_confirmed",
+):
     require(gate in apply, f"apply gate missing: {gate}")
 
+require("schema: 3" in apply, "apply prestate schema must be 3")
+require("nft-ruleset-before.txt" in apply, "nft prestate source not preserved")
+require("nft -c" not in apply or "hbr_ac04_nft_file" in apply, "nft check must target managed source")
+require("hbr_ac04_guard_service" in apply, "guard service not applied")
+require("Assert fail-closed boot ordering before INPUT hardening" in apply,
+        "boot-order verification missing")
+require(apply.find("Start nft guard") < apply.find("Remove permanent generic INPUT 443"),
+        "guard must start before generic 443 removal")
 require("firewall-cmd --reload" not in apply, "firewalld reload is prohibited")
-require("--remove-port={{ hbr_ac04_generic_port }}" in apply,
-        "supplementary generic INPUT 443 removal missing")
-require("hbr_ac04_filter_service" in apply, "persistence service not applied")
-require("hbr_ac04_filter_script" in verify and "verify" in verify,
-        "DOCKER-USER verifier missing")
+require("--add-rich-rule" not in apply, "latest design must not add INPUT rich rules")
+require("DOCKER-USER source allowlist" not in apply, "stale DOCKER-USER apply text remains")
 require("CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING" in verify,
-        "verify must not claim AC acceptance")
-require("Restore generic 443 before removing allow rules" in rollback,
-        "rollback outage-safe order marker missing")
-require("hbr_ac04_original.schema == 2" in rollback,
-        "rollback state schema binding missing")
-require("PRECHECK_PASS_RUNTIME_NOT_CHANGED" in precheck,
-        "precheck boundary marker missing")
+        "verify must stop short of Runtime acceptance")
+require("hbr_ac04_original.schema == 3" in verify,
+        "verify state binding must use schema 3")
+require("hbr_ac04_original.schema == 3" in rollback,
+        "rollback state binding must use schema 3")
+require(rollback.find("Restore permanent generic INPUT 443") < rollback.find("Stop and disable nft guard"),
+        "rollback must restore generic 443 before removing guard")
+require("nft_guard=REMOVED" in rollback, "rollback result marker missing")
+require("PRECHECK_PASS_RUNTIME_NOT_CHANGED" in precheck, "precheck boundary marker missing")
 
-for text, label in ((apply, "apply"), (verify, "verify"), (rollback, "rollback")):
-    require("DOCKER-FORWARD" not in text, f"{label} must not modify Docker-owned DOCKER-FORWARD")
-    require("iptables -A DOCKER" not in text and "iptables -I DOCKER" not in text,
-            f"{label} must not modify Docker-owned DOCKER chain")
+for token in (
+    "P1-HBR-01-AC04 approved IPv4",
+    "P1-HBR-01-AC04 deny unapproved IPv4",
+    "P1-HBR-01-AC04 deny IPv6 published 443",
+):
+    require(token in nft_verify, f"live nft verifier missing: {token}")
+
+for old in (
+    "templates/p1-hbr-01-ac04-filter.sh.j2",
+    "templates/p1-hbr-01-ac04-filter.service.j2",
+):
+    require(not (ROOT / old).exists(), f"stale DOCKER-USER artifact remains: {old}")
+
+for text, label in ((precheck, "precheck"), (apply, "apply"), (verify, "verify"), (rollback, "rollback")):
+    require("hbr_ac04_filter_script" not in text, f"stale filter-script variable remains in {label}")
+    require("hbr_ac04_filter_service" not in text, f"stale DOCKER-USER service variable remains in {label}")
+    require("hbr_ac04_chain" not in text, f"stale DOCKER-USER chain variable remains in {label}")
 
 print("P1_HBR_AC04_STATIC_CONTRACT=PASS")
