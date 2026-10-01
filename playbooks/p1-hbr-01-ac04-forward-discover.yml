@@ -1,0 +1,242 @@
+---
+# Read-only discovery for P1-HBR-01 AC-04.
+# Purpose: identify the actual Docker/firewalld FORWARD enforcement surface
+# before any firewall mutation is implemented.
+- name: P1-HBR-01 AC-04 Docker/firewalld forward-path discovery
+  hosts: hbr
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Assert exact Harbor target identity
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'harbor01'
+          - ansible_hostname == (expected_hostname | default('harbor01'))
+          - ansible_default_ipv4.address == '10.1.93.54'
+        fail_msg: >-
+          Discovery target is not the reviewed harbor01 / 10.1.93.54 host.
+
+    - name: Confirm firewalld is active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, firewalld]
+      register: ac04_fw_active
+      changed_when: false
+
+    - name: Confirm IPv4 forwarding state
+      ansible.builtin.command:
+        argv: [sysctl, -n, net.ipv4.ip_forward]
+      register: ac04_ip_forward
+      changed_when: false
+
+    - name: List runtime firewalld policies
+      ansible.builtin.command:
+        argv: [firewall-cmd, --get-policies]
+      register: ac04_policies_runtime
+      changed_when: false
+      failed_when: false
+
+    - name: List permanent firewalld policies
+      ansible.builtin.command:
+        argv: [firewall-cmd, --permanent, --get-policies]
+      register: ac04_policies_permanent
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime docker-forwarding policy
+      ansible.builtin.command:
+        argv: [firewall-cmd, --info-policy=docker-forwarding]
+      register: ac04_docker_policy_runtime
+      changed_when: false
+      failed_when: false
+
+    - name: Read permanent docker-forwarding policy
+      ansible.builtin.command:
+        argv: [firewall-cmd, --permanent, --info-policy=docker-forwarding]
+      register: ac04_docker_policy_permanent
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime docker-forwarding policy list-all
+      ansible.builtin.command:
+        argv: [firewall-cmd, --policy=docker-forwarding, --list-all]
+      register: ac04_docker_policy_runtime_all
+      changed_when: false
+      failed_when: false
+
+    - name: Read permanent docker-forwarding policy list-all
+      ansible.builtin.command:
+        argv: [firewall-cmd, --permanent, --policy=docker-forwarding, --list-all]
+      register: ac04_docker_policy_permanent_all
+      changed_when: false
+      failed_when: false
+
+    - name: Read active zones
+      ansible.builtin.command:
+        argv: [firewall-cmd, --get-active-zones]
+      register: ac04_active_zones
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime public zone
+      ansible.builtin.command:
+        argv: [firewall-cmd, --zone=public, --list-all]
+      register: ac04_public_runtime
+      changed_when: false
+      failed_when: false
+
+    - name: Read permanent public zone
+      ansible.builtin.command:
+        argv: [firewall-cmd, --permanent, --zone=public, --list-all]
+      register: ac04_public_permanent
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime firewalld direct rules
+      ansible.builtin.command:
+        argv: [firewall-cmd, --direct, --get-all-rules]
+      register: ac04_direct_runtime
+      changed_when: false
+      failed_when: false
+
+    - name: Read permanent firewalld direct rules
+      ansible.builtin.command:
+        argv: [firewall-cmd, --permanent, --direct, --get-all-rules]
+      register: ac04_direct_permanent
+      changed_when: false
+      failed_when: false
+
+    - name: Read iptables FORWARD chain
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -S, FORWARD]
+      register: ac04_ipt_forward
+      changed_when: false
+      failed_when: false
+
+    - name: Read iptables DOCKER-USER chain
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -S, DOCKER-USER]
+      register: ac04_ipt_docker_user
+      changed_when: false
+      failed_when: false
+
+    - name: Read iptables DOCKER-FORWARD chain
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -S, DOCKER-FORWARD]
+      register: ac04_ipt_docker_forward
+      changed_when: false
+      failed_when: false
+
+    - name: Read iptables DOCKER filter chain
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -S, DOCKER]
+      register: ac04_ipt_docker
+      changed_when: false
+      failed_when: false
+
+    - name: Read iptables DOCKER NAT chain
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, nat, -S, DOCKER]
+      register: ac04_ipt_docker_nat
+      changed_when: false
+      failed_when: false
+
+    - name: Read filter counters for forward-path correlation
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -L, FORWARD, -n, -v, --line-numbers]
+      register: ac04_ipt_forward_counters
+      changed_when: false
+      failed_when: false
+
+    - name: Read DOCKER-USER counters
+      ansible.builtin.command:
+        argv: [iptables, -w, "5", -t, filter, -L, DOCKER-USER, -n, -v, --line-numbers]
+      register: ac04_ipt_docker_user_counters
+      changed_when: false
+      failed_when: false
+
+    - name: Read Docker published-443 containers without environment or secrets
+      ansible.builtin.shell: |
+        set -o pipefail
+        ids="$(docker ps -q --filter publish=443)"
+        if [ -z "$ids" ]; then
+          echo "PUBLISHED_443_CONTAINERS=NONE"
+          exit 0
+        fi
+        docker inspect $ids | python3 -c '
+        import json, sys
+        data = json.load(sys.stdin)
+        for c in data:
+            ns = c.get("NetworkSettings") or {}
+            print("NAME=" + str(c.get("Name", "")).lstrip("/"))
+            print("IMAGE=" + str((c.get("Config") or {}).get("Image", "")))
+            print("PORTS=" + json.dumps(ns.get("Ports") or {}, sort_keys=True))
+            nets = {}
+            for name, v in (ns.get("Networks") or {}).items():
+                nets[name] = {"IPAddress": v.get("IPAddress"), "Gateway": v.get("Gateway")}
+            print("NETWORKS=" + json.dumps(nets, sort_keys=True))
+        '
+      args:
+        executable: /bin/bash
+      register: ac04_docker_publish
+      changed_when: false
+      failed_when: false
+
+    - name: Read nftables firewalld table
+      ansible.builtin.command:
+        argv: [nft, -a, list, table, inet, firewalld]
+      register: ac04_nft_firewalld
+      changed_when: false
+      failed_when: false
+
+    - name: Read complete iptables filter table
+      ansible.builtin.command:
+        argv: [iptables-save, -c, -t, filter]
+      register: ac04_filter_save
+      changed_when: false
+      failed_when: false
+
+    - name: Read complete iptables NAT table
+      ansible.builtin.command:
+        argv: [iptables-save, -c, -t, nat]
+      register: ac04_nat_save
+      changed_when: false
+      failed_when: false
+
+    - name: Print forward-path discovery record
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          host: "{{ inventory_hostname }}"
+          observed_at_kst: "{{ ansible_date_time.iso8601 }}"
+          firewalld_active: "{{ ac04_fw_active.stdout | default('') | trim }}"
+          ipv4_forward: "{{ ac04_ip_forward.stdout | default('') | trim }}"
+          policies_runtime_rc: "{{ ac04_policies_runtime.rc }}"
+          policies_runtime: "{{ ac04_policies_runtime.stdout_lines | default([]) }}"
+          policies_permanent_rc: "{{ ac04_policies_permanent.rc }}"
+          policies_permanent: "{{ ac04_policies_permanent.stdout_lines | default([]) }}"
+          docker_policy_runtime_rc: "{{ ac04_docker_policy_runtime.rc }}"
+          docker_policy_runtime: "{{ ac04_docker_policy_runtime.stdout_lines | default([]) }}"
+          docker_policy_permanent_rc: "{{ ac04_docker_policy_permanent.rc }}"
+          docker_policy_permanent: "{{ ac04_docker_policy_permanent.stdout_lines | default([]) }}"
+          docker_policy_runtime_all: "{{ ac04_docker_policy_runtime_all.stdout_lines | default([]) }}"
+          docker_policy_permanent_all: "{{ ac04_docker_policy_permanent_all.stdout_lines | default([]) }}"
+          active_zones: "{{ ac04_active_zones.stdout_lines | default([]) }}"
+          public_runtime: "{{ ac04_public_runtime.stdout_lines | default([]) }}"
+          public_permanent: "{{ ac04_public_permanent.stdout_lines | default([]) }}"
+          direct_runtime: "{{ ac04_direct_runtime.stdout_lines | default([]) }}"
+          direct_permanent: "{{ ac04_direct_permanent.stdout_lines | default([]) }}"
+          iptables_forward: "{{ ac04_ipt_forward.stdout_lines | default([]) }}"
+          iptables_docker_user: "{{ ac04_ipt_docker_user.stdout_lines | default([]) }}"
+          iptables_docker_forward: "{{ ac04_ipt_docker_forward.stdout_lines | default([]) }}"
+          iptables_docker: "{{ ac04_ipt_docker.stdout_lines | default([]) }}"
+          iptables_docker_nat: "{{ ac04_ipt_docker_nat.stdout_lines | default([]) }}"
+          iptables_forward_counters: "{{ ac04_ipt_forward_counters.stdout_lines | default([]) }}"
+          iptables_docker_user_counters: "{{ ac04_ipt_docker_user_counters.stdout_lines | default([]) }}"
+          docker_publish_443: "{{ ac04_docker_publish.stdout_lines | default([]) }}"
+          nft_firewalld_rc: "{{ ac04_nft_firewalld.rc }}"
+          nft_firewalld: "{{ ac04_nft_firewalld.stdout_lines | default([]) }}"
+          filter_save: "{{ ac04_filter_save.stdout_lines | default([]) }}"
+          nat_save: "{{ ac04_nat_save.stdout_lines | default([]) }}"
+          verdict: FORWARD_DISCOVERY_CAPTURED_REVIEW_REQUIRED
