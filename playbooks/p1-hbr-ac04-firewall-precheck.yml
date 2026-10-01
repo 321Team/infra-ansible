@@ -132,6 +132,12 @@
         path: /etc/systemd/system/p1-hbr-ac04-firewall.service
       register: unit_file
 
+    - name: Check sealed prestate marker
+      ansible.builtin.stat:
+        path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
+        follow: false
+      register: sealed_prestate
+
     - name: Validate candidate nft syntax without applying it
       ansible.builtin.command:
         argv: [nft, -c, -f, -]
@@ -154,6 +160,7 @@
           - prior_nft_table.rc != 0
           - not nft_file.stat.exists
           - not unit_file.stat.exists
+          - not sealed_prestate.stat.exists
           - nft_syntax.rc == 0
         fail_msg: >-
           Pre-change packet path or persistent state differs from the reviewed
