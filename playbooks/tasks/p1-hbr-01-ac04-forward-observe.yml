@@ -66,94 +66,13 @@
   register: hbr_ac04_nft_version_raw
   changed_when: false
 
-- name: Parse nftables semantic version
+- name: Extract nftables semantic version
   ansible.builtin.set_fact:
     hbr_ac04_nft_version: >-
       {{
         hbr_ac04_nft_version_raw.stdout
-        | regex_replace('^nftables v([0-9]+\\.[0-9]+\\.[0-9]+).*
-- name: Read dedicated nft guard when present
-  ansible.builtin.command:
-    argv:
-      - nft
-      - -n
-      - list
-      - table
-      - "{{ hbr_ac04_nft_family }}"
-      - "{{ hbr_ac04_nft_table }}"
-  register: hbr_ac04_nft_guard
-  changed_when: false
-  failed_when: false
-
-- name: Check managed nft source file
-  ansible.builtin.stat:
-    path: "{{ hbr_ac04_nft_file }}"
-    checksum_algorithm: sha256
-    follow: false
-  register: hbr_ac04_nft_file_stat
-
-- name: Check managed guard unit
-  ansible.builtin.stat:
-    path: "{{ hbr_ac04_guard_unit }}"
-    checksum_algorithm: sha256
-    follow: false
-  register: hbr_ac04_guard_unit_stat
-
-- name: Read guard service enabled state
-  ansible.builtin.command:
-    argv: [systemctl, is-enabled, "{{ hbr_ac04_guard_service }}"]
-  register: hbr_ac04_guard_enabled
-  changed_when: false
-  failed_when: false
-
-- name: Read guard service active state
-  ansible.builtin.command:
-    argv: [systemctl, is-active, "{{ hbr_ac04_guard_service }}"]
-  register: hbr_ac04_guard_active
-  changed_when: false
-  failed_when: false
-
-- name: Read Docker Requires dependencies
-  ansible.builtin.command:
-    argv: [systemctl, show, "{{ hbr_ac04_docker_service }}", --property=Requires, --value]
-  register: hbr_ac04_docker_requires
-  changed_when: false
-  failed_when: false
-
-- name: Read guard Before ordering
-  ansible.builtin.command:
-    argv: [systemctl, show, "{{ hbr_ac04_guard_service }}", --property=Before, --value]
-  register: hbr_ac04_guard_before
-  changed_when: false
-  failed_when: false
-
-- name: Read guard After ordering
-  ansible.builtin.command:
-    argv: [systemctl, show, "{{ hbr_ac04_guard_service }}", --property=After, --value]
-  register: hbr_ac04_guard_after
-  changed_when: false
-  failed_when: false
-
-- name: Locate Docker published host 443 DNAT rules
-  ansible.builtin.set_fact:
-    hbr_ac04_host443_dnat_rules: >-
-      {{
-        hbr_ac04_docker_nat.stdout_lines
-        | select('search', '--dport 443')
-        | select('search', '-j DNAT')
-        | list
-      }}
-
-- name: Locate IPv6 Docker published host 443 DNAT rules
-  ansible.builtin.set_fact:
-    hbr_ac04_ip6_host443_dnat_rules: >-
-      {{
-        hbr_ac04_ip6_docker_nat.stdout_lines | default([])
-        | select('search', '--dport 443')
-        | select('search', '-j DNAT')
-        | list
-      }}
-,'\\1')
+        | regex_search('[0-9]+\\.[0-9]+\\.[0-9]+')
+        | default('', true)
       }}
 
 - name: Read nft table inventory
