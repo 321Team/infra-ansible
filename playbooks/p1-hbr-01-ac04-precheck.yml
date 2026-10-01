@@ -41,6 +41,7 @@
           - hbr_ac04_ip_forward.stdout | trim == '1'
           - hbr_ac04_nft_version | length > 0
           - hbr_ac04_nft_version is version('1.0.6', '>=')
+          - hbr_ac04_nft_version in hbr_ac04_nft_supported_versions
           - hbr_ac04_forward_rules.stdout_lines | length >= 3
           - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
           - hbr_ac04_forward_rules.stdout_lines[1] == '-A FORWARD -j DOCKER-USER'
