@@ -1,5 +1,5 @@
 ---
-- name: P1-HBR-01 AC-04 DOCKER-USER remediation precheck
+- name: P1-HBR-01 AC-04 nftables guard precheck
   hosts: hbr
   gather_facts: true
   become: true
@@ -9,30 +9,35 @@
     - name: Observe INPUT/public-zone surface
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
 
-    - name: Observe Docker FORWARD enforcement surface
+    - name: Observe Docker and nft enforcement surface
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
 
-    - name: Check for an existing AC-04 change state
+    - name: Check for existing AC-04 state
       ansible.builtin.stat:
         path: "{{ hbr_ac04_state_dir }}/original-state.json"
       register: hbr_ac04_existing_state
 
-    - name: Validate HBR Lead source-set contract
+    - name: Validate HBR Lead source-set and backend contract
       ansible.builtin.assert:
         that:
-          - hbr_ac04_backend == 'docker-user'
+          - hbr_ac04_backend == 'nftables-guard'
+          - hbr_ac04_nft_family == 'inet'
+          - hbr_ac04_nft_table == 'p1_hbr_ac04'
+          - hbr_ac04_nft_chain == 'forward_guard'
+          - hbr_ac04_nft_priority | int == -1
           - hbr_ac04_sources | map(attribute='address') | list | unique | length == hbr_ac04_sources | length
           - hbr_ac04_denied_same_l2_source not in (hbr_ac04_sources | map(attribute='address') | list)
           - hbr_ac04_mgmt_negative_source not in (hbr_ac04_sources | map(attribute='address') | list)
           - hbr_ac04_sources | selectattr('classification', 'equalto', 'BASELINE_ALLOW') | list | length == 4
           - hbr_ac04_sources | selectattr('classification', 'equalto', 'TEMP_EXCEPTION') | list | length == 1
           - hbr_ac04_sources | selectattr('classification', 'equalto', 'TEMP_MANAGEMENT_EXCEPTION') | list | length == 1
-        fail_msg: Source-set contract drifted from the HBR Lead decision; stop.
+        fail_msg: Source/backend contract drifted from the approved design.
 
-    - name: Assert exact reviewed Docker/firewalld prestate
+    - name: Assert exact reviewed pre-change packet path and absence of guard
       ansible.builtin.assert:
         that:
           - hbr_ac04_docker_active.stdout | trim == 'active'
+          - hbr_ac04_firewalld_active.stdout | trim == 'active'
           - hbr_ac04_ip_forward.stdout | trim == '1'
           - hbr_ac04_forward_rules.stdout_lines | length >= 3
           - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
@@ -40,16 +45,15 @@
           - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
           - hbr_ac04_docker_user_rules.rc == 0
           - hbr_ac04_docker_user_rules.stdout_lines == ['-N DOCKER-USER']
-          - hbr_ac04_managed_chain.rc != 0
-          - hbr_ac04_fds_jump_rules | length == 0
           - hbr_ac04_host443_dnat_rules | length == 1
           - hbr_ac04_host443_dnat_rules[0] is search('--to-destination [0-9.]+:8443')
-          - hbr_ac04_conntrack_help.rc == 0
-          - "'--ctorigdst' in ((hbr_ac04_conntrack_help.stdout | default('')) ~ (hbr_ac04_conntrack_help.stderr | default('')))"
-          - "'--ctorigdstport' in ((hbr_ac04_conntrack_help.stdout | default('')) ~ (hbr_ac04_conntrack_help.stderr | default('')))"
-          - not hbr_ac04_filter_script_stat.stat.exists
-          - not hbr_ac04_filter_unit_stat.stat.exists
+          - hbr_ac04_nft_guard.rc != 0
+          - not hbr_ac04_nft_file_stat.stat.exists
+          - not hbr_ac04_guard_unit_stat.stat.exists
           - not hbr_ac04_existing_state.stat.exists
+          - hbr_ac04_guard_enabled.rc != 0
+          - hbr_ac04_guard_active.rc != 0
+          - hbr_ac04_guard_service not in (hbr_ac04_docker_requires.stdout.split() | default([]))
           - hbr_ac04_runtime_generic.rc == 0
           - hbr_ac04_permanent_generic.rc == 0
           - "'https' not in hbr_ac04_runtime_services.stdout.split()"
@@ -64,8 +68,8 @@
              | list | length) == 0
           - hbr_ac04_zone_xml_stat.stat.exists
         fail_msg: >-
-          Current host state no longer matches the reviewed AC-04 prestate.
-          Do not mutate. Re-run read-only discovery and reconcile the design.
+          Prestate differs from the reviewed discovery. Do not mutate; capture
+          and review a new read-only baseline first.
 
     - name: Validate permanent firewalld configuration
       ansible.builtin.command:
@@ -78,9 +82,8 @@
           change_id: "{{ hbr_ac04_change_id }}"
           backend: "{{ hbr_ac04_backend }}"
           host: "{{ inventory_hostname }}"
-          docker_user: EMPTY_AND_FIRST_FORWARD_HOOK
+          nft_guard: ABSENT
+          docker_forward_path: REVIEWED_BASELINE_PRESENT
           host_443_dnat: "{{ hbr_ac04_host443_dnat_rules }}"
-          input_generic_443: PRESENT
-          persistent_filter_service: ABSENT
-          denied_same_l2_source: "{{ hbr_ac04_denied_same_l2_source }}"
+          generic_input_443: PRESENT
           verdict: PRECHECK_PASS_RUNTIME_NOT_CHANGED
