@@ -1,0 +1,206 @@
+---
+- name: P1-HBR-01 AC-04 rollback authorization gate
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+
+  tasks:
+    - name: Require explicit rollback intent
+      ansible.builtin.assert:
+        that:
+          - (hbr_ac04_rollback_confirmed | default('')) == 'P1-HBR-01-AC04'
+        fail_msg: >-
+          NOT RUN. Set hbr_ac04_rollback_confirmed=P1-HBR-01-AC04 only after
+          identifying the failed apply/verify condition.
+
+- name: P1-HBR-01 AC-04 rollback host firewall
+  hosts: hbr
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  tasks:
+    - name: Check preserved original-state record
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_file
+
+    - name: Check preserved public zone XML
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-public.xml"
+        checksum_algorithm: sha256
+      register: hbr_ac04_original_zone_copy
+
+    - name: Require preserved rollback state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_state_file.stat.exists
+          - hbr_ac04_original_zone_copy.stat.exists
+        fail_msg: >-
+          Rollback state is incomplete. Stop and reconcile against independent
+          pre-change evidence; do not guess the original firewall state.
+
+    - name: Read preserved original-state record
+      ansible.builtin.slurp:
+        src: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_raw
+
+    - name: Decode preserved original-state record
+      ansible.builtin.set_fact:
+        hbr_ac04_original: "{{ hbr_ac04_state_raw.content | b64decode | from_json }}"
+
+    - name: Validate rollback state binding
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_original.schema == 1
+          - hbr_ac04_original.change_id == hbr_ac04_change_id
+          - hbr_ac04_original.inventory_hostname == inventory_hostname
+          - hbr_ac04_original.ansible_hostname == ansible_hostname
+          - hbr_ac04_original.address == ansible_default_ipv4.address
+          - hbr_ac04_original.zone == hbr_ac04_zone
+          - hbr_ac04_original.interface == hbr_ac04_interface
+          - hbr_ac04_original.runtime_generic_443_present | bool
+          - hbr_ac04_original.permanent_generic_443_present | bool
+          - >-
+            (hbr_ac04_original.runtime_rich_rules
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            (hbr_ac04_original.permanent_rich_rules
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            hbr_ac04_original.original_public_xml_sha256
+            == hbr_ac04_original_zone_copy.stat.checksum
+        fail_msg: >-
+          Preserved state does not match this reviewed change. Do not rollback
+          from an unbound or corrupted state record.
+
+    - name: Reset expected AC-04 rich-rule contract
+      ansible.builtin.set_fact:
+        hbr_ac04_expected_rules: []
+
+    - name: Build expected AC-04 rich-rule contract
+      ansible.builtin.set_fact:
+        hbr_ac04_expected_rules: >-
+          {{
+            hbr_ac04_expected_rules
+            + [
+              'rule family="ipv4" source address="' ~ item.address
+              ~ '/32" port port="' ~ (hbr_ac04_port | string)
+              ~ '" protocol="' ~ hbr_ac04_protocol ~ '" accept'
+            ]
+          }}
+      loop: "{{ hbr_ac04_sources }}"
+
+    - name: Restore generic 443 before removing source-specific rules
+      block:
+        - name: Restore permanent generic 443/tcp
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Restore runtime generic 443/tcp
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Remove permanent AC-04 rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Remove runtime AC-04 rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Validate permanent firewalld configuration
+          ansible.builtin.command:
+            argv: [firewall-cmd, --check-config]
+          changed_when: false
+
+    - name: Re-observe firewall after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Verify rollback preserved the original firewall surface
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            hbr_ac04_original.runtime_ports
+            | difference(hbr_ac04_runtime_ports.stdout.split())
+            | length == 0
+          - >-
+            hbr_ac04_original.permanent_ports
+            | difference(hbr_ac04_permanent_ports.stdout.split())
+            | length == 0
+          - >-
+            hbr_ac04_original.runtime_services
+            | difference(hbr_ac04_runtime_services.stdout.split())
+            | length == 0
+          - >-
+            hbr_ac04_original.permanent_services
+            | difference(hbr_ac04_permanent_services.stdout.split())
+            | length == 0
+          - >-
+            hbr_ac04_original.runtime_rich_rules
+            | difference(hbr_ac04_runtime_rich.stdout_lines)
+            | length == 0
+          - >-
+            hbr_ac04_original.permanent_rich_rules
+            | difference(hbr_ac04_permanent_rich.stdout_lines)
+            | length == 0
+        fail_msg: >-
+          Rollback did not restore the pre-change 443 surface or lost an
+          original firewall object. Do not report ROLLED_BACK.
+
+    - name: Capture KST rollback completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_rolled_back_at
+      changed_when: false
+
+    - name: Write rollback marker without deleting original state
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/rolled-back.txt"
+        content: |
+          change_id={{ hbr_ac04_change_id }}
+          rolled_back_at_kst={{ hbr_ac04_rolled_back_at.stdout | trim }}
+          host={{ inventory_hostname }}
+          original_state_retained=true
+          reload=NOT_USED
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          host: "{{ inventory_hostname }}"
+          generic_443: RESTORED
+          ac04_rich_rules: REMOVED
+          original_objects_preserved: true
+          verdict: ROLLED_BACK
