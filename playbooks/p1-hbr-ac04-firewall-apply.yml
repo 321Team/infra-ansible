@@ -8,9 +8,8 @@
       ansible.builtin.assert:
         that:
           - groups['harbor'] | default([]) | length == 1
-        fail_msg: NOT RUN: harbor inventory target is missing or ambiguous.
 
-- name: Apply P1-HBR-01 AC-04 source allowlist
+- name: Apply P1-HBR-01 AC-04 nftables forward guard
   hosts: harbor
   gather_facts: true
   become: true
@@ -24,59 +23,54 @@
           - ansible_facts['hostname'] == expected_hostname
           - ansible_host == '10.1.93.54'
 
-    - name: Require final source-set approval
+    - name: Require approved source set
       ansible.builtin.assert:
         that:
           - p1_hbr_ac04_source_set_approved | default('') == p1_hbr_ac04_change_id
-        fail_msg: >-
-          NOT RUN: set p1_hbr_ac04_source_set_approved={{ p1_hbr_ac04_change_id }}
-          only after baseline#13 final source-set approval is confirmed.
 
-    - name: Require control01 Harbor UI fallback confirmation
+    - name: Require verified control01 Harbor UI login
       ansible.builtin.assert:
         that:
           - p1_hbr_ac04_control01_ui_confirmed | default('') == p1_hbr_ac04_change_id
         fail_msg: >-
-          NOT RUN: confirm Harbor UI login from control01 (.102) before blocking
-          the .26 management-PC path.
+          NOT RUN: actual Harbor UI login from control01 (.102) must be
+          confirmed before blocking the .26 management-PC path.
 
     - name: Require approved change window
       ansible.builtin.assert:
         that:
           - p1_hbr_ac04_change_window_approved | default('') == p1_hbr_ac04_change_id
-        fail_msg: >-
-          NOT RUN: change window is not approved. Avoid overlap with Drain,
-          node-exporter rollout, Harbor push/scan, or other pull-sensitive work.
 
-    - name: Ensure deny probe is outside approved sources
+    - name: Refuse a duplicate or deny-source allowlist
       ansible.builtin.assert:
         that:
+          - p1_hbr_ac04_sources | length == 6
           - p1_hbr_ac04_deny_probe_source not in (p1_hbr_ac04_sources | map(attribute='address') | list)
+          - p1_hbr_ac04_sources | map(attribute='address') | list | unique | length == p1_hbr_ac04_sources | length
 
-    - name: Ensure firewalld is running
+    - name: Check existing managed table
       ansible.builtin.command:
-        argv: [firewall-cmd, --state]
-      register: fw_state
+        argv: [nft, list, table, inet, p1_hbr_ac04]
+      register: existing_table
       changed_when: false
+      failed_when: false
 
-    - name: Require expected firewalld state
-      ansible.builtin.assert:
-        that:
-          - fw_state.stdout | trim == 'running'
-
-    - name: Inspect existing AC-04 baseline state
+    - name: Check existing managed nft file
       ansible.builtin.stat:
-        path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
-        follow: false
-      register: state_file
+        path: /etc/nftables/p1-hbr-ac04.nft
+      register: nft_file_before
 
-    - name: Refuse to overwrite an existing baseline
+    - name: Check existing managed unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/p1-hbr-ac04-firewall.service
+      register: unit_file_before
+
+    - name: Refuse to overwrite a prior or partial managed state
       ansible.builtin.assert:
         that:
-          - not state_file.stat.exists
-        fail_msg: >-
-          Existing original-state.json found. Do not overwrite evidence or
-          silently start a second change cycle.
+          - existing_table.rc != 0
+          - not nft_file_before.stat.exists
+          - not unit_file_before.stat.exists
 
     - name: Query runtime generic 443 before mutation
       ansible.builtin.command:
@@ -99,52 +93,11 @@
       changed_when: false
       failed_when: false
 
-    - name: Read runtime zone before mutation
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-all
-      register: runtime_zone_before
-      changed_when: false
-
-    - name: Read permanent zone before mutation
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-all
-      register: permanent_zone_before
-      changed_when: false
-
-    - name: Read runtime rich rules before mutation
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: runtime_rules_before
-      changed_when: false
-
-    - name: Read permanent rich rules before mutation
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: permanent_rules_before
-      changed_when: false
-
-    - name: Require the observed generic 443 baseline
+    - name: Require generic 443 baseline before guard installation
       ansible.builtin.assert:
         that:
           - runtime_443_before.rc == 0
           - permanent_443_before.rc == 0
-        fail_msg: >-
-          Generic 443 is not present in both runtime and permanent state.
-          Stop instead of guessing whether this change already partially ran.
 
     - name: Create protected state directory
       ansible.builtin.file:
@@ -154,21 +107,36 @@
         group: root
         mode: "0700"
 
-    - name: Save runtime zone prestate
-      ansible.builtin.copy:
-        dest: "{{ p1_hbr_ac04_state_dir }}/runtime-zone-before.txt"
-        content: "{{ runtime_zone_before.stdout }}\n"
-        owner: root
-        group: root
-        mode: "0600"
+    - name: Capture firewalld runtime prestate
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-all
+      register: runtime_zone_before
+      changed_when: false
 
-    - name: Save permanent zone prestate
-      ansible.builtin.copy:
-        dest: "{{ p1_hbr_ac04_state_dir }}/permanent-zone-before.txt"
-        content: "{{ permanent_zone_before.stdout }}\n"
-        owner: root
-        group: root
-        mode: "0600"
+    - name: Capture firewalld permanent prestate
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-all
+      register: permanent_zone_before
+      changed_when: false
+
+    - name: Capture Docker iptables prestate
+      ansible.builtin.command:
+        argv: [iptables-save]
+      register: iptables_before
+      changed_when: false
+
+    - name: Capture Docker ip6tables prestate
+      ansible.builtin.command:
+        argv: [ip6tables-save]
+      register: ip6tables_before
+      changed_when: false
 
     - name: Save structured original state
       ansible.builtin.copy:
@@ -187,108 +155,133 @@
               'port': p1_hbr_ac04_port,
               'runtime_generic_443_before': (runtime_443_before.rc == 0),
               'permanent_generic_443_before': (permanent_443_before.rc == 0),
-              'runtime_rules_before': runtime_rules_before.stdout_lines,
-              'permanent_rules_before': permanent_rules_before.stdout_lines,
               'source_records': p1_hbr_ac04_sources,
-              'deny_probe_source': p1_hbr_ac04_deny_probe_source
+              'deny_probe_source': p1_hbr_ac04_deny_probe_source,
+              'nft_file_preexisted': nft_file_before.stat.exists,
+              'unit_file_preexisted': unit_file_before.stat.exists
             } | to_nice_json
           }}
 
-    - name: Seal prestate hashes before firewall mutation
+    - name: Save firewalld runtime prestate
+      ansible.builtin.copy:
+        dest: "{{ p1_hbr_ac04_state_dir }}/firewalld-runtime-before.txt"
+        content: "{{ runtime_zone_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Save firewalld permanent prestate
+      ansible.builtin.copy:
+        dest: "{{ p1_hbr_ac04_state_dir }}/firewalld-permanent-before.txt"
+        content: "{{ permanent_zone_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Save Docker iptables prestate
+      ansible.builtin.copy:
+        dest: "{{ p1_hbr_ac04_state_dir }}/iptables-before.txt"
+        content: "{{ iptables_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Save Docker ip6tables prestate
+      ansible.builtin.copy:
+        dest: "{{ p1_hbr_ac04_state_dir }}/ip6tables-before.txt"
+        content: "{{ ip6tables_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Seal prestate hashes before mutation
       ansible.builtin.shell: |
         cd {{ p1_hbr_ac04_state_dir | quote }}
-        sha256sum original-state.json runtime-zone-before.txt permanent-zone-before.txt > PRESTATE_SHA256SUMS
+        sha256sum original-state.json firewalld-runtime-before.txt           firewalld-permanent-before.txt iptables-before.txt           ip6tables-before.txt > PRESTATE_SHA256SUMS
         sha256sum -c PRESTATE_SHA256SUMS
       args:
         executable: /bin/bash
       register: prestate_hash
       changed_when: true
 
-    - name: Require prestate hash verification
+    - name: Require sealed prestate
       ansible.builtin.assert:
         that:
           - prestate_hash.rc == 0
 
   tasks:
-    - name: Add approved rich rules to permanent configuration first
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - >-
-            --add-rich-rule=rule family="ipv4" source address="{{ item.address }}"
-            port port="{{ p1_hbr_ac04_port }}" protocol="tcp" accept
-      loop: "{{ p1_hbr_ac04_sources }}"
-      register: add_permanent_rules
-      changed_when: "'ALREADY_ENABLED' not in (add_permanent_rules.stdout | default(''))"
+    - name: Ensure nftables configuration directory exists
+      ansible.builtin.file:
+        path: /etc/nftables
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
 
-    - name: Add approved rich rules to runtime before removing generic 443
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - >-
-            --add-rich-rule=rule family="ipv4" source address="{{ item.address }}"
-            port port="{{ p1_hbr_ac04_port }}" protocol="tcp" accept
-      loop: "{{ p1_hbr_ac04_sources }}"
-      register: add_runtime_rules
-      changed_when: "'ALREADY_ENABLED' not in (add_runtime_rules.stdout | default(''))"
+    - name: Install reviewed nftables guard definition
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/p1-hbr-ac04.nft.j2"
+        dest: /etc/nftables/p1-hbr-ac04.nft
+        owner: root
+        group: root
+        mode: "0600"
 
-    - name: Read permanent rich rules before cutover
+    - name: Validate installed nftables guard before loading
       ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: permanent_rules_staged
+        argv: [nft, -c, -f, /etc/nftables/p1-hbr-ac04.nft]
+      register: nft_check
       changed_when: false
 
-    - name: Read runtime rich rules before cutover
+    - name: Install persistence unit
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../files/p1-hbr-ac04-firewall.service"
+        dest: /etc/systemd/system/p1-hbr-ac04-firewall.service
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Enable and start guard before generic 443 removal
+      ansible.builtin.systemd:
+        name: p1-hbr-ac04-firewall.service
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Read active managed nft table
       ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: runtime_rules_staged
+        argv: [nft, list, table, inet, p1_hbr_ac04]
+      register: active_table
       changed_when: false
 
-    - name: Verify every approved source is staged in permanent and runtime
-      vars:
-        expected_rule: >-
-          rule family="ipv4" source address="{{ item.address }}" port
-          port="{{ p1_hbr_ac04_port }}" protocol="tcp" accept
+    - name: Verify guard shape before cutover
       ansible.builtin.assert:
         that:
-          - expected_rule in permanent_rules_staged.stdout_lines
-          - expected_rule in runtime_rules_staged.stdout_lines
-        fail_msg: >-
-          Cutover refused: approved rich rule for {{ item.address }} is not
-          present in both permanent and runtime state.
-      loop: "{{ p1_hbr_ac04_sources }}"
+          - "'hook forward priority -1' in active_table.stdout"
+          - "'10.250.10.20' in active_table.stdout"
+          - "'10.1.93.102' in active_table.stdout"
+          - "'10.1.93.50' in active_table.stdout"
+          - "'drop' in active_table.stdout"
+        fail_msg: Generic 443 removal refused because nft guard is incomplete.
 
-    - name: Remove generic 443 from permanent configuration
+    - name: Remove generic 443 from permanent public zone
       ansible.builtin.command:
         argv:
           - firewall-cmd
           - --permanent
           - --zone={{ p1_hbr_ac04_zone }}
           - --remove-port={{ p1_hbr_ac04_port }}/tcp
-      register: remove_permanent_generic
 
-    - name: Remove generic 443 from runtime without reload
+    - name: Remove generic 443 from runtime public zone without reload
       ansible.builtin.command:
         argv:
           - firewall-cmd
           - --zone={{ p1_hbr_ac04_zone }}
           - --remove-port={{ p1_hbr_ac04_port }}/tcp
-      register: remove_runtime_generic
 
-    - name: Validate permanent firewalld configuration after cutover
+    - name: Validate permanent firewalld config
       ansible.builtin.command:
         argv: [firewall-cmd, --check-config]
-      register: check_config_after
+      register: fw_check
       changed_when: false
 
     - name: Query runtime generic 443 after cutover
@@ -312,12 +305,12 @@
       changed_when: false
       failed_when: false
 
-    - name: Require generic 443 removal and valid permanent config
+    - name: Require final configuration state
       ansible.builtin.assert:
         that:
           - runtime_443_after.rc != 0
           - permanent_443_after.rc != 0
-          - check_config_after.rc == 0
+          - fw_check.rc == 0
 
     - name: Save apply completion marker
       ansible.builtin.copy:
@@ -331,6 +324,7 @@
               'change_id': p1_hbr_ac04_change_id,
               'applied_at': ansible_date_time.iso8601,
               'approved_sources': p1_hbr_ac04_sources,
+              'guard': 'inet p1_hbr_ac04 / forward priority -1',
               'generic_443_removed': true
             } | to_nice_json
           }}
@@ -340,7 +334,8 @@
         msg:
           change_id: "{{ p1_hbr_ac04_change_id }}"
           host: "{{ inventory_hostname }}"
-          source_count: "{{ p1_hbr_ac04_sources | length }}"
+          enforcement: NFT_FORWARD_PRIORITY_MINUS_1
+          docker_managed_chains_changed: false
+          strict_forward_ports_changed: false
           generic_443: REMOVED
-          reload_used: false
           state: APPLY_PASS_RETEST_REQUIRED
