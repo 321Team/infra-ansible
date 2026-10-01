@@ -121,12 +121,49 @@
             argv: [firewall-cmd, --check-config]
           changed_when: false
 
-        - name: Stop and disable nft guard
+        - name: Disable Docker guard dependency before stopping guard
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            enabled: false
+
+        - name: Reload dependency graph after disabling guard
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Verify Docker remains active before guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_before_guard_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Require Docker active after dependency detach
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_before_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker is not active after guard dependency detach. Stop rollback
+              before guard removal and reconcile service state.
+
+        - name: Stop nft guard after dependency detach
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             state: stopped
-            enabled: false
+
+        - name: Verify Docker remains active after guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_after_guard_stop
+          changed_when: false
           failed_when: false
+
+        - name: Require Docker remained active after guard stop
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_after_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker stopped while removing the guard. Stop rollback and
+              reconcile service state before destroying the nft table.
 
         - name: Destroy managed nft table idempotently
           ansible.builtin.command:
