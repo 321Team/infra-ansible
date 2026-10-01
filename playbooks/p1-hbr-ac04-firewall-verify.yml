@@ -1,5 +1,5 @@
 ---
-- name: Verify P1-HBR-01 AC-04 firewall state
+- name: Verify P1-HBR-01 AC-04 nftables forward guard
   hosts: harbor
   gather_facts: true
   become: true
@@ -33,63 +33,79 @@
       changed_when: false
       failed_when: false
 
-    - name: Read runtime rich rules
+    - name: Read managed nft table
       ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: runtime_rules
+        argv: [nft, list, table, inet, p1_hbr_ac04]
+      register: nft_table
       changed_when: false
 
-    - name: Read permanent rich rules
+    - name: Verify persistent service is enabled
+      ansible.builtin.command:
+        argv: [systemctl, is-enabled, p1-hbr-ac04-firewall.service]
+      register: service_enabled
+      changed_when: false
+
+    - name: Verify persistent service is active
+      ansible.builtin.command:
+        argv: [systemctl, is-active, p1-hbr-ac04-firewall.service]
+      register: service_active
+      changed_when: false
+
+    - name: Verify service boot ordering
       ansible.builtin.command:
         argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: permanent_rules
+          - systemctl
+          - show
+          - p1-hbr-ac04-firewall.service
+          - --property=Before
+          - --property=After
+      register: service_order
+      changed_when: false
+
+    - name: Verify StrictForwardPorts was not changed
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^StrictForwardPorts=
+          - /etc/firewalld/firewalld.conf
+      register: strict_forward_ports
       changed_when: false
 
     - name: Validate permanent firewalld config
       ansible.builtin.command:
         argv: [firewall-cmd, --check-config]
-      register: check_config
+      register: fw_check
       changed_when: false
 
-    - name: Verify each approved rich rule exists in both states
-      vars:
-        expected_rule: >-
-          rule family="ipv4" source address="{{ item.address }}" port
-          port="{{ p1_hbr_ac04_port }}" protocol="tcp" accept
+    - name: Verify allowed sources are present in nft set
       ansible.builtin.assert:
         that:
-          - expected_rule in runtime_rules.stdout_lines
-          - expected_rule in permanent_rules.stdout_lines
+          - item.address | regex_replace('/32$', '') in nft_table.stdout
       loop: "{{ p1_hbr_ac04_sources }}"
 
-    - name: Verify deny probe is not explicitly allowed
-      ansible.builtin.assert:
-        that:
-          - p1_hbr_ac04_deny_probe_source not in (p1_hbr_ac04_sources | map(attribute='address') | list)
-          - p1_hbr_ac04_deny_probe_source not in runtime_rules.stdout
-          - p1_hbr_ac04_deny_probe_source not in permanent_rules.stdout
-
-    - name: Verify generic 443 is closed and config is valid
+    - name: Verify complete configuration state
       ansible.builtin.assert:
         that:
           - runtime_443.rc != 0
           - permanent_443.rc != 0
-          - check_config.rc == 0
+          - service_enabled.stdout | trim == 'enabled'
+          - service_active.stdout | trim == 'active'
+          - "'hook forward priority -1' in nft_table.stdout"
+          - "'ct original ip daddr 10.1.93.54' in nft_table.stdout"
+          - "'ct original proto-dst 443' in nft_table.stdout"
+          - "'drop' in nft_table.stdout"
+          - strict_forward_ports.stdout | trim == 'StrictForwardPorts=no'
+          - fw_check.rc == 0
+          - "'docker.service' in service_order.stdout"
+        fail_msg: AC-04 persistent guard verification failed.
 
     - name: Print configuration verification verdict
       ansible.builtin.debug:
         msg:
           change_id: "{{ p1_hbr_ac04_change_id }}"
-          host: "{{ inventory_hostname }}"
-          runtime_permanent_allowlist: PASS
+          persistent_guard: PASS
           generic_443: ABSENT
-          deny_probe_explicit_allow: ABSENT
+          docker_managed_chains_changed: false
           runtime_network_retest: REQUIRED_SEPARATELY
           state: CONFIG_VERIFY_PASS
