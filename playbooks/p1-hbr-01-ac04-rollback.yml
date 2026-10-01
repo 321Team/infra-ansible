@@ -1,21 +1,200 @@
 ---
-# SAFETY HOLD (2026-10-01):
-# Project records state that no AC-04 firewall Runtime mutation was performed
-# from the rejected INPUT-only draft. A future rollback must be paired with
-# the future FORWARD-path apply and its exact prestate schema.
-- name: P1-HBR-01 AC-04 rollback safety hold
+- name: P1-HBR-01 AC-04 rollback authorization gate
   hosts: localhost
   connection: local
   gather_facts: false
   any_errors_fatal: true
 
   tasks:
-    - name: Refuse rollback for a remediation that was never approved/applied
-      ansible.builtin.fail:
-        msg: >-
-          NOT RUN: this HEAD contains no approved FORWARD-path apply and no
-          corresponding rollback contract. Project state records
-          RUNTIME_CHANGE=NONE for the rejected INPUT-only draft. If an
-          unexpected server-side mutation is discovered, stop and reconcile
-          it against independent pre-change evidence rather than guessing a
-          rollback from this branch.
+    - name: Require explicit rollback intent
+      ansible.builtin.assert:
+        that:
+          - (hbr_ac04_rollback_confirmed | default('')) == 'P1-HBR-01-AC04'
+        fail_msg: >-
+          NOT RUN. Set hbr_ac04_rollback_confirmed=P1-HBR-01-AC04 only after
+          identifying the failed apply/verify/runtime condition.
+
+- name: P1-HBR-01 AC-04 rollback DOCKER-USER source allowlist
+  hosts: hbr
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  tasks:
+    - name: Check preserved original-state record
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_file
+
+    - name: Check preserved public zone XML
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-public.xml"
+        checksum_algorithm: sha256
+      register: hbr_ac04_original_zone_copy
+
+    - name: Require complete rollback state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_state_file.stat.exists
+          - hbr_ac04_original_zone_copy.stat.exists
+        fail_msg: >-
+          Rollback state is incomplete. Stop and reconcile against independent
+          pre-change evidence; do not guess the original firewall state.
+
+    - name: Read preserved original-state record
+      ansible.builtin.slurp:
+        src: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_raw
+
+    - name: Decode preserved original-state record
+      ansible.builtin.set_fact:
+        hbr_ac04_original: "{{ hbr_ac04_state_raw.content | b64decode | from_json }}"
+
+    - name: Validate rollback-state binding
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_original.schema == 2
+          - hbr_ac04_original.change_id == hbr_ac04_change_id
+          - hbr_ac04_original.backend == 'docker-user'
+          - hbr_ac04_original.inventory_hostname == inventory_hostname
+          - hbr_ac04_original.ansible_hostname == ansible_hostname
+          - hbr_ac04_original.address == ansible_default_ipv4.address
+          - hbr_ac04_original.host_ip == hbr_ac04_host_ip
+          - hbr_ac04_original.interface == hbr_ac04_interface
+          - hbr_ac04_original.original_public_xml_sha256 == hbr_ac04_original_zone_copy.stat.checksum
+          - hbr_ac04_original.docker_user_rules == ['-N DOCKER-USER']
+          - not hbr_ac04_original.filter_script_existed
+          - not hbr_ac04_original.filter_unit_existed
+        fail_msg: Preserved state does not bind to this reviewed change.
+
+    - name: Restore generic 443 before removing allow rules
+      block:
+        - name: Restore permanent generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Restore runtime generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Remove permanent supplementary rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Remove runtime supplementary rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Stop and disable persistence service
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_filter_service }}"
+            state: stopped
+            enabled: false
+          failed_when: false
+
+        - name: Explicitly remove managed DOCKER-USER rules
+          ansible.builtin.command:
+            argv: ["{{ hbr_ac04_filter_script }}", remove]
+          register: hbr_ac04_remove_result
+          changed_when: false
+          failed_when: false
+
+        - name: Remove managed systemd unit
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_filter_unit }}"
+            state: absent
+
+        - name: Remove managed filter script
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_filter_script }}"
+            state: absent
+
+        - name: Reload systemd metadata after unit removal
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Validate permanent firewalld configuration
+          ansible.builtin.command:
+            argv: [firewall-cmd, --check-config]
+          changed_when: false
+
+    - name: Observe INPUT/public-zone state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker FORWARD state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Verify exact rollback surface
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
+          - hbr_ac04_managed_chain.rc != 0
+          - hbr_ac04_fds_jump_rules | length == 0
+          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
+          - hbr_ac04_host443_dnat_rules | length == 1
+          - hbr_ac04_runtime_ports.stdout.split() == hbr_ac04_original.runtime_ports
+          - hbr_ac04_permanent_ports.stdout.split() == hbr_ac04_original.permanent_ports
+          - hbr_ac04_runtime_services.stdout.split() == hbr_ac04_original.runtime_services
+          - hbr_ac04_permanent_services.stdout.split() == hbr_ac04_original.permanent_services
+          - hbr_ac04_runtime_rich.stdout_lines == hbr_ac04_original.runtime_rich_rules
+          - hbr_ac04_permanent_rich.stdout_lines == hbr_ac04_original.permanent_rich_rules
+          - not hbr_ac04_filter_script_stat.stat.exists
+          - not hbr_ac04_filter_unit_stat.stat.exists
+        fail_msg: >-
+          Rollback did not restore the captured pre-change firewall surface.
+          Do not report ROLLED_BACK.
+
+    - name: Capture KST rollback completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_rolled_back_at
+      changed_when: false
+
+    - name: Write rollback marker and retain original evidence
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/rolled-back.txt"
+        content: |
+          change_id={{ hbr_ac04_change_id }}
+          backend={{ hbr_ac04_backend }}
+          rolled_back_at_kst={{ hbr_ac04_rolled_back_at.stdout | trim }}
+          host={{ inventory_hostname }}
+          original_state_retained=true
+          firewalld_reload=NOT_USED
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          original_surface_restored: true
+          verdict: ROLLED_BACK
