@@ -125,8 +125,16 @@ def classify(
         raise WatchError("JOB_IDENTITY_MISSING")
 
     source_sha = expected_source_sha
-    if source_sha is not None and not SHA40.fullmatch(source_sha):
+    if source_sha is None:
+        raise WatchError("EXPECTED_SOURCE_SHA_REQUIRED")
+    if not SHA40.fullmatch(source_sha):
         raise WatchError("EXPECTED_SOURCE_SHA_INVALID")
+
+    run_head_sha = run.get("head_sha")
+    if not isinstance(run_head_sha, str) or not SHA40.fullmatch(run_head_sha):
+        raise WatchError("RUN_HEAD_SHA_INVALID")
+    if run_head_sha != source_sha:
+        raise WatchError("EXPECTED_SOURCE_SHA_MISMATCH")
 
     created = parse_time(job.get("created_at")) or parse_time(run.get("created_at"))
     age_minutes = None
@@ -289,7 +297,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job-id", required=True, type=int)
     parser.add_argument("--threshold-minutes", required=True, type=int)
-    parser.add_argument("--expected-source-sha")
+    parser.add_argument("--expected-source-sha", required=True)
     parser.add_argument("--output", type=Path)
     parser.add_argument(
         "--strict",
