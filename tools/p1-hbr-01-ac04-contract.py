@@ -72,6 +72,7 @@ for token in (
     require(token in unit, f"fail-closed systemd contract missing: {token}")
 require("After=docker.service" not in unit, "guard must not start after Docker")
 require("WantedBy=docker.service" not in unit, "guard must be a required dependency, not only wanted")
+require("ExecStop=" not in unit, "service stop must not remove the fail-closed guard")
 
 for gate in (
     "hbr_ac04_change_approved",
