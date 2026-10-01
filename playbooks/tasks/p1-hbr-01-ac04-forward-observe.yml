@@ -66,13 +66,13 @@
   register: hbr_ac04_nft_version_raw
   changed_when: false
 
-- name: Extract nftables semantic version
+- name: Parse nftables semantic version
   ansible.builtin.set_fact:
     hbr_ac04_nft_version: >-
       {{
         hbr_ac04_nft_version_raw.stdout
         | regex_search('[0-9]+\\.[0-9]+\\.[0-9]+')
-        | default('', true)
+        | default('')
       }}
 
 - name: Read nft table inventory
