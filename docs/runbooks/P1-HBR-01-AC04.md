@@ -1,18 +1,33 @@
 # P1-HBR-01 AC-04 Harbor 443 Source Allowlist Remediation
 
-## Scope and authority
+## Current state
 
-This runbook implements the HBR Lead final source-set decision recorded in
-fds-project-baseline#13 comment 5925930576 (2026-10-01 KST).
+AC-04 remains `FAIL_BLOCKER`.
 
-The change is intentionally limited to harbor01 TCP/443 ingress:
+The first implementation attempt used the firewalld public INPUT surface. That
+design is rejected because the actual Harbor HTTPS path is Docker-published:
 
-- remove the generic public-zone 443/tcp opening;
-- allow only six reviewed IPv4 /32 sources with firewalld rich rules;
-- update runtime and permanent state directly without firewalld reload;
-- preserve root-owned prestate and a rollback path.
+`PREROUTING DNAT :443 -> 172.18.0.11:8443 -> FORWARD -> DOCKER-USER -> DOCKER-FORWARD -> DOCKER ACCEPT`
 
-Reviewed source set:
+Therefore INPUT-only rich rules cannot be treated as the AC enforcement point.
+
+At this HEAD:
+
+- `p1-hbr-01-ac04-apply.yml`: hard HOLD, no mutation.
+- `p1-hbr-01-ac04-verify.yml`: hard HOLD, cannot emit false PASS.
+- `p1-hbr-01-ac04-rollback.yml`: hard HOLD until paired with the future
+  FORWARD-path implementation.
+- `p1-hbr-01-ac04-forward-discover.yml`: read-only discovery and the only
+  Runtime-safe executable in this change phase.
+- `p1-hbr-01-ac04-precheck.yml`: read-only INPUT-surface observation only;
+  it is supplemental and is not AC-04 enforcement proof.
+
+No AC-04 firewall Runtime mutation has been performed from this branch.
+
+## Approved source contract
+
+HBR Lead final decision:
+fds-project-baseline#13 comment 5925930576.
 
 | class | source | purpose |
 |---|---|---|
@@ -22,38 +37,15 @@ Reviewed source set:
 | BASELINE_ALLOW | 10.1.93.108 | k8s-worker03 |
 | TEMP_EXCEPTION | 10.1.93.50 | edge01 E-K3S pull |
 | TEMP_MANAGEMENT_EXCEPTION | 10.1.93.102 | control01 HBR push/scan/API |
+| BLOCK probe | 10.1.93.26 | same-L2 unauthorized source |
+| MGMT negative | 10.250.10.10 | ansible01 |
 
-10.1.93.26 is the same-L2 negative target and is not allowed.
-127.0.0.1 is host-local and is outside the ingress allowlist.
+The .50 and .102 exceptions are temporary and do not expand the baseline
+allowlist.
 
-Temporary exceptions are not baseline expansion.
+## Phase 1 — static/syntax check
 
-- .50 expires after edge01 migration and robot$fds-ci cleanup.
-- .102 expires after the IF-09 Runner production Push path is active and
-  remaining HBR candidate push/scan/manual management work is complete.
-- each removal must be recorded in P1-HBR-01 and followed by the same-L2
-  negative regression.
-
-This runbook does not change SSH, Cockpit, Harbor credentials, Robot
-permissions, certificates, Docker/Podman configuration, or Kubernetes objects.
-
-## Mandatory preconditions
-
-Do not run apply until all conditions are true.
-
-1. The exact code HEAD has independent review by HBR Lead 이하영.
-2. Harbor UI login and required management access from control01
-   (10.1.93.102) remote desktop/browser have been confirmed. This is the
-   explicit prerequisite before 10.1.93.26 is blocked.
-3. The change window does not overlap P1-HA-01 Drain/rebalance testing or the
-   node-exporter/monitoring image rollout.
-4. Run from ansible01 as server01_ansible using the existing approved SSH key.
-5. Precheck reports public/ens160, generic runtime and permanent 443/tcp
-   present, no existing 443 rich rule, and no https service opening.
-6. If /var/lib/fds-change/P1-HBR-01-AC04/original-state.json already exists,
-   stop and reconcile the previous change cycle.
-
-## Static checks on ansible01
+Run on ansible01 as server01_ansible from the exact reviewed HEAD:
 
     cd /home/server01_ansible/p1-ans-01
     git fetch origin
@@ -66,131 +58,118 @@ Do not run apply until all conditions are true.
 
     ansible-inventory -i inventory/hbr.yml --graph
 
-    for P in       playbooks/p1-hbr-01-ac04-precheck.yml       playbooks/p1-hbr-01-ac04-apply.yml       playbooks/p1-hbr-01-ac04-verify.yml       playbooks/p1-hbr-01-ac04-rollback.yml
+    for P in       playbooks/p1-hbr-01-ac04-precheck.yml       playbooks/p1-hbr-01-ac04-forward-discover.yml       playbooks/p1-hbr-01-ac04-apply.yml       playbooks/p1-hbr-01-ac04-verify.yml       playbooks/p1-hbr-01-ac04-rollback.yml
     do
       ansible-playbook -i inventory/hbr.yml --syntax-check "$P" || exit 1
     done
 
 Expected inventory target: harbor01 only.
 
-## Read-only precheck
+Syntax PASS does not release Runtime HOLD.
 
-    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-precheck.yml
+## Phase 2 — read-only FORWARD discovery
 
-Required marker:
+This is the next allowed operational action.
 
-    verdict: PRECHECK_PASS_RUNTIME_NOT_CHANGED
+    TS="$(date +%Y%m%dT%H%M%S%z)"
+    OUT="$HOME/p1-hbr-ac04-forward-discovery-$TS.log"
 
-Any prestate drift is a STOP. Do not manually change the server to make the
-precheck pass.
+    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-forward-discover.yml       | tee "$OUT"
 
-## Apply
+    RC=${PIPESTATUS[0]}
+    echo "ANSIBLE_RC=$RC"
+    sha256sum "$OUT"
+    echo "OUT=$OUT"
 
-Only inside the approved change window:
+Required end marker:
 
-    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-apply.yml       -e hbr_ac04_change_approved=P1-HBR-01-AC04       -e hbr_ac04_ui_fallback_confirmed=P1-HBR-01-AC04       -e hbr_ac04_change_window_confirmed=P1-HBR-01-AC04
+`verdict: FORWARD_DISCOVERY_CAPTURED_REVIEW_REQUIRED`
 
-The three explicit values are independent gates. Omitting any gate stops the
-play before firewall mutation.
+The discovery is read-only. It collects:
 
-Mutation order:
+- firewalld runtime/permanent policy inventory;
+- `docker-forwarding` policy details;
+- active/public zone state;
+- firewalld direct rules;
+- IPv4 forwarding state;
+- FORWARD / DOCKER-USER / DOCKER-FORWARD / DOCKER filter rules and counters;
+- Docker NAT rules;
+- Docker published-443 container network/port metadata without environment
+  variables or credentials;
+- nftables firewalld table;
+- complete filter/NAT iptables snapshots.
 
-1. add all permanent source-specific 443 rich rules;
-2. add the same runtime rich rules;
-3. remove permanent generic 443/tcp;
-4. remove runtime generic 443/tcp;
-5. validate permanent configuration and re-observe the result.
+It does not add/delete/reload firewall rules and does not restart Docker,
+Harbor, firewalld or any service.
 
-No firewalld reload is used.
+## Phase 3 — enforcement design decision
 
-Before the first mutation the playbook saves:
+After the discovery is reviewed, select exactly one enforcement backend.
 
-- /var/lib/fds-change/P1-HBR-01-AC04/original-state.json
-- /var/lib/fds-change/P1-HBR-01-AC04/original-public.xml
+Priority:
 
-The preserved XML SHA-256 is bound into original-state.json.
+1. firewalld-native policy/rich-rule enforcement if it can demonstrably act on
+   the actual DNAT/FORWARD path with source matching and deterministic
+   runtime/permanent persistence;
+2. otherwise the Docker-supported user filtering hook `DOCKER-USER`.
 
-If apply fails after mutation starts, a best-effort rescue restores generic
-443 first and removes this change's rich rules. The play still fails. Run the
-reviewed rollback playbook and verify preserved state before any retry.
+Never directly manage Docker-owned `DOCKER` or `DOCKER-FORWARD` chains.
 
-## Configuration verify
+The selected backend must define one contract shared by:
 
-    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-verify.yml
+- prestate capture;
+- apply;
+- verify;
+- rollback;
+- isolated/static contract tests;
+- Runtime positive/negative evidence.
 
-Required result:
+The current hard-HOLD apply/verify/rollback files must be replaced only after
+this decision.
 
-- runtime generic 443/tcp absent;
-- permanent generic 443/tcp absent;
-- runtime 443 rich-rule set equals the six reviewed /32 rules;
-- permanent 443 rich-rule set equals the same six rules;
-- https service absent;
-- effective nftables public allow chain has no unqualified
-  tcp dport 443 accept.
+## Future apply prerequisites
 
-This proves configuration only. It is not AC-04 Runtime acceptance.
+The future FORWARD-path apply must remain blocked until all are true:
 
-## Required Runtime regression after apply
+1. exact code HEAD independently reviewed by HBR Lead 이하영;
+2. control01 (10.1.93.102) remote desktop/browser can actually log in to Harbor
+   UI and perform required management access before .26 is blocked;
+3. a change window is confirmed not to overlap P1-HA-01 Drain/rebalance or the
+   monitoring node-exporter rollout;
+4. exact prestate and rollback contract are captured;
+5. STATIC/MOCK and required CI checks are complete for the selected backend.
 
-Collect one new single-window evidence set after configuration verification.
+## Required post-apply Runtime evidence
 
-Positive paths:
+Positive:
 
-- T1 cicd-runner01: route source 10.250.10.20, Harbor 443 succeeds.
-- T2 worker01: 10.1.93.105 succeeds.
-- T3 worker02: 10.1.93.107 succeeds.
-- T4 worker03: 10.1.93.108 succeeds.
-- edge01 .50 temporary exception: Harbor pull succeeds.
-- control01 .102 temporary management exception: Harbor UI/API and required
-  push/scan management path succeed.
+- Runner 10.250.10.20;
+- Workers 10.1.93.105/.107/.108;
+- edge01 10.1.93.50 while temporary exception is active;
+- control01 10.1.93.102 while temporary management exception is active.
 
-Negative paths:
+Negative:
 
-- T5 ansible01 source 10.250.10.10 is denied.
-- same-L2 source 10.1.93.26 is denied by harbor01 host firewall.
-- packet capture must not show a successful Harbor 443 TCP/TLS session from an
-  unapproved source.
+- ansible01 source 10.250.10.10;
+- same-L2 source 10.1.93.26;
+- no successful Harbor TCP/TLS session from an unapproved source.
 
-Regression checks:
+Regression:
 
-- Worker Harbor pull/Pod start remain healthy.
-- edge01 pull remains healthy while the exception is active.
-- runtime and permanent firewalld state remain identical after testing.
-
-## Stop and rollback criteria
-
-Rollback if any condition occurs during the approved window:
-
-- an approved source loses required Harbor access;
-- .50 or .102 required temporary access fails before expiry;
-- .26 can establish a Harbor 443 session;
-- unqualified nftables tcp dport 443 accept remains;
-- runtime/permanent firewall state diverges;
-- Harbor management becomes unavailable through the confirmed .102 fallback;
-- apply/verify reports an error whose safety impact cannot be bounded.
-
-Run:
-
-    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-rollback.yml       -e hbr_ac04_rollback_confirmed=P1-HBR-01-AC04
-
-Rollback restores generic 443 before removing source-specific rules. It does
-not use firewalld reload. It verifies original ports, services and rich rules
-were not lost. Original-state files remain for evidence and reconciliation.
+- Worker Harbor pull/Pod start;
+- edge01 pull;
+- control01 management path;
+- runtime/persistent enforcement state consistency;
+- rollback can restore the exact pre-change state.
 
 ## Acceptance boundary
 
-Code merge, precheck PASS, or configuration verify PASS does not make AC-04
-PASS.
+`STATIC=PASS`, discovery completion, code merge, or configuration verification
+does not make AC-04 PASS.
 
 Required final chain:
 
-REVIEWED_CODE -> APPROVED_CHANGE_WINDOW -> PRESTATE -> APPLY -> CONFIG_VERIFY
--> T1-T5 + .50/.102 positive + .26 same-L2 negative
--> pull/management regression -> evidence import + independent review
--> HBR Lead AC-04 decision
-
-Before apply:
-AC04=FAIL_BLOCKER / RUNTIME_CHANGE=NOT_PERFORMED
-
-After successful Runtime evidence but before Lead acceptance:
-AC04=FINAL_REVIEW_PENDING
+`FORWARD_DISCOVERY -> BACKEND_DECISION -> STATIC/MOCK -> INDEPENDENT_REVIEW
+-> UI_FALLBACK + CHANGE_WINDOW -> PRESTATE -> APPLY -> CONFIG_VERIFY
+-> POSITIVE/NEGATIVE/PULL REGRESSION -> EVIDENCE IMPORT/INDEPENDENT REVIEW
+-> HBR LEAD AC-04 DECISION`
