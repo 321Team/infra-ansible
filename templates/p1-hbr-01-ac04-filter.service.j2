@@ -1,0 +1,14 @@
+[Unit]
+Description=FDS Harbor AC-04 DOCKER-USER source allowlist
+After=docker.service firewalld.service
+Requires=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart={{ hbr_ac04_filter_script }} apply
+ExecStop={{ hbr_ac04_filter_script }} remove
+RemainAfterExit=yes
+
+[Install]
+WantedBy=docker.service
