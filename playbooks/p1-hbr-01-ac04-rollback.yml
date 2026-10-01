@@ -42,6 +42,33 @@
           Rollback state is incomplete. Stop and reconcile against independent
           pre-change evidence; do not guess the original firewall state.
 
+    - name: Check sealed prestate manifest
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/PRESTATE_SHA256SUMS"
+        follow: false
+      register: hbr_ac04_prestate_manifest
+
+    - name: Require sealed prestate manifest
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_manifest.stat.exists
+        fail_msg: PRESTATE_SHA256SUMS is missing. Do not guess rollback state.
+
+    - name: Verify sealed prestate hashes before rollback
+      ansible.builtin.shell: |
+        cd {{ hbr_ac04_state_dir | quote }}
+        sha256sum -c PRESTATE_SHA256SUMS
+      args:
+        executable: /bin/bash
+      register: hbr_ac04_prestate_verify
+      changed_when: false
+
+    - name: Require valid prestate hashes
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_verify.rc == 0
+        fail_msg: Prestate hash verification failed. Stop rollback and reconcile evidence.
+
     - name: Read preserved original-state record
       ansible.builtin.slurp:
         src: "{{ hbr_ac04_state_dir }}/original-state.json"
