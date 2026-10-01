@@ -65,6 +65,12 @@
         path: /etc/systemd/system/p1-hbr-ac04-firewall.service
       register: unit_file_before
 
+    - name: Check managed state directory
+      ansible.builtin.stat:
+        path: "{{ p1_hbr_ac04_state_dir }}"
+        follow: false
+      register: state_dir_before
+
     - name: Check sealed prestate marker
       ansible.builtin.stat:
         path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
@@ -77,6 +83,7 @@
           - existing_table.rc != 0
           - not nft_file_before.stat.exists
           - not unit_file_before.stat.exists
+          - not state_dir_before.stat.exists
           - not sealed_prestate_before.stat.exists
         fail_msg: >-
           Existing AC-04 managed state or sealed prestate found. Do not
@@ -149,6 +156,12 @@
       register: ip6tables_before
       changed_when: false
 
+    - name: Capture exact prestate timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: prestate_timestamp
+      changed_when: false
+
     - name: Save structured original state
       ansible.builtin.copy:
         dest: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
@@ -159,7 +172,7 @@
           {{
             {
               'change_id': p1_hbr_ac04_change_id,
-              'captured_at': ansible_date_time.iso8601,
+              'captured_at': prestate_timestamp.stdout | trim,
               'hostname': ansible_facts['hostname'],
               'zone': p1_hbr_ac04_zone,
               'interface': p1_hbr_ac04_interface,
@@ -323,6 +336,12 @@
           - permanent_443_after.rc != 0
           - fw_check.rc == 0
 
+    - name: Capture exact apply completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: applied_timestamp
+      changed_when: false
+
     - name: Save apply completion marker
       ansible.builtin.copy:
         dest: "{{ p1_hbr_ac04_state_dir }}/APPLIED.json"
@@ -333,7 +352,7 @@
           {{
             {
               'change_id': p1_hbr_ac04_change_id,
-              'applied_at': ansible_date_time.iso8601,
+              'applied_at': applied_timestamp.stdout | trim,
               'approved_sources': p1_hbr_ac04_sources,
               'guard': 'inet p1_hbr_ac04 / forward priority -1',
               'generic_443_removed': true
