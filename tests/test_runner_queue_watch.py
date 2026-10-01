@@ -37,7 +37,7 @@ def run():
         "id": 36800000001,
         "run_attempt": 4,
         "event": "pull_request",
-        "head_sha": "b" * 40,
+        "head_sha": "a" * 40,
         "html_url": "https://github.com/321Team/infra-ansible/actions/runs/36800000001",
         "created_at": "2026-10-01T05:49:00Z",
     }
@@ -115,6 +115,41 @@ class QueueWatchTests(unittest.TestCase):
                 threshold_minutes=5,
                 now=NOW,
                 expected_source_sha="not-a-sha",
+            )
+
+    def test_missing_expected_source_sha_is_rejected(self):
+        with self.assertRaisesRegex(watch.WatchError, "EXPECTED_SOURCE_SHA_REQUIRED"):
+            watch.classify(
+                job(),
+                run(),
+                [],
+                threshold_minutes=5,
+                now=NOW,
+                expected_source_sha=None,
+            )
+
+    def test_run_head_sha_must_match_expected_source_sha(self):
+        with self.assertRaisesRegex(watch.WatchError, "EXPECTED_SOURCE_SHA_MISMATCH"):
+            watch.classify(
+                job(),
+                run(),
+                [],
+                threshold_minutes=5,
+                now=NOW,
+                expected_source_sha="b" * 40,
+            )
+
+    def test_run_head_sha_shape_is_validated(self):
+        broken = run()
+        broken["head_sha"] = None
+        with self.assertRaisesRegex(watch.WatchError, "RUN_HEAD_SHA_INVALID"):
+            watch.classify(
+                job(),
+                broken,
+                [],
+                threshold_minutes=5,
+                now=NOW,
+                expected_source_sha="a" * 40,
             )
 
     def test_runner_extra_labels_are_allowed_but_required_labels_are_not_optional(self):
