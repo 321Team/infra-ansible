@@ -13,11 +13,11 @@
           - (hbr_ac04_ui_fallback_confirmed | default('')) == 'P1-HBR-01-AC04'
           - (hbr_ac04_change_window_confirmed | default('')) == 'P1-HBR-01-AC04'
         fail_msg: >-
-          NOT RUN. Runtime apply requires exact-HEAD review approval,
+          NOT RUN. Runtime apply requires exact-HEAD independent review,
           confirmed control01 Harbor UI fallback, and an approved non-overlap
           change window.
 
-- name: P1-HBR-01 AC-04 apply DOCKER-USER source allowlist
+- name: P1-HBR-01 AC-04 apply dedicated nftables guard
   hosts: hbr
   gather_facts: true
   become: true
@@ -28,7 +28,7 @@
     - name: Observe INPUT/public-zone surface
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
 
-    - name: Observe Docker FORWARD enforcement surface
+    - name: Observe Docker and nft enforcement surface
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
 
     - name: Check for existing AC-04 change state
@@ -39,18 +39,22 @@
     - name: Fail closed unless exact reviewed prestate is still present
       ansible.builtin.assert:
         that:
-          - hbr_ac04_backend == 'docker-user'
+          - hbr_ac04_backend == 'nftables-guard'
           - hbr_ac04_docker_active.stdout | trim == 'active'
+          - hbr_ac04_firewalld_active.stdout | trim == 'active'
           - hbr_ac04_ip_forward.stdout | trim == '1'
           - hbr_ac04_forward_rules.stdout_lines | length >= 3
           - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
           - hbr_ac04_forward_rules.stdout_lines[1] == '-A FORWARD -j DOCKER-USER'
           - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
           - hbr_ac04_docker_user_rules.stdout_lines == ['-N DOCKER-USER']
-          - hbr_ac04_managed_chain.rc != 0
-          - hbr_ac04_fds_jump_rules | length == 0
           - hbr_ac04_host443_dnat_rules | length == 1
           - hbr_ac04_host443_dnat_rules[0] is search('--to-destination [0-9.]+:8443')
+          - hbr_ac04_nft_guard.rc != 0
+          - not hbr_ac04_nft_file_stat.stat.exists
+          - not hbr_ac04_guard_unit_stat.stat.exists
+          - not hbr_ac04_existing_state.stat.exists
+          - hbr_ac04_guard_service not in (hbr_ac04_docker_requires.stdout.split() | default([]))
           - hbr_ac04_runtime_generic.rc == 0
           - hbr_ac04_permanent_generic.rc == 0
           - >-
@@ -59,13 +63,16 @@
           - >-
             (hbr_ac04_permanent_rich.stdout_lines
              | select('search', 'port port="443"') | list | length) == 0
-          - not hbr_ac04_filter_script_stat.stat.exists
-          - not hbr_ac04_filter_unit_stat.stat.exists
-          - not hbr_ac04_existing_state.stat.exists
           - hbr_ac04_zone_xml_stat.stat.exists
         fail_msg: >-
           Prestate drifted after review. Runtime mutation is prohibited until
           a new read-only capture is reviewed.
+
+    - name: Capture full nft prestate
+      ansible.builtin.command:
+        argv: [nft, -a, list, ruleset]
+      register: hbr_ac04_nft_ruleset_before
+      changed_when: false
 
     - name: Capture KST prestate timestamp
       ansible.builtin.command:
@@ -112,10 +119,18 @@
         group: root
         mode: "0600"
 
+    - name: Preserve nft ruleset source
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/nft-ruleset-before.txt"
+        content: "{{ hbr_ac04_nft_ruleset_before.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
     - name: Build immutable original-state record
       ansible.builtin.set_fact:
         hbr_ac04_original_state:
-          schema: 2
+          schema: 3
           change_id: "{{ hbr_ac04_change_id }}"
           backend: "{{ hbr_ac04_backend }}"
           captured_at_kst: "{{ hbr_ac04_captured_at.stdout | trim }}"
@@ -125,10 +140,17 @@
           zone: "{{ hbr_ac04_zone }}"
           interface: "{{ hbr_ac04_interface }}"
           host_ip: "{{ hbr_ac04_host_ip }}"
-          docker_service: "{{ hbr_ac04_docker_service }}"
+          nft_family: "{{ hbr_ac04_nft_family }}"
+          nft_table: "{{ hbr_ac04_nft_table }}"
+          nft_chain: "{{ hbr_ac04_nft_chain }}"
+          nft_priority: "{{ hbr_ac04_nft_priority }}"
           forward_rules: "{{ hbr_ac04_forward_rules.stdout_lines }}"
           docker_user_rules: "{{ hbr_ac04_docker_user_rules.stdout_lines }}"
+          docker_forward_rules: "{{ hbr_ac04_docker_forward_rules.stdout_lines }}"
+          docker_filter_rules: "{{ hbr_ac04_docker_filter_rules.stdout_lines }}"
           docker_nat_rules: "{{ hbr_ac04_docker_nat.stdout_lines }}"
+          nft_tables_before: "{{ hbr_ac04_nft_tables.stdout_lines }}"
+          docker_requires_before: "{{ hbr_ac04_docker_requires.stdout.split() }}"
           runtime_ports: "{{ hbr_ac04_runtime_ports.stdout.split() }}"
           permanent_ports: "{{ hbr_ac04_permanent_ports.stdout.split() }}"
           runtime_services: "{{ hbr_ac04_runtime_services.stdout.split() }}"
@@ -136,8 +158,8 @@
           runtime_rich_rules: "{{ hbr_ac04_runtime_rich.stdout_lines }}"
           permanent_rich_rules: "{{ hbr_ac04_permanent_rich.stdout_lines }}"
           original_public_xml_sha256: "{{ hbr_ac04_original_zone_copy.stat.checksum }}"
-          filter_script_existed: "{{ hbr_ac04_filter_script_stat.stat.exists }}"
-          filter_unit_existed: "{{ hbr_ac04_filter_unit_stat.stat.exists }}"
+          nft_file_existed: "{{ hbr_ac04_nft_file_stat.stat.exists }}"
+          guard_unit_existed: "{{ hbr_ac04_guard_unit_stat.stat.exists }}"
           approved_sources: "{{ hbr_ac04_sources }}"
           denied_same_l2_source: "{{ hbr_ac04_denied_same_l2_source }}"
           mgmt_negative_source: "{{ hbr_ac04_mgmt_negative_source }}"
@@ -150,63 +172,68 @@
         group: root
         mode: "0600"
 
-    - name: Render managed DOCKER-USER filter script
+    - name: Render dedicated nft guard
       ansible.builtin.template:
-        src: ../templates/p1-hbr-01-ac04-filter.sh.j2
-        dest: "{{ hbr_ac04_filter_script }}"
+        src: ../templates/p1-hbr-01-ac04.nft.j2
+        dest: "{{ hbr_ac04_nft_file }}"
         owner: root
         group: root
-        mode: "0750"
+        mode: "0600"
 
-    - name: Validate managed filter shell syntax before mutation
+    - name: Validate nft guard transaction before mutation
       ansible.builtin.command:
-        argv: [bash, -n, "{{ hbr_ac04_filter_script }}"]
+        argv: [nft, -c, -f, "{{ hbr_ac04_nft_file }}"]
       changed_when: false
 
-    - name: Render lifecycle persistence unit
+    - name: Render fail-closed guard service
       ansible.builtin.template:
-        src: ../templates/p1-hbr-01-ac04-filter.service.j2
-        dest: "{{ hbr_ac04_filter_unit }}"
+        src: ../templates/p1-hbr-01-ac04-guard.service.j2
+        dest: "{{ hbr_ac04_guard_unit }}"
         owner: root
         group: root
         mode: "0644"
 
-    - name: Reload systemd unit metadata only
+    - name: Reload systemd unit metadata
       ansible.builtin.systemd_service:
         daemon_reload: true
 
-    - name: Apply reviewed firewall contract
+    - name: Apply reviewed guard before removing generic 443
       block:
-        - name: Enable and start DOCKER-USER persistence unit
+        - name: Enable guard as a required Docker dependency
           ansible.builtin.systemd_service:
-            name: "{{ hbr_ac04_filter_service }}"
+            name: "{{ hbr_ac04_guard_service }}"
             enabled: true
+
+        - name: Reload systemd dependency graph after enable
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Start nft guard
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
             state: started
 
-        - name: Verify DOCKER-USER rules immediately
-          ansible.builtin.command:
-            argv: ["{{ hbr_ac04_filter_script }}", verify]
-          register: hbr_ac04_script_verify_initial
-          changed_when: false
+        - name: Re-observe guard service and Docker dependency
+          ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
 
-        - name: Add permanent INPUT 443 source rules as supplementary hardening
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - --permanent
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--add-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
+        - name: Verify exact nft guard contract
+          ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-nft-verify.yml
 
-        - name: Add runtime INPUT 443 source rules as supplementary hardening
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--add-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
+        - name: Assert fail-closed boot ordering before INPUT hardening
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_guard_enabled.rc == 0
+              - hbr_ac04_guard_enabled.stdout | trim == 'enabled'
+              - hbr_ac04_guard_active.rc == 0
+              - hbr_ac04_guard_active.stdout | trim == 'active'
+              - hbr_ac04_guard_service in hbr_ac04_docker_requires.stdout.split()
+              - hbr_ac04_docker_service in hbr_ac04_guard_before.stdout.split()
+              - "'firewalld.service' in hbr_ac04_guard_after.stdout.split()"
+            fail_msg: >-
+              Guard is not a required, active service ordered after firewalld
+              and before Docker. Do not remove generic 443.
 
-        - name: Remove permanent generic INPUT 443
+        - name: Remove permanent generic INPUT 443 after guard verification
           ansible.builtin.command:
             argv:
               - firewall-cmd
@@ -214,7 +241,7 @@
               - "--zone={{ hbr_ac04_zone }}"
               - "--remove-port={{ hbr_ac04_generic_port }}"
 
-        - name: Remove runtime generic INPUT 443
+        - name: Remove runtime generic INPUT 443 after guard verification
           ansible.builtin.command:
             argv:
               - firewall-cmd
@@ -229,35 +256,31 @@
         - name: Re-observe INPUT/public-zone surface
           ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
 
-        - name: Re-observe Docker FORWARD enforcement surface
+        - name: Re-observe Docker and nft enforcement surface
           ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
 
-        - name: Verify managed filter script after complete apply
-          ansible.builtin.command:
-            argv: ["{{ hbr_ac04_filter_script }}", verify]
-          register: hbr_ac04_script_verify_final
-          changed_when: false
+        - name: Re-verify exact nft guard contract
+          ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-nft-verify.yml
 
-        - name: Assert complete applied configuration
+        - name: Assert complete applied state and Docker rule non-interference
           ansible.builtin.assert:
             that:
-              - hbr_ac04_script_verify_final.rc == 0
-              - hbr_ac04_fds_jump_rules | length == 1
-              - hbr_ac04_docker_user_rules.stdout_lines | length >= 2
-              - hbr_ac04_docker_user_rules.stdout_lines[1] is search('-j ' ~ hbr_ac04_chain)
-              - hbr_ac04_managed_chain.rc == 0
               - hbr_ac04_runtime_generic.rc == 1
               - hbr_ac04_permanent_generic.rc == 1
               - >-
                 (hbr_ac04_runtime_rich.stdout_lines
-                 | select('search', 'port port="443"') | list | sort)
-                == (hbr_ac04_expected_rules | sort)
+                 | select('search', 'port port="443"') | list | length) == 0
               - >-
                 (hbr_ac04_permanent_rich.stdout_lines
-                 | select('search', 'port port="443"') | list | sort)
-                == (hbr_ac04_expected_rules | sort)
-              - hbr_ac04_host443_dnat_rules | length == 1
-            fail_msg: Applied state does not match the reviewed AC-04 contract.
+                 | select('search', 'port port="443"') | list | length) == 0
+              - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original_state.forward_rules
+              - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original_state.docker_user_rules
+              - hbr_ac04_docker_forward_rules.stdout_lines == hbr_ac04_original_state.docker_forward_rules
+              - hbr_ac04_docker_filter_rules.stdout_lines == hbr_ac04_original_state.docker_filter_rules
+              - hbr_ac04_docker_nat.stdout_lines == hbr_ac04_original_state.docker_nat_rules
+            fail_msg: >-
+              Applied state changed Docker-managed rules or did not remove the
+              generic INPUT 443 surface.
 
       rescue:
         - name: Rescue - restore permanent generic INPUT 443 first
@@ -277,46 +300,32 @@
               - "--add-port={{ hbr_ac04_generic_port }}"
           failed_when: false
 
-        - name: Rescue - remove permanent supplementary rich rules
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - --permanent
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--remove-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
-          failed_when: false
-
-        - name: Rescue - remove runtime supplementary rich rules
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--remove-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
-          failed_when: false
-
-        - name: Rescue - stop and disable managed filter service
+        - name: Rescue - stop and disable nft guard
           ansible.builtin.systemd_service:
-            name: "{{ hbr_ac04_filter_service }}"
+            name: "{{ hbr_ac04_guard_service }}"
             state: stopped
             enabled: false
           failed_when: false
 
-        - name: Rescue - explicitly remove managed DOCKER-USER rules
+        - name: Rescue - destroy managed nft table idempotently
           ansible.builtin.command:
-            argv: ["{{ hbr_ac04_filter_script }}", remove]
+            argv:
+              - nft
+              - destroy
+              - table
+              - "{{ hbr_ac04_nft_family }}"
+              - "{{ hbr_ac04_nft_table }}"
           failed_when: false
           changed_when: false
 
-        - name: Rescue - remove managed unit
+        - name: Rescue - remove managed guard unit
           ansible.builtin.file:
-            path: "{{ hbr_ac04_filter_unit }}"
+            path: "{{ hbr_ac04_guard_unit }}"
             state: absent
 
-        - name: Rescue - remove managed filter script
+        - name: Rescue - remove managed nft file
           ansible.builtin.file:
-            path: "{{ hbr_ac04_filter_script }}"
+            path: "{{ hbr_ac04_nft_file }}"
             state: absent
 
         - name: Rescue - reload systemd metadata
@@ -327,8 +336,8 @@
           ansible.builtin.fail:
             msg: >-
               AC-04 apply failed. Generic INPUT 443 restoration and managed
-              DOCKER-USER removal were attempted. Run the reviewed rollback
-              against preserved state before any retry.
+              nft guard removal were attempted. Use preserved prestate for
+              reviewed rollback/reconciliation before any retry.
 
     - name: Capture KST apply completion timestamp
       ansible.builtin.command:
@@ -344,9 +353,10 @@
           backend={{ hbr_ac04_backend }}
           applied_at_kst={{ hbr_ac04_applied_at.stdout | trim }}
           host={{ inventory_hostname }}
-          docker_user_chain={{ hbr_ac04_chain }}
-          approved_sources={{ hbr_ac04_sources | map(attribute='address') | join(',') }}
+          nft_table={{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}
+          nft_priority={{ hbr_ac04_nft_priority }}
           generic_input_443=REMOVED
+          docker_managed_rules=UNCHANGED
           firewalld_reload=NOT_USED
         owner: root
         group: root
