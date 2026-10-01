@@ -17,6 +17,8 @@ hbr_ac04_nft_family: inet
 hbr_ac04_nft_table: p1_hbr_ac04
 hbr_ac04_nft_chain: forward_guard
 hbr_ac04_nft_priority: -1
+hbr_ac04_nft_supported_versions:
+  - "1.1.5"
 hbr_ac04_nft_file: /etc/p1-hbr-ac04.nft
 hbr_ac04_guard_unit: /etc/systemd/system/fds-harbor-ac04-guard.service
 hbr_ac04_guard_service: fds-harbor-ac04-guard.service
