@@ -65,12 +65,23 @@
         path: /etc/systemd/system/p1-hbr-ac04-firewall.service
       register: unit_file_before
 
+    - name: Check sealed prestate marker
+      ansible.builtin.stat:
+        path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
+        follow: false
+      register: sealed_prestate_before
+
     - name: Refuse to overwrite a prior or partial managed state
       ansible.builtin.assert:
         that:
           - existing_table.rc != 0
           - not nft_file_before.stat.exists
           - not unit_file_before.stat.exists
+          - not sealed_prestate_before.stat.exists
+        fail_msg: >-
+          Existing AC-04 managed state or sealed prestate found. Do not
+          overwrite prior evidence; reconcile/archive it in a reviewed cycle
+          before another apply.
 
     - name: Query runtime generic 443 before mutation
       ansible.builtin.command:
