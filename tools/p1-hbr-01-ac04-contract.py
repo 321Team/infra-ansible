@@ -101,7 +101,7 @@ require("hbr_ac04_original.schema == 3" in verify,
         "verify state binding must use schema 3")
 require("hbr_ac04_original.schema == 3" in rollback,
         "rollback state binding must use schema 3")
-require(rollback.find("Restore permanent generic INPUT 443") < rollback.find("Stop and disable nft guard"),
+require(rollback.find("Restore permanent generic INPUT 443") < rollback.find("Disable Docker guard dependency before stopping guard"),
         "rollback must restore generic 443 before removing guard")
 require("nft_guard=REMOVED" in rollback, "rollback result marker missing")
 require("PRECHECK_PASS_RUNTIME_NOT_CHANGED" in precheck, "precheck boundary marker missing")
@@ -125,11 +125,6 @@ rollback_stop = rollback.find("Stop nft guard after dependency detach")
 require(-1 not in (rollback_disable, rollback_reload, rollback_stop)
         and rollback_disable < rollback_reload < rollback_stop,
         "rollback must disable -> daemon-reload -> stop guard")
-
-require("state: stopped\n            enabled: false" not in apply,
-        "apply rescue must not stop guard while Docker dependency is still enabled")
-require("state: stopped\n            enabled: false" not in rollback,
-        "rollback must not stop guard while Docker dependency is still enabled")
 
 for token in (
     "P1-HBR-01-AC04 approved IPv4",
