@@ -99,6 +99,329 @@
           - not hbr_ac04_original.guard_unit_existed
         fail_msg: Preserved state does not bind to this reviewed change.
 
+    - name: Read nftables version before rollback
+      ansible.builtin.command:
+        argv: [nft, --version]
+      register: hbr_ac04_rollback_nft_version_raw
+      changed_when: false
+
+    - name: Parse nftables rollback version
+      ansible.builtin.set_fact:
+        hbr_ac04_rollback_nft_version: >-
+          {{
+            hbr_ac04_rollback_nft_version_raw.stdout
+            | regex_replace('^nftables v([0-9]+\\.[0-9]+\\.[0-9]+).*        - name: Restore permanent generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Restore runtime generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Validate permanent firewalld configuration before guard removal
+          ansible.builtin.command:
+            argv: [firewall-cmd, --check-config]
+          changed_when: false
+
+        - name: Disable Docker guard dependency before stopping guard
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            enabled: false
+
+        - name: Reload dependency graph after disabling guard
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Verify Docker remains active before guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_before_guard_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Require Docker active after dependency detach
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_before_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker is not active after guard dependency detach. Stop rollback
+              before guard removal and reconcile service state.
+
+        - name: Stop nft guard after dependency detach
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            state: stopped
+
+        - name: Verify Docker remains active after guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_after_guard_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Require Docker remained active after guard stop
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_after_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker stopped while removing the guard. Stop rollback and
+              reconcile service state before destroying the nft table.
+
+        - name: Destroy managed nft table idempotently
+          ansible.builtin.command:
+            argv:
+              - nft
+              - destroy
+              - table
+              - "{{ hbr_ac04_nft_family }}"
+              - "{{ hbr_ac04_nft_table }}"
+          register: hbr_ac04_destroy_result
+          changed_when: false
+          failed_when: false
+
+        - name: Remove managed guard unit
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_guard_unit }}"
+            state: absent
+
+        - name: Remove managed nft file
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_nft_file }}"
+            state: absent
+
+        - name: Reload systemd dependency graph after guard removal
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+    - name: Observe INPUT/public-zone state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker and nft state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Verify exact rollback surface
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - hbr_ac04_runtime_ports.stdout.split() == hbr_ac04_original.runtime_ports
+          - hbr_ac04_permanent_ports.stdout.split() == hbr_ac04_original.permanent_ports
+          - hbr_ac04_runtime_services.stdout.split() == hbr_ac04_original.runtime_services
+          - hbr_ac04_permanent_services.stdout.split() == hbr_ac04_original.permanent_services
+          - hbr_ac04_runtime_rich.stdout_lines == hbr_ac04_original.runtime_rich_rules
+          - hbr_ac04_permanent_rich.stdout_lines == hbr_ac04_original.permanent_rich_rules
+          - hbr_ac04_nft_guard.rc != 0
+          - not hbr_ac04_nft_file_stat.stat.exists
+          - not hbr_ac04_guard_unit_stat.stat.exists
+          - hbr_ac04_guard_service not in hbr_ac04_docker_requires.stdout.split()
+          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
+          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
+          - hbr_ac04_docker_forward_rules.stdout_lines == hbr_ac04_original.docker_forward_rules
+          - hbr_ac04_docker_filter_rules.stdout_lines == hbr_ac04_original.docker_filter_rules
+          - hbr_ac04_docker_nat.stdout_lines == hbr_ac04_original.docker_nat_rules
+        fail_msg: >-
+          Rollback did not restore the captured pre-change firewall/Docker
+          surface. Do not report ROLLED_BACK.
+
+    - name: Capture KST rollback completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_rolled_back_at
+      changed_when: false
+
+    - name: Write rollback marker and retain original evidence
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/rolled-back.txt"
+        content: |
+          change_id={{ hbr_ac04_change_id }}
+          backend={{ hbr_ac04_backend }}
+          rolled_back_at_kst={{ hbr_ac04_rolled_back_at.stdout | trim }}
+          host={{ inventory_hostname }}
+          generic_input_443=RESTORED
+          nft_guard=REMOVED
+          docker_managed_rules=UNCHANGED
+          original_state_retained=true
+          firewalld_reload=NOT_USED
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          original_surface_restored: true
+          verdict: ROLLED_BACK
+,'\\1')
+          }}
+
+    - name: Require nftables destroy-table support before rollback
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_rollback_nft_version is match('^[0-9]+\\.[0-9]+\\.[0-9]+        - name: Restore permanent generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Restore runtime generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+
+        - name: Validate permanent firewalld configuration before guard removal
+          ansible.builtin.command:
+            argv: [firewall-cmd, --check-config]
+          changed_when: false
+
+        - name: Disable Docker guard dependency before stopping guard
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            enabled: false
+
+        - name: Reload dependency graph after disabling guard
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Verify Docker remains active before guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_before_guard_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Require Docker active after dependency detach
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_before_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker is not active after guard dependency detach. Stop rollback
+              before guard removal and reconcile service state.
+
+        - name: Stop nft guard after dependency detach
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            state: stopped
+
+        - name: Verify Docker remains active after guard stop
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+          register: hbr_ac04_rollback_docker_after_guard_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Require Docker remained active after guard stop
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_docker_after_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker stopped while removing the guard. Stop rollback and
+              reconcile service state before destroying the nft table.
+
+        - name: Destroy managed nft table idempotently
+          ansible.builtin.command:
+            argv:
+              - nft
+              - destroy
+              - table
+              - "{{ hbr_ac04_nft_family }}"
+              - "{{ hbr_ac04_nft_table }}"
+          register: hbr_ac04_destroy_result
+          changed_when: false
+          failed_when: false
+
+        - name: Remove managed guard unit
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_guard_unit }}"
+            state: absent
+
+        - name: Remove managed nft file
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_nft_file }}"
+            state: absent
+
+        - name: Reload systemd dependency graph after guard removal
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+    - name: Observe INPUT/public-zone state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker and nft state after rollback
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Verify exact rollback surface
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - hbr_ac04_runtime_ports.stdout.split() == hbr_ac04_original.runtime_ports
+          - hbr_ac04_permanent_ports.stdout.split() == hbr_ac04_original.permanent_ports
+          - hbr_ac04_runtime_services.stdout.split() == hbr_ac04_original.runtime_services
+          - hbr_ac04_permanent_services.stdout.split() == hbr_ac04_original.permanent_services
+          - hbr_ac04_runtime_rich.stdout_lines == hbr_ac04_original.runtime_rich_rules
+          - hbr_ac04_permanent_rich.stdout_lines == hbr_ac04_original.permanent_rich_rules
+          - hbr_ac04_nft_guard.rc != 0
+          - not hbr_ac04_nft_file_stat.stat.exists
+          - not hbr_ac04_guard_unit_stat.stat.exists
+          - hbr_ac04_guard_service not in hbr_ac04_docker_requires.stdout.split()
+          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
+          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
+          - hbr_ac04_docker_forward_rules.stdout_lines == hbr_ac04_original.docker_forward_rules
+          - hbr_ac04_docker_filter_rules.stdout_lines == hbr_ac04_original.docker_filter_rules
+          - hbr_ac04_docker_nat.stdout_lines == hbr_ac04_original.docker_nat_rules
+        fail_msg: >-
+          Rollback did not restore the captured pre-change firewall/Docker
+          surface. Do not report ROLLED_BACK.
+
+    - name: Capture KST rollback completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_rolled_back_at
+      changed_when: false
+
+    - name: Write rollback marker and retain original evidence
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/rolled-back.txt"
+        content: |
+          change_id={{ hbr_ac04_change_id }}
+          backend={{ hbr_ac04_backend }}
+          rolled_back_at_kst={{ hbr_ac04_rolled_back_at.stdout | trim }}
+          host={{ inventory_hostname }}
+          generic_input_443=RESTORED
+          nft_guard=REMOVED
+          docker_managed_rules=UNCHANGED
+          original_state_retained=true
+          firewalld_reload=NOT_USED
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          original_surface_restored: true
+          verdict: ROLLED_BACK
+)
+          - hbr_ac04_rollback_nft_version is version('1.0.6', '>=')
+        fail_msg: >-
+          nftables is older than 1.0.6 or version parsing failed. Do not
+          attempt destroy-table rollback on this host.
+
     - name: Restore generic INPUT 443 before removing guard
       block:
         - name: Restore permanent generic INPUT 443
