@@ -130,6 +130,14 @@ assert "nft, -c, -f, -" in PRECHECK
 assert "PRESTATE_SHA256SUMS" in APPLY
 assert "PRESTATE_SHA256SUMS" in ROLLBACK
 assert "original_state.source_records == p1_hbr_ac04_sources" in ROLLBACK
+assert "PRESTATE_SHA256SUMS" in VERIFY
+assert "iptables_before_rules" in VERIFY
+assert "iptables_after_rules" in VERIFY
+assert "ip6tables_before_rules" in VERIFY
+assert "ip6tables_after_rules" in VERIFY
+assert "Docker-managed iptables rules are unchanged" in VERIFY
+assert "sealed_prestate" in PRECHECK
+assert "sealed_prestate_before" in APPLY
 
 print("P1-HBR-AC04_FIREWALL_CONTRACT=PASS")
 print(f"APPROVED_SOURCE_COUNT={len(actual)}")
