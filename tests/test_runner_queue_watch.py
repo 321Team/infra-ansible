@@ -1,6 +1,8 @@
 import datetime as dt
 import importlib.util
+import hashlib
 from pathlib import Path
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -123,6 +125,22 @@ class QueueWatchTests(unittest.TestCase):
         missing = runner(labels=EXPECTED[:-1])
         result = self.classify(job(), [missing])
         self.assertEqual(result["classification"], "EPHEMERAL_RUNNER_NOT_SUPPLIED")
+
+    def test_observation_write_creates_private_file_and_matching_sidecar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "observation.json"
+            observation = {"classification": "QUEUED_WITHIN_GRACE", "action_required": False}
+            watch.write_observation(path, observation)
+
+            raw = path.read_bytes()
+            sidecar = Path(str(path) + ".sha256")
+            expected = hashlib.sha256(raw).hexdigest()
+            self.assertEqual(sidecar.read_text().strip(), f"{expected}  {path.name}")
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(sidecar.stat().st_mode & 0o777, 0o600)
+
+            with self.assertRaisesRegex(watch.WatchError, "OUTPUT_ALREADY_EXISTS"):
+                watch.write_observation(path, observation)
 
     def test_clean_env_removes_debug_controls_without_touching_auth(self):
         original = watch.os.environ.copy()
