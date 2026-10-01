@@ -78,7 +78,8 @@ class QueueWatchTests(unittest.TestCase):
 
     def test_matching_offline_runner_does_not_count_as_online_supply(self):
         result = self.classify(job(), [runner(status="offline")])
-        self.assertEqual(result["classification"], "EPHEMERAL_RUNNER_NOT_SUPPLIED")
+        self.assertEqual(result["classification"], "MATCHING_RUNNER_OFFLINE")
+        self.assertTrue(result["action_required"])
         self.assertEqual(result["runner_observation"]["matching_count"], 1)
         self.assertEqual(result["runner_observation"]["matching_online_count"], 0)
 
