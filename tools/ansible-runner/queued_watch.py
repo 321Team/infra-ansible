@@ -249,7 +249,7 @@ def write_observation(path: Path, observation: dict[str, Any]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job-id", required=True, type=int)
-    parser.add_argument("--threshold-minutes", type=int, default=5)
+    parser.add_argument("--threshold-minutes", required=True, type=int)
     parser.add_argument("--expected-source-sha")
     parser.add_argument("--output", type=Path)
     parser.add_argument(
