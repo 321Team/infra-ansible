@@ -1,0 +1,133 @@
+---
+- name: Guard P1-HBR-01 AC-04 target selection
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Require exactly one reviewed harbor target
+      ansible.builtin.assert:
+        that:
+          - groups['harbor'] | default([]) | length == 1
+        fail_msg: >-
+          NOT RUN: inventory group harbor must contain exactly one reviewed
+          target. Do not use an ad-hoc IP inventory for this change.
+
+- name: P1-HBR-01 AC-04 firewalld precheck
+  hosts: harbor
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Verify inventory identity
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['hostname'] == expected_hostname
+          - ansible_host == '10.1.93.54'
+        fail_msg: >-
+          Target identity mismatch. Refusing AC-04 precheck on an unexpected host.
+
+    - name: Verify deny probe is not in approved source set
+      ansible.builtin.assert:
+        that:
+          - p1_hbr_ac04_deny_probe_source not in (p1_hbr_ac04_sources | map(attribute='address') | list)
+          - p1_hbr_ac04_sources | map(attribute='address') | list | unique | length == p1_hbr_ac04_sources | length
+        fail_msg: Approved source list is duplicated or includes the deny probe.
+
+    - name: Read firewalld state
+      ansible.builtin.command:
+        argv: [firewall-cmd, --state]
+      register: fw_state
+      changed_when: false
+
+    - name: Read default zone
+      ansible.builtin.command:
+        argv: [firewall-cmd, --get-default-zone]
+      register: fw_default_zone
+      changed_when: false
+
+    - name: Read active zones
+      ansible.builtin.command:
+        argv: [firewall-cmd, --get-active-zones]
+      register: fw_active_zones
+      changed_when: false
+
+    - name: Query runtime generic 443 port
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --query-port={{ p1_hbr_ac04_port }}/tcp
+      register: fw_runtime_443
+      changed_when: false
+      failed_when: false
+
+    - name: Query permanent generic 443 port
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --query-port={{ p1_hbr_ac04_port }}/tcp
+      register: fw_permanent_443
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime rich rules
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-rich-rules
+      register: fw_runtime_rules
+      changed_when: false
+
+    - name: Read permanent rich rules
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-rich-rules
+      register: fw_permanent_rules
+      changed_when: false
+
+    - name: Validate permanent firewalld configuration
+      ansible.builtin.command:
+        argv: [firewall-cmd, --check-config]
+      register: fw_check_config
+      changed_when: false
+
+    - name: Inspect prior AC-04 state
+      ansible.builtin.stat:
+        path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
+        follow: false
+      register: ac04_state_file
+
+    - name: Enforce expected pre-change baseline
+      ansible.builtin.assert:
+        that:
+          - fw_state.stdout | trim == 'running'
+          - fw_default_zone.stdout | trim == p1_hbr_ac04_zone
+          - p1_hbr_ac04_zone in fw_active_zones.stdout
+          - p1_hbr_ac04_interface in fw_active_zones.stdout
+          - fw_runtime_443.rc == 0
+          - fw_permanent_443.rc == 0
+          - fw_check_config.rc == 0
+          - not ac04_state_file.stat.exists
+        fail_msg: >-
+          Pre-change baseline mismatch or stale state exists. Do not overwrite
+          state or normalize the firewall manually; reconcile before apply.
+
+    - name: Print read-only precheck verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ p1_hbr_ac04_change_id }}"
+          host: "{{ inventory_hostname }}"
+          zone: "{{ p1_hbr_ac04_zone }}"
+          interface: "{{ p1_hbr_ac04_interface }}"
+          generic_443_runtime: true
+          generic_443_permanent: true
+          approved_sources: "{{ p1_hbr_ac04_sources }}"
+          deny_probe: "{{ p1_hbr_ac04_deny_probe_source }}"
+          state: PRECHECK_PASS
