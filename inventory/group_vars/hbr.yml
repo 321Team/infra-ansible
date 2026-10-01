@@ -1,0 +1,42 @@
+---
+hbr_ac04_change_id: P1-HBR-01-AC04
+hbr_ac04_zone: public
+hbr_ac04_interface: ens160
+hbr_ac04_port: 443
+hbr_ac04_protocol: tcp
+hbr_ac04_generic_port: "443/tcp"
+hbr_ac04_state_dir: /var/lib/fds-change/P1-HBR-01-AC04
+hbr_ac04_zone_xml: /etc/firewalld/zones/public.xml
+
+# HBR Lead final decision:
+# fds-project-baseline#13 comment 5925930576 (2026-10-01 KST).
+# .50 and .102 are temporary exceptions, not baseline allowlist expansion.
+hbr_ac04_sources:
+  - address: 10.250.10.20
+    classification: BASELINE_ALLOW
+    owner: cicd-runner01
+  - address: 10.1.93.105
+    classification: BASELINE_ALLOW
+    owner: k8s-worker01
+  - address: 10.1.93.107
+    classification: BASELINE_ALLOW
+    owner: k8s-worker02
+  - address: 10.1.93.108
+    classification: BASELINE_ALLOW
+    owner: k8s-worker03
+  - address: 10.1.93.50
+    classification: TEMP_EXCEPTION
+    owner: edge01
+    expiry_condition: >-
+      Remove after edge01 migration completes and robot$fds-ci cleanup is
+      complete; record removal in P1-HBR-01 and re-run same-L2 negative test.
+  - address: 10.1.93.102
+    classification: TEMP_MANAGEMENT_EXCEPTION
+    owner: k8s-control01
+    expiry_condition: >-
+      Remove after IF-09 Runner production Push path is active and remaining
+      HBR candidate push/scan/manual management work is complete; record
+      removal in P1-HBR-01 and re-run same-L2 negative test.
+
+hbr_ac04_denied_same_l2_source: 10.1.93.26
+hbr_ac04_mgmt_negative_source: 10.250.10.10
