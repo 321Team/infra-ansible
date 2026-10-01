@@ -1,0 +1,21 @@
+# Managed by infra-ansible: P1-HBR-01 AC-04
+# Do not edit on harbor01. This table runs after DNAT and before Docker filter.
+table inet p1_hbr_ac04 {
+  set allowed_v4 {
+    type ipv4_addr
+    flags interval
+    elements = {
+{% for source in p1_hbr_ac04_sources %}
+      {{ source.address | regex_replace('/32$', '') }}{{ ',' if not loop.last else '' }}
+{% endfor %}
+    }
+  }
+
+  chain forward_guard {
+    type filter hook forward priority -1; policy accept;
+
+    iifname "{{ p1_hbr_ac04_interface }}" ct status dnat meta nfproto ipv4 ct original ip daddr 10.1.93.54 meta l4proto tcp ct original proto-dst {{ p1_hbr_ac04_port }} ip saddr @allowed_v4 counter accept comment "{{ p1_hbr_ac04_change_id }} allow IPv4"
+    iifname "{{ p1_hbr_ac04_interface }}" ct status dnat meta nfproto ipv4 ct original ip daddr 10.1.93.54 meta l4proto tcp ct original proto-dst {{ p1_hbr_ac04_port }} counter drop comment "{{ p1_hbr_ac04_change_id }} deny IPv4"
+    iifname "{{ p1_hbr_ac04_interface }}" ct status dnat meta nfproto ipv6 meta l4proto tcp ct original proto-dst {{ p1_hbr_ac04_port }} counter drop comment "{{ p1_hbr_ac04_change_id }} deny IPv6"
+  }
+}
