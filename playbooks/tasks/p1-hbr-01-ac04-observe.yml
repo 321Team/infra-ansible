@@ -1,0 +1,128 @@
+---
+- name: Assert AC-04 target identity
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'harbor01'
+      - ansible_hostname == (expected_hostname | default('harbor01'))
+      - ansible_default_ipv4.address == '10.1.93.54'
+    fail_msg: >-
+      Refusing P1-HBR-01 AC-04 work because target identity does not match
+      harbor01 / 10.1.93.54.
+
+- name: Confirm firewalld service is active
+  ansible.builtin.command:
+    argv: [systemctl, is-active, firewalld]
+  register: hbr_ac04_firewalld_active
+  changed_when: false
+
+- name: Confirm firewalld daemon state
+  ansible.builtin.command:
+    argv: [firewall-cmd, --state]
+  register: hbr_ac04_firewalld_state
+  changed_when: false
+
+- name: Read default zone
+  ansible.builtin.command:
+    argv: [firewall-cmd, --get-default-zone]
+  register: hbr_ac04_default_zone
+  changed_when: false
+
+- name: Read active zones
+  ansible.builtin.command:
+    argv: [firewall-cmd, --get-active-zones]
+  register: hbr_ac04_active_zones
+  changed_when: false
+
+- name: Assert expected zone/interface binding
+  ansible.builtin.assert:
+    that:
+      - hbr_ac04_firewalld_active.stdout | trim == 'active'
+      - hbr_ac04_firewalld_state.stdout | trim == 'running'
+      - hbr_ac04_default_zone.stdout | trim == hbr_ac04_zone
+      - hbr_ac04_zone in hbr_ac04_active_zones.stdout
+      - hbr_ac04_interface in hbr_ac04_active_zones.stdout
+    fail_msg: >-
+      firewalld zone/interface precondition changed. Do not mutate firewall;
+      re-collect current state and review the remediation design.
+
+- name: Query runtime generic 443/tcp
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - "--zone={{ hbr_ac04_zone }}"
+      - "--query-port={{ hbr_ac04_generic_port }}"
+  register: hbr_ac04_runtime_generic
+  changed_when: false
+  failed_when: false
+
+- name: Query permanent generic 443/tcp
+  ansible.builtin.command:
+    argv:
+      - firewall-cmd
+      - --permanent
+      - "--zone={{ hbr_ac04_zone }}"
+      - "--query-port={{ hbr_ac04_generic_port }}"
+  register: hbr_ac04_permanent_generic
+  changed_when: false
+  failed_when: false
+
+- name: Read runtime services
+  ansible.builtin.command:
+    argv: [firewall-cmd, "--zone={{ hbr_ac04_zone }}", --list-services]
+  register: hbr_ac04_runtime_services
+  changed_when: false
+
+- name: Read permanent services
+  ansible.builtin.command:
+    argv: [firewall-cmd, --permanent, "--zone={{ hbr_ac04_zone }}", --list-services]
+  register: hbr_ac04_permanent_services
+  changed_when: false
+
+- name: Read runtime ports
+  ansible.builtin.command:
+    argv: [firewall-cmd, "--zone={{ hbr_ac04_zone }}", --list-ports]
+  register: hbr_ac04_runtime_ports
+  changed_when: false
+
+- name: Read permanent ports
+  ansible.builtin.command:
+    argv: [firewall-cmd, --permanent, "--zone={{ hbr_ac04_zone }}", --list-ports]
+  register: hbr_ac04_permanent_ports
+  changed_when: false
+
+- name: Read runtime rich rules
+  ansible.builtin.command:
+    argv: [firewall-cmd, "--zone={{ hbr_ac04_zone }}", --list-rich-rules]
+  register: hbr_ac04_runtime_rich
+  changed_when: false
+
+- name: Read permanent rich rules
+  ansible.builtin.command:
+    argv: [firewall-cmd, --permanent, "--zone={{ hbr_ac04_zone }}", --list-rich-rules]
+  register: hbr_ac04_permanent_rich
+  changed_when: false
+
+- name: Check permanent zone XML
+  ansible.builtin.stat:
+    path: "{{ hbr_ac04_zone_xml }}"
+    checksum_algorithm: sha256
+  register: hbr_ac04_zone_xml_stat
+
+- name: Reset expected AC-04 rich-rule contract
+  ansible.builtin.set_fact:
+    hbr_ac04_expected_rules: []
+
+- name: Build expected AC-04 rich-rule contract
+  ansible.builtin.set_fact:
+    hbr_ac04_expected_rules: >-
+      {{
+        hbr_ac04_expected_rules
+        + [
+          'rule family="ipv4" source address="' ~ item.address
+          ~ '/32" port port="' ~ (hbr_ac04_port | string)
+          ~ '" protocol="' ~ hbr_ac04_protocol ~ '" accept'
+        ]
+      }}
+  loop: "{{ hbr_ac04_sources }}"
+  loop_control:
+    label: "{{ item.classification }} {{ item.address }}"
