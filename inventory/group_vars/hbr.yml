@@ -2,11 +2,22 @@
 hbr_ac04_change_id: P1-HBR-01-AC04
 hbr_ac04_zone: public
 hbr_ac04_interface: ens160
+hbr_ac04_host_ip: 10.1.93.54
 hbr_ac04_port: 443
 hbr_ac04_protocol: tcp
 hbr_ac04_generic_port: "443/tcp"
 hbr_ac04_state_dir: /var/lib/fds-change/P1-HBR-01-AC04
 hbr_ac04_zone_xml: /etc/firewalld/zones/public.xml
+
+# Primary enforcement backend. Docker's published 443 is DNAT/FORWARD traffic,
+# so AC-04 is enforced before Docker-owned chains through DOCKER-USER.
+hbr_ac04_backend: docker-user
+hbr_ac04_chain: FDS-HBR-AC04
+hbr_ac04_rule_comment: FDS-P1-HBR-01-AC04
+hbr_ac04_filter_script: /usr/local/sbin/fds-harbor-ac04-filter
+hbr_ac04_filter_unit: /etc/systemd/system/fds-harbor-ac04-filter.service
+hbr_ac04_filter_service: fds-harbor-ac04-filter.service
+hbr_ac04_docker_service: docker.service
 
 # HBR Lead final decision:
 # fds-project-baseline#13 comment 5925930576 (2026-10-01 KST).
