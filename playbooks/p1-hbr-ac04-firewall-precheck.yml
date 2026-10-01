@@ -132,6 +132,12 @@
         path: /etc/systemd/system/p1-hbr-ac04-firewall.service
       register: unit_file
 
+    - name: Check managed state directory
+      ansible.builtin.stat:
+        path: "{{ p1_hbr_ac04_state_dir }}"
+        follow: false
+      register: state_dir
+
     - name: Check sealed prestate marker
       ansible.builtin.stat:
         path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
@@ -160,6 +166,7 @@
           - prior_nft_table.rc != 0
           - not nft_file.stat.exists
           - not unit_file.stat.exists
+          - not state_dir.stat.exists
           - not sealed_prestate.stat.exists
           - nft_syntax.rc == 0
         fail_msg: >-
