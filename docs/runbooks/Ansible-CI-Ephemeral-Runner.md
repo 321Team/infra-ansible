@@ -28,7 +28,7 @@ python3 -I -B tools/ansible-ci-queue-watch.py \
   --output <NEW_EVIDENCE_PATH>.json
 ```
 
-`--threshold-minutes`는 프로젝트 승인값을 코드가 임의로 정하지 않는다. 운영자가 현재 결정에 따라 명시한다.
+`--threshold-minutes`는 프로젝트 승인값을 코드가 임의로 정하지 않는다. 운영자가 현재 결정에 따라 명시한다. `--output`을 주면 관측 JSON과 동일 이름의 `.sha256` sidecar를 0600으로 새로 생성하며 기존 파일은 덮어쓰지 않는다.
 
 분류 의미:
 
