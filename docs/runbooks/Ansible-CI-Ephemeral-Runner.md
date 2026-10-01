@@ -13,7 +13,7 @@ Runner 공급 전에 다음을 확인한다.
 - 대상 PR exact HEAD와 대상 Run/Attempt/Job ID
 - Job 상태가 실제로 `queued`인지
 - required labels가 `self-hosted, Linux, X64, fds-ci, ansible-isolated`인지
-- 같은 Job을 소비할 matching Runner가 이미 online인지
+- 같은 Job을 소비할 matching Runner가 online인지, 그리고 `busy` 상태가 무엇인지
 - 기존 Runner 세션이 in-progress인지
 - workflow condition이 통과한 Job인지
 - token 발급 전 관리 호스트와 launcher 준비 상태가 기존 승인 범위와 일치하는지
@@ -37,7 +37,9 @@ python3 -I -B tools/ansible-ci-queue-watch.py \
 | `QUEUED_WITHIN_GRACE` | threshold 미도달 | 공급 판단 유보 |
 | `EPHEMERAL_RUNNER_NOT_SUPPLIED` | threshold 초과 + matching Runner 등록 자체가 없음 | Runner 공급 담당자 확인 |
 | `MATCHING_RUNNER_OFFLINE` | matching Runner 등록은 있으나 online 아님 | 미공급으로 단정하지 말고 offline 원인 확인 |
-| `QUEUED_WITH_MATCHING_RUNNER_ONLINE` | matching online Runner 존재 | 중복 공급 금지, 다른 원인 확인 |
+| `QUEUED_WITH_MATCHING_RUNNER_ONLINE` | matching Runner가 online + idle | 중복 공급 금지, 다른 원인 확인 |
+| `QUEUED_WITH_MATCHING_RUNNER_BUSY` | matching Runner가 online이지만 다른 Job 처리 중 | 현재 queued Job이 그 Runner를 소비할 수 없으므로 운영자 조치 필요; 중복 세션 여부 확인 후 추가 공급 판단 |
+| `QUEUED_WITH_MATCHING_RUNNER_BUSY_UNKNOWN` | matching Runner는 online이나 busy 상태 불명확 | fail-safe로 공급 자동판단 금지, Runner/Job 상태 재확인 |
 | `JOB_IN_PROGRESS` | 이미 실행 중 | 추가 Runner 공급 금지 |
 | `JOB_COMPLETED` | 종료됨 | 새 Runner 공급 금지 |
 | `NOT_ANSIBLE_ISOLATED_JOB` | required labels 불일치 | 본 절차 적용 금지 |
@@ -50,7 +52,8 @@ python3 -I -B tools/ansible-ci-queue-watch.py \
 
 - exact HEAD가 바뀌었거나 대상 Job과 결속되지 않음
 - Job이 `queued`가 아님
-- matching Runner가 이미 online 또는 Job이 in-progress
+- matching **idle** Runner가 이미 online이거나 대상 Job이 in-progress
+- matching Runner가 busy/unknown이면 "이미 공급됨"으로 간주하지 말고 현재 Job/세션 결속을 재확인
 - required labels가 승인된 5개 라벨과 다름
 - 동일 Job을 위한 다른 공급 세션이 확인됨
 - launcher/prepare 상태가 검증 기준과 불일치
