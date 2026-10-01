@@ -29,12 +29,15 @@ apply = read("playbooks/p1-hbr-01-ac04-apply.yml")
 verify = read("playbooks/p1-hbr-01-ac04-verify.yml")
 rollback = read("playbooks/p1-hbr-01-ac04-rollback.yml")
 nft_verify = read("playbooks/tasks/p1-hbr-01-ac04-nft-verify.yml")
+nft_fixture_test = read("tests/test_p1_hbr_ac04_nft_fixture.py")
+nft_fixture = read("tests/fixtures/p1_hbr_ac04/nftables-v1.1.5-list.txt")
 
 require("hbr_ac04_backend: nftables-guard" in vars_text, "backend is not nftables-guard")
 require("hbr_ac04_nft_family: inet" in vars_text, "nft family drift")
 require("hbr_ac04_nft_table: p1_hbr_ac04" in vars_text, "nft table drift")
 require("hbr_ac04_nft_chain: forward_guard" in vars_text, "nft chain drift")
 require("hbr_ac04_nft_priority: -1" in vars_text, "nft priority drift")
+require('  - "1.1.5"' in vars_text, "fixture-validated nftables version missing")
 
 sources = set(re.findall(r"^\s+- address: ([0-9.]+)$", vars_text, re.M))
 require(sources == EXPECTED_SOURCES, f"source set drift: {sorted(sources)}")
@@ -112,6 +115,13 @@ require("hbr_ac04_nft_version is version('1.0.6', '>=')" in apply,
 require("hbr_ac04_rollback_nft_version is version('1.0.6', '>=')" in rollback,
         "rollback must require nftables >=1.0.6")
 
+require("hbr_ac04_nft_version in hbr_ac04_nft_supported_versions" in precheck,
+        "precheck must require fixture-validated nftables version")
+require("hbr_ac04_nft_version in hbr_ac04_nft_supported_versions" in apply,
+        "apply must require fixture-validated nftables version")
+require("hbr_ac04_nft_version in hbr_ac04_nft_supported_versions" in nft_verify,
+        "live verifier must require fixture-validated nftables version")
+
 apply_disable = apply.find("Rescue - disable Docker guard dependency before stopping guard")
 apply_reload = apply.find("Rescue - reload dependency graph after disabling guard")
 apply_stop = apply.find("Rescue - stop nft guard after dependency detach")
@@ -153,6 +163,30 @@ require("== hbr_ac04_nft_expected_rules_normalized" in nft_verify,
         "live nft verifier must compare ordered canonical rules exactly")
 require("counter packets [0-9]+ bytes [0-9]+" in nft_verify,
         "live nft verifier must normalize volatile counters")
+
+for token in ("ct status 0x20", "ct protocol 6", "meta nfproto 10"):
+    require(token in nft_verify, f"nftables 1.1.5 canonical token missing: {token}")
+
+expected_block = nft_verify.split("hbr_ac04_nft_expected_rules:", 1)[1].split(
+    "- name: Normalize reviewed rule contract", 1
+)[0]
+for stale in ("ct status dnat", "ct original protocol tcp", "meta nfproto ipv4"):
+    require(stale not in expected_block, f"pre-list nft alias remains in expected rules: {stale}")
+
+for token in (
+    "nftables v1.1.5 (Commodore Bullmoose #6)",
+    "LOAD_RC=0",
+    "TABLE_RC=0",
+    "CHAIN_RC=0",
+    'iifname "ens160" ct status 0x20',
+    "meta nfproto 10",
+):
+    require(token in nft_fixture, f"same-version nft fixture missing: {token}")
+
+require("P1HbrAc04NftFixtureTest" in nft_fixture_test,
+        "fixture-backed nft verifier unittest missing")
+require("EXPECTED_RULES" in nft_fixture_test and "normalize_rule" in nft_fixture_test,
+        "fixture unittest does not exercise canonical rule normalization")
 
 old_script = read("templates/p1-hbr-01-ac04-filter.sh.j2")
 old_unit = read("templates/p1-hbr-01-ac04-filter.service.j2")
