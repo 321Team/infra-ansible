@@ -49,6 +49,7 @@
           - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
           - hbr_ac04_docker_user_rules.stdout_lines == ['-N DOCKER-USER']
           - hbr_ac04_host443_dnat_rules | length == 1
+          - hbr_ac04_ip6_host443_dnat_rules | length == 0
           - hbr_ac04_host443_dnat_rules[0] is search('--to-destination [0-9.]+:8443')
           - hbr_ac04_nft_guard.rc != 0
           - not hbr_ac04_nft_file_stat.stat.exists
