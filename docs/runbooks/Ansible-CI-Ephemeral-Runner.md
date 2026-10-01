@@ -21,7 +21,7 @@ Runner 공급 전에 다음을 확인한다.
 queued 상태 분류에는 다음 read-only 도구를 사용한다.
 
 ```bash
-python3 -I -B tools/ansible-runner/queued_watch.py \
+python3 -I -B tools/ansible-ci-queue-watch.py \
   --job-id <JOB_ID> \
   --threshold-minutes <APPROVED_OR_OPERATOR_SELECTED_THRESHOLD> \
   --expected-source-sha <PR_EXACT_HEAD> \
