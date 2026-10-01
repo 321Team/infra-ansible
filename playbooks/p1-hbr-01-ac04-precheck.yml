@@ -1,0 +1,65 @@
+---
+- name: P1-HBR-01 AC-04 host firewall precheck
+  hosts: hbr
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Observe current harbor01 firewall state
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Check for an existing AC-04 change state
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_existing_state
+
+    - name: Validate source-set contract
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_sources | map(attribute='address') | list | unique | length == hbr_ac04_sources | length
+          - hbr_ac04_denied_same_l2_source not in (hbr_ac04_sources | map(attribute='address') | list)
+          - hbr_ac04_mgmt_negative_source not in (hbr_ac04_sources | map(attribute='address') | list)
+          - hbr_ac04_sources | selectattr('classification', 'equalto', 'BASELINE_ALLOW') | list | length == 4
+          - hbr_ac04_sources | selectattr('classification', 'equalto', 'TEMP_EXCEPTION') | list | length == 1
+          - hbr_ac04_sources | selectattr('classification', 'equalto', 'TEMP_MANAGEMENT_EXCEPTION') | list | length == 1
+        fail_msg: Source-set contract drifted from the HBR Lead decision; stop.
+
+    - name: Assert the reviewed pre-change firewall shape
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - "'https' not in hbr_ac04_runtime_services.stdout.split()"
+          - "'https' not in hbr_ac04_permanent_services.stdout.split()"
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"')
+             | list | length) == 0
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"')
+             | list | length) == 0
+          - hbr_ac04_zone_xml_stat.stat.exists
+          - not hbr_ac04_existing_state.stat.exists
+        fail_msg: >-
+          Prestate no longer matches the reviewed AC-04 blocker or a previous
+          change state already exists. Do not apply; reconcile state first.
+
+    - name: Validate permanent firewalld configuration
+      ansible.builtin.command:
+        argv: [firewall-cmd, --check-config]
+      changed_when: false
+
+    - name: Print precheck verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          host: "{{ inventory_hostname }}"
+          zone: "{{ hbr_ac04_zone }}"
+          interface: "{{ hbr_ac04_interface }}"
+          generic_443_runtime: PRESENT
+          generic_443_permanent: PRESENT
+          expected_rich_rules: "{{ hbr_ac04_expected_rules }}"
+          denied_same_l2_source: "{{ hbr_ac04_denied_same_l2_source }}"
+          verdict: PRECHECK_PASS_RUNTIME_NOT_CHANGED
