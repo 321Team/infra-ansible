@@ -109,11 +109,12 @@ for token in (
 ):
     require(token in nft_verify, f"live nft verifier missing: {token}")
 
-for old in (
-    "templates/p1-hbr-01-ac04-filter.sh.j2",
-    "templates/p1-hbr-01-ac04-filter.service.j2",
-):
-    require(not (ROOT / old).exists(), f"stale DOCKER-USER artifact remains: {old}")
+old_script = read("templates/p1-hbr-01-ac04-filter.sh.j2")
+old_unit = read("templates/p1-hbr-01-ac04-filter.service.j2")
+require("REJECTED_BACKEND" in old_script and "exit 64" in old_script,
+        "rejected DOCKER-USER script is not hard-disabled")
+require("REJECTED_BACKEND" in old_unit and "ExecStart=/usr/bin/false" in old_unit,
+        "rejected DOCKER-USER unit is not hard-disabled")
 
 for text, label in ((precheck, "precheck"), (apply, "apply"), (verify, "verify"), (rollback, "rollback")):
     require("hbr_ac04_filter_script" not in text, f"stale filter-script variable remains in {label}")
