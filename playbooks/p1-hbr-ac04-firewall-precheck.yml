@@ -12,11 +12,15 @@
           NOT RUN: inventory group harbor must contain exactly one reviewed
           target. Do not use an ad-hoc IP inventory for this change.
 
-- name: P1-HBR-01 AC-04 firewalld precheck
+- name: P1-HBR-01 AC-04 nftables forward-guard precheck
   hosts: harbor
   gather_facts: true
   become: true
   any_errors_fatal: true
+  vars:
+    nft_candidate: >-
+      {{ lookup('ansible.builtin.template',
+                playbook_dir + '/../templates/p1-hbr-ac04.nft.j2') }}
 
   tasks:
     - name: Verify inventory identity
@@ -24,17 +28,16 @@
         that:
           - ansible_facts['hostname'] == expected_hostname
           - ansible_host == '10.1.93.54'
-        fail_msg: >-
-          Target identity mismatch. Refusing AC-04 precheck on an unexpected host.
+        fail_msg: Target identity mismatch; refusing AC-04 precheck.
 
-    - name: Verify deny probe is not in approved source set
+    - name: Validate approved source set contract
       ansible.builtin.assert:
         that:
+          - p1_hbr_ac04_sources | length == 6
           - p1_hbr_ac04_deny_probe_source not in (p1_hbr_ac04_sources | map(attribute='address') | list)
           - p1_hbr_ac04_sources | map(attribute='address') | list | unique | length == p1_hbr_ac04_sources | length
-        fail_msg: Approved source list is duplicated or includes the deny probe.
 
-    - name: Read firewalld state
+    - name: Verify firewalld is running
       ansible.builtin.command:
         argv: [firewall-cmd, --state]
       register: fw_state
@@ -52,82 +55,117 @@
       register: fw_active_zones
       changed_when: false
 
-    - name: Query runtime generic 443 port
+    - name: Read StrictForwardPorts setting
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - ^StrictForwardPorts=
+          - /etc/firewalld/firewalld.conf
+      register: strict_forward_ports
+      changed_when: false
+
+    - name: Verify Docker FORWARD ordering
+      ansible.builtin.shell: |
+        docker_user_line="$(iptables -S FORWARD | grep -nFx -- '-A FORWARD -j DOCKER-USER' | cut -d: -f1)"
+        docker_forward_line="$(iptables -S FORWARD | grep -nFx -- '-A FORWARD -j DOCKER-FORWARD' | cut -d: -f1)"
+        printf 'DOCKER_USER_LINE=%s\n' "$docker_user_line"
+        printf 'DOCKER_FORWARD_LINE=%s\n' "$docker_forward_line"
+        test -n "$docker_user_line" &&
+        test -n "$docker_forward_line" &&
+        test "$docker_user_line" -lt "$docker_forward_line"
+      args:
+        executable: /bin/bash
+      register: docker_forward_order
+      changed_when: false
+
+    - name: Verify Docker user chain exists
+      ansible.builtin.command:
+        argv: [iptables, -S, DOCKER-USER]
+      register: docker_user_chain
+      changed_when: false
+
+    - name: Verify Docker publishes TCP 443 through DNAT
+      ansible.builtin.shell: |
+        iptables -t nat -S DOCKER |
+          grep -E -- '--dport 443 .* -j DNAT --to-destination '
+      args:
+        executable: /bin/bash
+      register: docker_443_dnat
+      changed_when: false
+
+    - name: Query runtime generic 443
       ansible.builtin.command:
         argv:
           - firewall-cmd
           - --zone={{ p1_hbr_ac04_zone }}
           - --query-port={{ p1_hbr_ac04_port }}/tcp
-      register: fw_runtime_443
+      register: runtime_443
       changed_when: false
       failed_when: false
 
-    - name: Query permanent generic 443 port
+    - name: Query permanent generic 443
       ansible.builtin.command:
         argv:
           - firewall-cmd
           - --permanent
           - --zone={{ p1_hbr_ac04_zone }}
           - --query-port={{ p1_hbr_ac04_port }}/tcp
-      register: fw_permanent_443
+      register: permanent_443
       changed_when: false
       failed_when: false
 
-    - name: Read runtime rich rules
+    - name: Check for prior managed nft table
       ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: fw_runtime_rules
+        argv: [nft, list, table, inet, p1_hbr_ac04]
+      register: prior_nft_table
       changed_when: false
+      failed_when: false
 
-    - name: Read permanent rich rules
-      ansible.builtin.command:
-        argv:
-          - firewall-cmd
-          - --permanent
-          - --zone={{ p1_hbr_ac04_zone }}
-          - --list-rich-rules
-      register: fw_permanent_rules
-      changed_when: false
-
-    - name: Validate permanent firewalld configuration
-      ansible.builtin.command:
-        argv: [firewall-cmd, --check-config]
-      register: fw_check_config
-      changed_when: false
-
-    - name: Inspect prior AC-04 state
+    - name: Check managed nft file
       ansible.builtin.stat:
-        path: "{{ p1_hbr_ac04_state_dir }}/original-state.json"
-        follow: false
-      register: ac04_state_file
+        path: /etc/nftables/p1-hbr-ac04.nft
+      register: nft_file
 
-    - name: Enforce expected pre-change baseline
+    - name: Check managed systemd unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/p1-hbr-ac04-firewall.service
+      register: unit_file
+
+    - name: Validate candidate nft syntax without applying it
+      ansible.builtin.command:
+        argv: [nft, -c, -f, -]
+        stdin: "{{ nft_candidate }}"
+      register: nft_syntax
+      changed_when: false
+
+    - name: Validate expected pre-change architecture
       ansible.builtin.assert:
         that:
           - fw_state.stdout | trim == 'running'
           - fw_default_zone.stdout | trim == p1_hbr_ac04_zone
           - p1_hbr_ac04_zone in fw_active_zones.stdout
           - p1_hbr_ac04_interface in fw_active_zones.stdout
-          - fw_runtime_443.rc == 0
-          - fw_permanent_443.rc == 0
-          - fw_check_config.rc == 0
-          - not ac04_state_file.stat.exists
+          - strict_forward_ports.stdout | trim == 'StrictForwardPorts=no'
+          - docker_forward_order.rc == 0
+          - docker_443_dnat.rc == 0
+          - runtime_443.rc == 0
+          - permanent_443.rc == 0
+          - prior_nft_table.rc != 0
+          - not nft_file.stat.exists
+          - not unit_file.stat.exists
+          - nft_syntax.rc == 0
         fail_msg: >-
-          Pre-change baseline mismatch or stale state exists. Do not overwrite
-          state or normalize the firewall manually; reconcile before apply.
+          Pre-change packet path or persistent state differs from the reviewed
+          baseline. Do not normalize manually; reconcile before apply.
 
     - name: Print read-only precheck verdict
       ansible.builtin.debug:
         msg:
           change_id: "{{ p1_hbr_ac04_change_id }}"
           host: "{{ inventory_hostname }}"
-          zone: "{{ p1_hbr_ac04_zone }}"
-          interface: "{{ p1_hbr_ac04_interface }}"
-          generic_443_runtime: true
-          generic_443_permanent: true
+          packet_path: DNAT_TO_FORWARD
+          enforcement_hook: forward_priority_minus_1
           approved_sources: "{{ p1_hbr_ac04_sources }}"
           deny_probe: "{{ p1_hbr_ac04_deny_probe_source }}"
           state: PRECHECK_PASS
