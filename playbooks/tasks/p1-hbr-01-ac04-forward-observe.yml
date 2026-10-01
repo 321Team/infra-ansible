@@ -46,6 +46,20 @@
   register: hbr_ac04_docker_nat
   changed_when: false
 
+- name: Read IPv6 Docker NAT chain when present
+  ansible.builtin.command:
+    argv: [ip6tables, -w, "5", -t, nat, -S, DOCKER]
+  register: hbr_ac04_ip6_docker_nat
+  changed_when: false
+  failed_when: false
+
+- name: Read IPv6 DOCKER-USER chain when present
+  ansible.builtin.command:
+    argv: [ip6tables, -w, "5", -t, filter, -S, DOCKER-USER]
+  register: hbr_ac04_ip6_docker_user
+  changed_when: false
+  failed_when: false
+
 - name: Read conntrack matcher capabilities
   ansible.builtin.command:
     argv: [iptables, -m, conntrack, -h]
@@ -96,6 +110,16 @@
     hbr_ac04_host443_dnat_rules: >-
       {{
         hbr_ac04_docker_nat.stdout_lines
+        | select('search', '--dport 443')
+        | select('search', '-j DNAT')
+        | list
+      }}
+
+- name: Locate IPv6 Docker published host 443 DNAT rules
+  ansible.builtin.set_fact:
+    hbr_ac04_ip6_host443_dnat_rules: >-
+      {{
+        hbr_ac04_ip6_docker_nat.stdout_lines | default([])
         | select('search', '--dport 443')
         | select('search', '-j DNAT')
         | list
