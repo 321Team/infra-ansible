@@ -1,0 +1,16 @@
+[Unit]
+Description=P1-HBR-01 AC-04 Harbor 443 forward guard
+Documentation=https://github.com/321Team/infra-ansible/issues/62
+Wants=firewalld.service
+After=firewalld.service
+Before=docker.service
+ConditionPathExists=/etc/nftables/p1-hbr-ac04.nft
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables/p1-hbr-ac04.nft
+ExecStop=-/usr/sbin/nft delete table inet p1_hbr_ac04
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
