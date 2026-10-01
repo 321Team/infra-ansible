@@ -14,7 +14,7 @@
           NOT RUN. Set hbr_ac04_rollback_confirmed=P1-HBR-01-AC04 only after
           identifying the failed apply/verify/runtime condition.
 
-- name: P1-HBR-01 AC-04 rollback DOCKER-USER source allowlist
+- name: P1-HBR-01 AC-04 rollback dedicated nftables guard
   hosts: hbr
   gather_facts: true
   become: true
@@ -54,21 +54,25 @@
     - name: Validate rollback-state binding
       ansible.builtin.assert:
         that:
-          - hbr_ac04_original.schema == 2
+          - hbr_ac04_original.schema == 3
           - hbr_ac04_original.change_id == hbr_ac04_change_id
-          - hbr_ac04_original.backend == 'docker-user'
+          - hbr_ac04_original.backend == 'nftables-guard'
           - hbr_ac04_original.inventory_hostname == inventory_hostname
           - hbr_ac04_original.ansible_hostname == ansible_hostname
           - hbr_ac04_original.address == ansible_default_ipv4.address
-          - hbr_ac04_original.host_ip == hbr_ac04_host_ip
+          - hbr_ac04_original.zone == hbr_ac04_zone
           - hbr_ac04_original.interface == hbr_ac04_interface
+          - hbr_ac04_original.host_ip == hbr_ac04_host_ip
+          - hbr_ac04_original.nft_family == hbr_ac04_nft_family
+          - hbr_ac04_original.nft_table == hbr_ac04_nft_table
+          - hbr_ac04_original.nft_chain == hbr_ac04_nft_chain
+          - hbr_ac04_original.nft_priority | int == hbr_ac04_nft_priority | int
           - hbr_ac04_original.original_public_xml_sha256 == hbr_ac04_original_zone_copy.stat.checksum
-          - hbr_ac04_original.docker_user_rules == ['-N DOCKER-USER']
-          - not hbr_ac04_original.filter_script_existed
-          - not hbr_ac04_original.filter_unit_existed
+          - not hbr_ac04_original.nft_file_existed
+          - not hbr_ac04_original.guard_unit_existed
         fail_msg: Preserved state does not bind to this reviewed change.
 
-    - name: Restore generic 443 before removing allow rules
+    - name: Restore generic INPUT 443 before removing guard
       block:
         - name: Restore permanent generic INPUT 443
           ansible.builtin.command:
@@ -85,62 +89,48 @@
               - "--zone={{ hbr_ac04_zone }}"
               - "--add-port={{ hbr_ac04_generic_port }}"
 
-        - name: Remove permanent supplementary rich rules
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - --permanent
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--remove-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
-          failed_when: false
-
-        - name: Remove runtime supplementary rich rules
-          ansible.builtin.command:
-            argv:
-              - firewall-cmd
-              - "--zone={{ hbr_ac04_zone }}"
-              - "--remove-rich-rule={{ item }}"
-          loop: "{{ hbr_ac04_expected_rules }}"
-          failed_when: false
-
-        - name: Stop and disable persistence service
-          ansible.builtin.systemd_service:
-            name: "{{ hbr_ac04_filter_service }}"
-            state: stopped
-            enabled: false
-          failed_when: false
-
-        - name: Explicitly remove managed DOCKER-USER rules
-          ansible.builtin.command:
-            argv: ["{{ hbr_ac04_filter_script }}", remove]
-          register: hbr_ac04_remove_result
-          changed_when: false
-          failed_when: false
-
-        - name: Remove managed systemd unit
-          ansible.builtin.file:
-            path: "{{ hbr_ac04_filter_unit }}"
-            state: absent
-
-        - name: Remove managed filter script
-          ansible.builtin.file:
-            path: "{{ hbr_ac04_filter_script }}"
-            state: absent
-
-        - name: Reload systemd metadata after unit removal
-          ansible.builtin.systemd_service:
-            daemon_reload: true
-
-        - name: Validate permanent firewalld configuration
+        - name: Validate permanent firewalld configuration before guard removal
           ansible.builtin.command:
             argv: [firewall-cmd, --check-config]
           changed_when: false
 
+        - name: Stop and disable nft guard
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_guard_service }}"
+            state: stopped
+            enabled: false
+          failed_when: false
+
+        - name: Destroy managed nft table idempotently
+          ansible.builtin.command:
+            argv:
+              - nft
+              - destroy
+              - table
+              - "{{ hbr_ac04_nft_family }}"
+              - "{{ hbr_ac04_nft_table }}"
+          register: hbr_ac04_destroy_result
+          changed_when: false
+          failed_when: false
+
+        - name: Remove managed guard unit
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_guard_unit }}"
+            state: absent
+
+        - name: Remove managed nft file
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_nft_file }}"
+            state: absent
+
+        - name: Reload systemd dependency graph after guard removal
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
     - name: Observe INPUT/public-zone state after rollback
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
 
-    - name: Observe Docker FORWARD state after rollback
+    - name: Observe Docker and nft state after rollback
       ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
 
     - name: Verify exact rollback surface
@@ -148,28 +138,24 @@
         that:
           - hbr_ac04_runtime_generic.rc == 0
           - hbr_ac04_permanent_generic.rc == 0
-          - >-
-            (hbr_ac04_runtime_rich.stdout_lines
-             | select('search', 'port port="443"') | list | length) == 0
-          - >-
-            (hbr_ac04_permanent_rich.stdout_lines
-             | select('search', 'port port="443"') | list | length) == 0
-          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
-          - hbr_ac04_managed_chain.rc != 0
-          - hbr_ac04_fds_jump_rules | length == 0
-          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
-          - hbr_ac04_host443_dnat_rules | length == 1
           - hbr_ac04_runtime_ports.stdout.split() == hbr_ac04_original.runtime_ports
           - hbr_ac04_permanent_ports.stdout.split() == hbr_ac04_original.permanent_ports
           - hbr_ac04_runtime_services.stdout.split() == hbr_ac04_original.runtime_services
           - hbr_ac04_permanent_services.stdout.split() == hbr_ac04_original.permanent_services
           - hbr_ac04_runtime_rich.stdout_lines == hbr_ac04_original.runtime_rich_rules
           - hbr_ac04_permanent_rich.stdout_lines == hbr_ac04_original.permanent_rich_rules
-          - not hbr_ac04_filter_script_stat.stat.exists
-          - not hbr_ac04_filter_unit_stat.stat.exists
+          - hbr_ac04_nft_guard.rc != 0
+          - not hbr_ac04_nft_file_stat.stat.exists
+          - not hbr_ac04_guard_unit_stat.stat.exists
+          - hbr_ac04_guard_service not in hbr_ac04_docker_requires.stdout.split()
+          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
+          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
+          - hbr_ac04_docker_forward_rules.stdout_lines == hbr_ac04_original.docker_forward_rules
+          - hbr_ac04_docker_filter_rules.stdout_lines == hbr_ac04_original.docker_filter_rules
+          - hbr_ac04_docker_nat.stdout_lines == hbr_ac04_original.docker_nat_rules
         fail_msg: >-
-          Rollback did not restore the captured pre-change firewall surface.
-          Do not report ROLLED_BACK.
+          Rollback did not restore the captured pre-change firewall/Docker
+          surface. Do not report ROLLED_BACK.
 
     - name: Capture KST rollback completion timestamp
       ansible.builtin.command:
@@ -185,6 +171,9 @@
           backend={{ hbr_ac04_backend }}
           rolled_back_at_kst={{ hbr_ac04_rolled_back_at.stdout | trim }}
           host={{ inventory_hostname }}
+          generic_input_443=RESTORED
+          nft_guard=REMOVED
+          docker_managed_rules=UNCHANGED
           original_state_retained=true
           firewalld_reload=NOT_USED
         owner: root
