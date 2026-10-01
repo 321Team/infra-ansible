@@ -105,6 +105,31 @@ require(rollback.find("Restore permanent generic INPUT 443") < rollback.find("St
         "rollback must restore generic 443 before removing guard")
 require("nft_guard=REMOVED" in rollback, "rollback result marker missing")
 require("PRECHECK_PASS_RUNTIME_NOT_CHANGED" in precheck, "precheck boundary marker missing")
+require("hbr_ac04_nft_version is version('1.0.6', '>=')" in precheck,
+        "precheck must require nftables >=1.0.6")
+require("hbr_ac04_nft_version is version('1.0.6', '>=')" in apply,
+        "apply must re-check nftables >=1.0.6")
+require("hbr_ac04_rollback_nft_version is version('1.0.6', '>=')" in rollback,
+        "rollback must require nftables >=1.0.6")
+
+apply_disable = apply.find("Rescue - disable Docker guard dependency before stopping guard")
+apply_reload = apply.find("Rescue - reload dependency graph after disabling guard")
+apply_stop = apply.find("Rescue - stop nft guard after dependency detach")
+require(-1 not in (apply_disable, apply_reload, apply_stop)
+        and apply_disable < apply_reload < apply_stop,
+        "apply rescue must disable -> daemon-reload -> stop guard")
+
+rollback_disable = rollback.find("Disable Docker guard dependency before stopping guard")
+rollback_reload = rollback.find("Reload dependency graph after disabling guard")
+rollback_stop = rollback.find("Stop nft guard after dependency detach")
+require(-1 not in (rollback_disable, rollback_reload, rollback_stop)
+        and rollback_disable < rollback_reload < rollback_stop,
+        "rollback must disable -> daemon-reload -> stop guard")
+
+require("state: stopped\n            enabled: false" not in apply,
+        "apply rescue must not stop guard while Docker dependency is still enabled")
+require("state: stopped\n            enabled: false" not in rollback,
+        "rollback must not stop guard while Docker dependency is still enabled")
 
 for token in (
     "P1-HBR-01-AC04 approved IPv4",
