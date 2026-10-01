@@ -678,35 +678,11 @@
               - "--add-port={{ hbr_ac04_generic_port }}"
           failed_when: false
 
-        - name: Rescue - disable Docker guard dependency before stopping guard
-          ansible.builtin.systemd_service:
-            name: "{{ hbr_ac04_guard_service }}"
-            enabled: false
-          failed_when: false
-
-        - name: Rescue - reload dependency graph after disabling guard
-          ansible.builtin.systemd_service:
-            daemon_reload: true
-          failed_when: false
-
-        - name: Rescue - verify Docker remains active after dependency detach
-          ansible.builtin.command:
-            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
-          register: hbr_ac04_rescue_docker_before_guard_stop
-          changed_when: false
-          failed_when: false
-
-        - name: Rescue - stop nft guard after dependency detach
+        - name: Rescue - stop and disable nft guard
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             state: stopped
-          failed_when: false
-
-        - name: Rescue - verify Docker remained active after guard stop
-          ansible.builtin.command:
-            argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
-          register: hbr_ac04_rescue_docker_after_guard_stop
-          changed_when: false
+            enabled: false
           failed_when: false
 
         - name: Rescue - destroy managed nft table idempotently
