@@ -2,6 +2,7 @@
 """Static contract tests for P1-HBR-01 AC-04 firewall remediation."""
 
 from pathlib import Path
+import subprocess
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,52 @@ for token in (
     "counter drop",
 ):
     assert token in NFT, token
+
+# Docker 443 DNAT detection must not depend on iptables option ordering.
+
+# Execute the Docker 443 DNAT detector against representative iptables output.
+awk_program = (
+    '$1 == "-A" && $2 == "DOCKER" && '
+    '$0 ~ /(^| )-p tcp( |$)/ && '
+    '$0 ~ /(^| )--dport 443( |$)/ && '
+    '$0 ~ /(^| )-j DNAT( |$)/ && '
+    '$0 ~ /(^| )--to-destination [^ ]*:8443( |$)/ '
+    '{ print; found=1 } '
+    'END { exit(found ? 0 : 1) }'
+)
+
+positive_rule = (
+    "-A DOCKER ! -i br-test -p tcp -m tcp "
+    "--dport 443 -j DNAT "
+    "--to-destination 172.18.0.11:8443\n"
+)
+
+negative_rule = (
+    "-A DOCKER ! -i br-test -p tcp -m tcp "
+    "--dport 80 -j DNAT "
+    "--to-destination 172.18.0.11:8080\n"
+)
+
+positive = subprocess.run(
+    ["awk", awk_program],
+    input=positive_rule,
+    text=True,
+    capture_output=True,
+)
+
+assert positive.returncode == 0, positive.stderr
+assert "--dport 443" in positive.stdout
+
+negative = subprocess.run(
+    ["awk", awk_program],
+    input=negative_rule,
+    text=True,
+    capture_output=True,
+)
+
+assert negative.returncode != 0
+
+assert "--dport 443 .* -j DNAT --to-destination" not in PRECHECK
 
 # No approved IPv6 source exists, so forwarded published 443 IPv6 is denied.
 assert "meta nfproto ipv6" in NFT
