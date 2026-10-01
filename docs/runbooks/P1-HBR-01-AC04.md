@@ -119,6 +119,16 @@ Required markers:
 - `RENDER_RC=0`;
 - `NFT_CHECK_RC=0`.
 
+The verifier is fixture-backed. The reviewed capture under
+`tests/fixtures/p1_hbr_ac04/nftables-v1.1.5-list.txt` was produced in an
+isolated network namespace on ansible01 after confirming harbor01 and ansible01
+both report `nftables v1.1.5 (Commodore Bullmoose #6)`. The fixture records
+the actual `nft -n list table` / `list chain` canonical output:
+`ct status 0x20`, `ct protocol 6`, IPv4 nfproto elision, and
+`meta nfproto 10` for IPv6. `tests/test_p1_hbr_ac04_nft_fixture.py` must
+pass before Runtime apply. A nftables version outside the supported set is a
+STOP and requires a new same-version fixture/review.
+
 ## 5. Read-only precheck
 
 After static/mock validation and before any Runtime approval:
@@ -135,6 +145,8 @@ Precheck requires the reviewed baseline to remain unchanged:
 
 - Docker/firewalld active;
 - IPv4 forwarding enabled;
+- nftables version is at least 1.0.6 and is in the fixture-validated supported
+  set; current approved runtime/list-output fixture is nftables 1.1.5;
 - FORWARD begins with DOCKER-USER then DOCKER-FORWARD;
 - DOCKER-USER still empty;
 - exactly one Docker host-443 DNAT to container 8443;
@@ -189,7 +201,14 @@ Mutation order:
 
 No INPUT rich rule is added in the final design.
 
-On apply failure, rescue restores generic INPUT 443 first, disables the Docker RequiredBy dependency, reloads systemd metadata, verifies Docker remains active, then stops/removes the guard and fails the play. Preserved prestate remains for reviewed rollback. Because the guard Requires=firewalld.service, do not stop/restart firewalld while Docker depends on the guard.
+On apply failure, rescue restores generic INPUT 443 first, disables the Docker
+RequiredBy dependency, reloads systemd metadata, and requires Docker to remain
+active before guard stop. After guard stop it requires Docker to remain active
+and the guard to be inactive before destroying the managed nft table. Any
+service-state mismatch preserves the guard table and stops rescue for manual
+reconciliation. Preserved prestate remains for reviewed rollback. Because the
+guard Requires=firewalld.service, do not stop/restart firewalld while Docker
+depends on the guard.
 
 ## 8. Configuration verify
 
