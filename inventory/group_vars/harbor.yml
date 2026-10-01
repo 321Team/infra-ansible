@@ -1,36 +1,33 @@
 ---
 # P1-HBR-01 / AC-04 host-firewall source allowlist.
-# Baseline allowlist comes from IF-09/IF-10. Temporary exceptions are
-# explicitly separated so they can be removed without redefining baseline.
+# Each source has exactly one classification so temporary exceptions cannot
+# silently drift from the applied source list.
 p1_hbr_ac04_change_id: P1-HBR-AC04-FW-01
 p1_hbr_ac04_zone: public
 p1_hbr_ac04_interface: ens160
 p1_hbr_ac04_port: "443"
 p1_hbr_ac04_state_dir: /var/lib/p1-hbr-ac04-firewall
 
-p1_hbr_ac04_baseline_sources:
-  - 10.250.10.20/32   # cicd-runner01 / IF-09
-  - 10.1.93.105/32    # k8s-worker01 / IF-10
-  - 10.1.93.107/32    # k8s-worker02 / IF-10
-  - 10.1.93.108/32    # k8s-worker03 / IF-10
+p1_hbr_ac04_sources:
+  - address: 10.250.10.20/32
+    classification: baseline
+    purpose: cicd-runner01 / IF-09
+  - address: 10.1.93.105/32
+    classification: baseline
+    purpose: k8s-worker01 / IF-10
+  - address: 10.1.93.107/32
+    classification: baseline
+    purpose: k8s-worker02 / IF-10
+  - address: 10.1.93.108/32
+    classification: baseline
+    purpose: k8s-worker03 / IF-10
+  - address: 10.1.93.50/32
+    classification: temporary-edge
+    purpose: edge01 E-K3S pull until migration + robot$fds-ci cleanup
+  - address: 10.1.93.102/32
+    classification: temporary-management
+    purpose: control01 Harbor push/scan/API until IF-09 handoff + residual HBR work ends
 
-# Temporary exception. Remove after edge01 upstream migration and
-# robot$fds-ci cleanup are both complete and recorded in baseline#13.
-p1_hbr_ac04_temp_edge_sources:
-  - 10.1.93.50/32
-
-# Temporary management exception. Remove after IF-09 Runner push path is
-# formalized and remaining candidate push/scan/manual Harbor admin work ends.
-p1_hbr_ac04_temp_management_sources:
-  - 10.1.93.102/32
-
-p1_hbr_ac04_allowed_sources: >-
-  {{
-    p1_hbr_ac04_baseline_sources
-    + p1_hbr_ac04_temp_edge_sources
-    + p1_hbr_ac04_temp_management_sources
-  }}
-
-# Same-L2 negative probe / deny target. This address must never be included in
-# p1_hbr_ac04_allowed_sources.
+# Same-L2 management PC observed in Harbor UI/API logs. It is intentionally
+# outside p1_hbr_ac04_sources and is the approved same-L2 negative probe.
 p1_hbr_ac04_deny_probe_source: 10.1.93.26/32
