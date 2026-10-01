@@ -1,0 +1,95 @@
+---
+- name: Verify P1-HBR-01 AC-04 firewall state
+  hosts: harbor
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Verify inventory identity
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['hostname'] == expected_hostname
+          - ansible_host == '10.1.93.54'
+
+    - name: Query runtime generic 443
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --query-port={{ p1_hbr_ac04_port }}/tcp
+      register: runtime_443
+      changed_when: false
+      failed_when: false
+
+    - name: Query permanent generic 443
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --query-port={{ p1_hbr_ac04_port }}/tcp
+      register: permanent_443
+      changed_when: false
+      failed_when: false
+
+    - name: Read runtime rich rules
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-rich-rules
+      register: runtime_rules
+      changed_when: false
+
+    - name: Read permanent rich rules
+      ansible.builtin.command:
+        argv:
+          - firewall-cmd
+          - --permanent
+          - --zone={{ p1_hbr_ac04_zone }}
+          - --list-rich-rules
+      register: permanent_rules
+      changed_when: false
+
+    - name: Validate permanent firewalld config
+      ansible.builtin.command:
+        argv: [firewall-cmd, --check-config]
+      register: check_config
+      changed_when: false
+
+    - name: Verify each approved rich rule exists in both states
+      vars:
+        expected_rule: >-
+          rule family="ipv4" source address="{{ item.address }}" port
+          port="{{ p1_hbr_ac04_port }}" protocol="tcp" accept
+      ansible.builtin.assert:
+        that:
+          - expected_rule in runtime_rules.stdout_lines
+          - expected_rule in permanent_rules.stdout_lines
+      loop: "{{ p1_hbr_ac04_sources }}"
+
+    - name: Verify deny probe is not explicitly allowed
+      ansible.builtin.assert:
+        that:
+          - p1_hbr_ac04_deny_probe_source not in (p1_hbr_ac04_sources | map(attribute='address') | list)
+          - p1_hbr_ac04_deny_probe_source not in runtime_rules.stdout
+          - p1_hbr_ac04_deny_probe_source not in permanent_rules.stdout
+
+    - name: Verify generic 443 is closed and config is valid
+      ansible.builtin.assert:
+        that:
+          - runtime_443.rc != 0
+          - permanent_443.rc != 0
+          - check_config.rc == 0
+
+    - name: Print configuration verification verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ p1_hbr_ac04_change_id }}"
+          host: "{{ inventory_hostname }}"
+          runtime_permanent_allowlist: PASS
+          generic_443: ABSENT
+          deny_probe_explicit_allow: ABSENT
+          runtime_network_retest: REQUIRED_SEPARATELY
+          state: CONFIG_VERIFY_PASS
