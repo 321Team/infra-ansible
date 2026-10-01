@@ -35,7 +35,8 @@ python3 -I -B tools/ansible-ci-queue-watch.py \
 | classification | 의미 | 조치 |
 |---|---|---|
 | `QUEUED_WITHIN_GRACE` | threshold 미도달 | 공급 판단 유보 |
-| `EPHEMERAL_RUNNER_NOT_SUPPLIED` | threshold 초과 + matching online Runner 없음 | Runner 공급 담당자 확인 |
+| `EPHEMERAL_RUNNER_NOT_SUPPLIED` | threshold 초과 + matching Runner 등록 자체가 없음 | Runner 공급 담당자 확인 |
+| `MATCHING_RUNNER_OFFLINE` | matching Runner 등록은 있으나 online 아님 | 미공급으로 단정하지 말고 offline 원인 확인 |
 | `QUEUED_WITH_MATCHING_RUNNER_ONLINE` | matching online Runner 존재 | 중복 공급 금지, 다른 원인 확인 |
 | `JOB_IN_PROGRESS` | 이미 실행 중 | 추가 Runner 공급 금지 |
 | `JOB_COMPLETED` | 종료됨 | 새 Runner 공급 금지 |
