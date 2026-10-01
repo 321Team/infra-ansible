@@ -1,33 +1,34 @@
 # P1-HBR-01 AC-04 Harbor 443 Source Allowlist Remediation
 
-## Current state
+## Current decision
 
-AC-04 remains `FAIL_BLOCKER`.
+AC-04 remains `FAIL_BLOCKER` until reviewed Runtime evidence is complete.
 
-The first implementation attempt used the firewalld public INPUT surface. That
-design is rejected because the actual Harbor HTTPS path is Docker-published:
+Read-only discovery on 2026-10-01 confirmed:
 
 `PREROUTING DNAT :443 -> 172.18.0.11:8443 -> FORWARD -> DOCKER-USER -> DOCKER-FORWARD -> DOCKER ACCEPT`
 
-Therefore INPUT-only rich rules cannot be treated as the AC enforcement point.
+The firewalld `docker-forwarding` policy is `ANY -> docker`, priority `-1`,
+target `ACCEPT`, with no rich rules. Firewalld also has the default generic
+DNAT accept behavior. Therefore the previously rejected INPUT-only design is
+not the AC enforcement point.
 
-At this HEAD:
+Selected backend: **DOCKER-USER**.
 
-- `p1-hbr-01-ac04-apply.yml`: hard HOLD, no mutation.
-- `p1-hbr-01-ac04-verify.yml`: hard HOLD, cannot emit false PASS.
-- `p1-hbr-01-ac04-rollback.yml`: hard HOLD until paired with the future
-  FORWARD-path implementation.
-- `p1-hbr-01-ac04-forward-discover.yml`: read-only discovery and the only
-  Runtime-safe executable in this change phase.
-- `p1-hbr-01-ac04-precheck.yml`: read-only INPUT-surface observation only;
-  it is supplemental and is not AC-04 enforcement proof.
+- Primary enforcement: a dedicated `FDS-HBR-AC04` chain reached from the top
+  of `DOCKER-USER`.
+- Match scope: ingress `ens160`, TCP, conntrack original destination
+  `10.1.93.54:443`.
+- Approved IPv4 sources return to Docker's normal forwarding path.
+- All other packets in that exact Harbor 443 scope are dropped.
+- Docker-owned `DOCKER` and `DOCKER-FORWARD` chains are never modified.
+- Persistence: root-owned systemd oneshot service bound to the Docker service
+  lifecycle. It reapplies the user chain after boot/Docker restart.
+- Supplementary hardening: remove generic firewalld INPUT `443/tcp` and add
+  the same six source-specific INPUT rich rules. This is not the primary AC
+  enforcement point and no `firewall-cmd --reload` is used.
 
-No AC-04 firewall Runtime mutation has been performed from this branch.
-
-## Approved source contract
-
-HBR Lead final decision:
-fds-project-baseline#13 comment 5925930576.
+The current source contract is the HBR Lead decision in baseline #13:
 
 | class | source | purpose |
 |---|---|---|
@@ -40,18 +41,28 @@ fds-project-baseline#13 comment 5925930576.
 | BLOCK probe | 10.1.93.26 | same-L2 unauthorized source |
 | MGMT negative | 10.250.10.10 | ansible01 |
 
-The .50 and .102 exceptions are temporary and do not expand the baseline
-allowlist.
+The .50 and .102 entries are temporary exceptions, not baseline expansion.
 
-## Phase 1 — static/syntax check
+## Safety boundaries
 
-Run on ansible01 as server01_ansible from the exact reviewed HEAD:
+- Do not directly edit `DOCKER`, `DOCKER-FORWARD`, Docker NAT rules, Harbor
+  compose files, certificates, credentials, SSH, or Kubernetes resources.
+- Do not use `firewall-cmd --reload`.
+- Do not use TLS verification bypass.
+- A code merge is not Runtime approval.
+- A configuration verify is not AC-04 acceptance.
+- If current prestate differs from the reviewed discovery, stop and capture a
+  new read-only baseline.
+
+## Static and mock checks on ansible01
+
+Use the exact PR HEAD.
 
     cd /home/server01_ansible/p1-ans-01
     git fetch origin
-    git switch --track origin/feat/p1-hbr-01-ac04-firewall-allowlist
+    git switch --detach <EXACT_PR_HEAD>
     git status --short
-    git log -1 --format='%H %s'
+    git rev-parse HEAD
 
     source ~/.config/ansible/p1-ans-01.env
     export ANSIBLE_PRIVATE_KEY_FILE
@@ -63,88 +74,98 @@ Run on ansible01 as server01_ansible from the exact reviewed HEAD:
       ansible-playbook -i inventory/hbr.yml --syntax-check "$P" || exit 1
     done
 
-Expected inventory target: harbor01 only.
+    python3 -I -B tools/p1-hbr-01-ac04-contract.py
 
-Syntax PASS does not release Runtime HOLD.
+Render the user-filter template without touching harbor01:
 
-## Phase 2 — read-only FORWARD discovery
+    TMP="$(mktemp -d)"
+    ansible localhost -c local       -m ansible.builtin.template       -a "src=templates/p1-hbr-01-ac04-filter.sh.j2 dest=$TMP/filter.sh mode=0700"       -e @inventory/group_vars/hbr.yml
 
-This is the next allowed operational action.
+    bash -n "$TMP/filter.sh"
+    grep -nE 'DOCKER-USER|ctorigdst|ctorigdstport|FDS-HBR-AC04' "$TMP/filter.sh"
+    rm -rf "$TMP"
 
-    TS="$(date +%Y%m%dT%H%M%S%z)"
-    OUT="$HOME/p1-hbr-ac04-forward-discovery-$TS.log"
+Required static markers:
 
-    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-forward-discover.yml       | tee "$OUT"
+`P1_HBR_AC04_STATIC_CONTRACT=PASS`
 
-    RC=${PIPESTATUS[0]}
-    echo "ANSIBLE_RC=$RC"
-    sha256sum "$OUT"
-    echo "OUT=$OUT"
+and all Ansible syntax checks / `bash -n` return rc0.
 
-Required end marker:
+## Read-only precheck
 
-`verdict: FORWARD_DISCOVERY_CAPTURED_REVIEW_REQUIRED`
+After static review, but before any change approval:
 
-The discovery is read-only. It collects:
+    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-precheck.yml
 
-- firewalld runtime/permanent policy inventory;
-- `docker-forwarding` policy details;
-- active/public zone state;
-- firewalld direct rules;
-- IPv4 forwarding state;
-- FORWARD / DOCKER-USER / DOCKER-FORWARD / DOCKER filter rules and counters;
-- Docker NAT rules;
-- Docker published-443 container network/port metadata without environment
-  variables or credentials;
-- nftables firewalld table;
-- complete filter/NAT iptables snapshots.
+Required marker:
 
-It does not add/delete/reload firewall rules and does not restart Docker,
-Harbor, firewalld or any service.
+`verdict: PRECHECK_PASS_RUNTIME_NOT_CHANGED`
 
-## Phase 3 — enforcement design decision
+It requires the discovered baseline to still be true, including:
 
-After the discovery is reviewed, select exactly one enforcement backend.
+- Docker active, IPv4 forwarding enabled;
+- FORWARD begins with `DOCKER-USER` then `DOCKER-FORWARD`;
+- DOCKER-USER empty;
+- `FDS-HBR-AC04` absent;
+- exactly one Docker DNAT for host TCP/443 to container TCP/8443;
+- conntrack original-destination matching available;
+- managed script/unit/state absent;
+- public runtime/permanent generic `443/tcp` present;
+- no existing source-specific INPUT 443 rich rules.
 
-Priority:
+Any drift is a STOP.
 
-1. firewalld-native policy/rich-rule enforcement if it can demonstrably act on
-   the actual DNAT/FORWARD path with source matching and deterministic
-   runtime/permanent persistence;
-2. otherwise the Docker-supported user filtering hook `DOCKER-USER`.
+## Runtime apply prerequisites
 
-Never directly manage Docker-owned `DOCKER` or `DOCKER-FORWARD` chains.
+Do not run apply until all are true.
 
-The selected backend must define one contract shared by:
+1. Exact apply HEAD has independent code review by HBR Lead 이하영.
+2. control01 (10.1.93.102) remote desktop/browser Harbor UI login and required
+   management access are actually confirmed.
+3. Change window does not overlap P1-HA-01 Drain/rebalance or monitoring image
+   rollout.
+4. Static/mock checks pass.
+5. Read-only precheck passes on the same operational baseline.
 
-- prestate capture;
-- apply;
-- verify;
-- rollback;
-- isolated/static contract tests;
-- Runtime positive/negative evidence.
+Apply requires three explicit attestations:
 
-The current hard-HOLD apply/verify/rollback files must be replaced only after
-this decision.
+    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-apply.yml       -e hbr_ac04_change_approved=P1-HBR-01-AC04       -e hbr_ac04_ui_fallback_confirmed=P1-HBR-01-AC04       -e hbr_ac04_change_window_confirmed=P1-HBR-01-AC04
 
-## Future apply prerequisites
+Before mutation the play preserves a root-owned state record, the permanent
+public-zone XML and filter/NAT table sources under:
 
-The future FORWARD-path apply must remain blocked until all are true:
+`/var/lib/fds-change/P1-HBR-01-AC04`
 
-1. exact code HEAD independently reviewed by HBR Lead 이하영;
-2. control01 (10.1.93.102) remote desktop/browser can actually log in to Harbor
-   UI and perform required management access before .26 is blocked;
-3. a change window is confirmed not to overlap P1-HA-01 Drain/rebalance or the
-   monitoring node-exporter rollout;
-4. exact prestate and rollback contract are captured;
-5. STATIC/MOCK and required CI checks are complete for the selected backend.
+Mutation order:
 
-## Required post-apply Runtime evidence
+1. render and shell-validate the managed filter;
+2. install/enable/start its Docker-lifecycle systemd service;
+3. verify the DOCKER-USER jump and dedicated chain;
+4. add permanent/runtime INPUT source rich rules;
+5. remove permanent/runtime generic INPUT 443;
+6. run `firewall-cmd --check-config`;
+7. re-observe and assert the complete configuration.
+
+If a mutation fails, the rescue path restores generic INPUT 443 first, removes
+the supplementary rich rules, disables the service, removes the managed
+DOCKER-USER rules and fails the play. Preserved prestate is retained.
+
+## Configuration verify
+
+    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-verify.yml
+
+Required marker:
+
+`verdict: CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING`
+
+This verifies configuration/persistence only.
+
+## Required Runtime acceptance evidence
 
 Positive:
 
 - Runner 10.250.10.20;
-- Workers 10.1.93.105/.107/.108;
+- Worker01/02/03 10.1.93.105/.107/.108;
 - edge01 10.1.93.50 while temporary exception is active;
 - control01 10.1.93.102 while temporary management exception is active.
 
@@ -159,17 +180,37 @@ Regression:
 - Worker Harbor pull/Pod start;
 - edge01 pull;
 - control01 management path;
-- runtime/persistent enforcement state consistency;
-- rollback can restore the exact pre-change state.
+- DOCKER-USER rule/persistence state remains exact;
+- public runtime/permanent INPUT state remains exact.
+
+Also test the persistence contract in an approved maintenance window:
+
+- Docker restart must re-establish exactly one managed DOCKER-USER jump and the
+  exact dedicated-chain rules before AC-04 can be considered durable.
+- This restart test is a Runtime change and is not implied by code review.
+
+## Rollback
+
+When required:
+
+    ansible-playbook       -i inventory/hbr.yml       playbooks/p1-hbr-01-ac04-rollback.yml       -e hbr_ac04_rollback_confirmed=P1-HBR-01-AC04
+
+Rollback restores generic INPUT 443 before removing the allowlist, disables the
+managed lifecycle service, removes only the managed chain/jump, and checks the
+captured pre-change FORWARD/DOCKER-USER/public-zone surface.
+
+The original state directory remains for evidence and reconciliation.
 
 ## Acceptance boundary
 
-`STATIC=PASS`, discovery completion, code merge, or configuration verification
-does not make AC-04 PASS.
-
 Required final chain:
 
-`FORWARD_DISCOVERY -> BACKEND_DECISION -> STATIC/MOCK -> INDEPENDENT_REVIEW
--> UI_FALLBACK + CHANGE_WINDOW -> PRESTATE -> APPLY -> CONFIG_VERIFY
--> POSITIVE/NEGATIVE/PULL REGRESSION -> EVIDENCE IMPORT/INDEPENDENT REVIEW
--> HBR LEAD AC-04 DECISION`
+`DISCOVERY -> BACKEND_DECISION(DOCKER-USER) -> STATIC/MOCK
+-> INDEPENDENT REVIEW -> UI_FALLBACK + CHANGE_WINDOW
+-> PRECHECK/PRESTATE -> APPLY -> CONFIG_VERIFY
+-> POSITIVE/NEGATIVE/PULL + PERSISTENCE REGRESSION
+-> EVIDENCE IMPORT/INDEPENDENT REVIEW -> HBR LEAD AC-04 DECISION`
+
+Until that chain completes:
+
+`AC04=FAIL_BLOCKER / RUNTIME_CHANGE=NOT_PERFORMED`
