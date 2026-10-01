@@ -338,10 +338,19 @@
           changed_when: false
           failed_when: false
 
+        - name: Rescue - require Docker active after dependency detach
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rescue_docker_before_guard_stop.stdout | trim == 'active'
+            fail_msg: >-
+              Docker is not active after dependency detach. Leave the guard
+              table in place and stop rescue for manual reconciliation.
+
         - name: Rescue - stop nft guard after dependency detach
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             state: stopped
+          register: hbr_ac04_rescue_guard_stop
           failed_when: false
 
         - name: Rescue - verify Docker remained active after guard stop
@@ -350,6 +359,22 @@
           register: hbr_ac04_rescue_docker_after_guard_stop
           changed_when: false
           failed_when: false
+
+        - name: Rescue - verify guard is no longer active
+          ansible.builtin.command:
+            argv: [systemctl, is-active, "{{ hbr_ac04_guard_service }}"]
+          register: hbr_ac04_rescue_guard_after_stop
+          changed_when: false
+          failed_when: false
+
+        - name: Rescue - require safe service state before nft table removal
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rescue_docker_after_guard_stop.stdout | trim == 'active'
+              - hbr_ac04_rescue_guard_after_stop.stdout | trim != 'active'
+            fail_msg: >-
+              Docker/guard service state is not safe for nft table removal.
+              Preserve the guard table and stop rescue for manual reconciliation.
 
         - name: Rescue - destroy managed nft table idempotently
           ansible.builtin.command:
