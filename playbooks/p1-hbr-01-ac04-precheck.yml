@@ -39,58 +39,7 @@
           - hbr_ac04_docker_active.stdout | trim == 'active'
           - hbr_ac04_firewalld_active.stdout | trim == 'active'
           - hbr_ac04_ip_forward.stdout | trim == '1'
-          - hbr_ac04_nft_version is match('^[0-9]+\\.[0-9]+\\.[0-9]+          - hbr_ac04_forward_rules.stdout_lines | length >= 3
-          - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
-          - hbr_ac04_forward_rules.stdout_lines[1] == '-A FORWARD -j DOCKER-USER'
-          - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
-          - hbr_ac04_docker_user_rules.rc == 0
-          - hbr_ac04_docker_user_rules.stdout_lines == ['-N DOCKER-USER']
-          - hbr_ac04_host443_dnat_rules | length == 1
-          - hbr_ac04_ip6_host443_dnat_rules | length == 0
-          - hbr_ac04_host443_dnat_rules[0] is search('--to-destination [0-9.]+:8443')
-          - hbr_ac04_nft_guard.rc != 0
-          - not hbr_ac04_nft_file_stat.stat.exists
-          - not hbr_ac04_guard_unit_stat.stat.exists
-          - not hbr_ac04_existing_state.stat.exists
-          - hbr_ac04_guard_enabled.rc != 0
-          - hbr_ac04_guard_active.rc != 0
-          - hbr_ac04_guard_service not in (hbr_ac04_docker_requires.stdout.split() | default([]))
-          - hbr_ac04_runtime_generic.rc == 0
-          - hbr_ac04_permanent_generic.rc == 0
-          - "'https' not in hbr_ac04_runtime_services.stdout.split()"
-          - "'https' not in hbr_ac04_permanent_services.stdout.split()"
-          - >-
-            (hbr_ac04_runtime_rich.stdout_lines
-             | select('search', 'port port="443"')
-             | list | length) == 0
-          - >-
-            (hbr_ac04_permanent_rich.stdout_lines
-             | select('search', 'port port="443"')
-             | list | length) == 0
-          - hbr_ac04_zone_xml_stat.stat.exists
-        fail_msg: >-
-          Prestate differs from the reviewed discovery. Do not mutate; capture
-          and review a new read-only baseline first.
-
-    - name: Validate permanent firewalld configuration
-      ansible.builtin.command:
-        argv: [firewall-cmd, --check-config]
-      changed_when: false
-
-    - name: Print precheck verdict
-      ansible.builtin.debug:
-        msg:
-          change_id: "{{ hbr_ac04_change_id }}"
-          backend: "{{ hbr_ac04_backend }}"
-          host: "{{ inventory_hostname }}"
-          nft_version: "{{ hbr_ac04_nft_version }}"
-          nft_minimum_destroy_table: "1.0.6"
-          nft_guard: ABSENT
-          docker_forward_path: REVIEWED_BASELINE_PRESENT
-          host_443_dnat: "{{ hbr_ac04_host443_dnat_rules }}"
-          generic_input_443: PRESENT
-          verdict: PRECHECK_PASS_RUNTIME_NOT_CHANGED
-)
+          - hbr_ac04_nft_version | length > 0
           - hbr_ac04_nft_version is version('1.0.6', '>=')
           - hbr_ac04_forward_rules.stdout_lines | length >= 3
           - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
@@ -136,6 +85,8 @@
           change_id: "{{ hbr_ac04_change_id }}"
           backend: "{{ hbr_ac04_backend }}"
           host: "{{ inventory_hostname }}"
+          nft_version: "{{ hbr_ac04_nft_version }}"
+          nft_minimum_destroy_table: "1.0.6"
           nft_guard: ABSENT
           docker_forward_path: REVIEWED_BASELINE_PRESENT
           host_443_dnat: "{{ hbr_ac04_host443_dnat_rules }}"
