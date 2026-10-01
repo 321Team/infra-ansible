@@ -6,10 +6,12 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 VARS = (ROOT / "inventory/group_vars/harbor.yml").read_text()
-APPLY = (ROOT / "playbooks/p1-hbr-ac04-firewall-apply.yml").read_text()
-ROLLBACK = (ROOT / "playbooks/p1-hbr-ac04-firewall-rollback.yml").read_text()
+NFT = (ROOT / "templates/p1-hbr-ac04.nft.j2").read_text()
+UNIT = (ROOT / "files/p1-hbr-ac04-firewall.service").read_text()
 PRECHECK = (ROOT / "playbooks/p1-hbr-ac04-firewall-precheck.yml").read_text()
+APPLY = (ROOT / "playbooks/p1-hbr-ac04-firewall-apply.yml").read_text()
 VERIFY = (ROOT / "playbooks/p1-hbr-ac04-firewall-verify.yml").read_text()
+ROLLBACK = (ROOT / "playbooks/p1-hbr-ac04-firewall-rollback.yml").read_text()
 
 EXPECTED = {
     "10.250.10.20/32": "baseline",
@@ -26,7 +28,6 @@ records = re.findall(
 )
 actual = dict(records)
 assert actual == EXPECTED, (actual, EXPECTED)
-
 assert "p1_hbr_ac04_deny_probe_source: 10.1.93.26/32" in VARS
 assert "10.1.93.26/32" not in actual
 
@@ -37,27 +38,53 @@ for token in (
 ):
     assert token in APPLY, token
 
-assert "--reload" not in APPLY
-assert "--reload" not in ROLLBACK
+# Enforcement must be a dedicated nftables table before Docker's filter hook.
+for token in (
+    "table inet p1_hbr_ac04",
+    "hook forward priority -1",
+    "ct status dnat",
+    "ct original ip daddr 10.1.93.54",
+    "ct original proto-dst",
+    "ip saddr @allowed_v4",
+    "counter drop",
+):
+    assert token in NFT, token
 
-# Apply must stage source-specific allows before removing the broad generic port.
-for permanent in ("--permanent",):
-    pass
-assert APPLY.index("--add-rich-rule=") < APPLY.index("--remove-port=")
+# No approved IPv6 source exists, so forwarded published 443 IPv6 is denied.
+assert "meta nfproto ipv6" in NFT
+assert "deny IPv6" in NFT
 
-# Rollback must restore broad pre-change reachability before removing the
-# source-specific rules introduced by this change.
-assert ROLLBACK.index("--add-port=") < ROLLBACK.index("--remove-rich-rule=")
+# Persistence is ordered before Docker at boot and after firewalld.
+assert "Before=docker.service" in UNIT
+assert "After=firewalld.service" in UNIT
+assert "ExecStart=/usr/sbin/nft -f /etc/nftables/p1-hbr-ac04.nft" in UNIT
+assert "WantedBy=multi-user.target" in UNIT
+
+# The global Docker/firewalld integration mode must not be changed.
+for content in (APPLY, ROLLBACK):
+    assert "StrictForwardPorts=yes" not in content
+    assert "firewall-cmd --reload" not in content
+    assert "DOCKER-FORWARD" not in content
+    assert "DOCKER-USER -I" not in content
+    assert "iptables -I" not in content
+
+# Apply must activate and verify the guard before removing broad generic 443.
+assert APPLY.index("state: started") < APPLY.index("--remove-port=")
+assert APPLY.index("Read active managed nft table") < APPLY.index("--remove-port=")
+
+# Rollback restores broad pre-change reachability before removing the guard.
+assert ROLLBACK.index("--add-port=") < ROLLBACK.index("state: stopped")
 
 for content in (PRECHECK, APPLY, VERIFY, ROLLBACK):
     assert "hosts: harbor" in content
-    assert "ansible_host == '10.1.93.54'" in content or content is ROLLBACK
+    assert "ansible_host == '10.1.93.54'" in content
 
-assert "original-state.json" in APPLY
+assert "nft, -c, -f, -" in PRECHECK
 assert "PRESTATE_SHA256SUMS" in APPLY
 assert "PRESTATE_SHA256SUMS" in ROLLBACK
 assert "original_state.source_records == p1_hbr_ac04_sources" in ROLLBACK
 
 print("P1-HBR-AC04_FIREWALL_CONTRACT=PASS")
 print(f"APPROVED_SOURCE_COUNT={len(actual)}")
+print("ENFORCEMENT=NFT_FORWARD_PRIORITY_MINUS_1")
 print("DENY_PROBE=10.1.93.26/32")
