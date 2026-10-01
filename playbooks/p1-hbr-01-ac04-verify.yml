@@ -1,18 +1,74 @@
 ---
-# SAFETY HOLD (2026-10-01):
-# There is no approved FORWARD-path apply at this HEAD, so the previous
-# INPUT-only verifier must not emit a false PASS.
-- name: P1-HBR-01 AC-04 verify safety hold
-  hosts: localhost
-  connection: local
-  gather_facts: false
+- name: P1-HBR-01 AC-04 verify DOCKER-USER source allowlist
+  hosts: hbr
+  gather_facts: true
+  become: true
   any_errors_fatal: true
 
   tasks:
-    - name: Refuse obsolete INPUT-only verification
-      ansible.builtin.fail:
-        msg: >-
-          NOT RUN: no approved AC-04 FORWARD-path remediation exists at this
-          HEAD. The previous INPUT/public-zone verifier was invalid for Docker
-          published Harbor 443. Review forward discovery and implement the
-          actual enforcement-path verifier before Runtime acceptance.
+    - name: Observe INPUT/public-zone surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker FORWARD enforcement surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Validate permanent firewalld configuration
+      ansible.builtin.command:
+        argv: [firewall-cmd, --check-config]
+      changed_when: false
+
+    - name: Verify managed DOCKER-USER contract
+      ansible.builtin.command:
+        argv: ["{{ hbr_ac04_filter_script }}", verify]
+      register: hbr_ac04_script_verify
+      changed_when: false
+
+    - name: Assert service persistence state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_filter_enabled.rc == 0
+          - hbr_ac04_filter_enabled.stdout | trim == 'enabled'
+          - hbr_ac04_filter_active.rc == 0
+          - hbr_ac04_filter_active.stdout | trim == 'active'
+          - hbr_ac04_filter_script_stat.stat.exists
+          - hbr_ac04_filter_unit_stat.stat.exists
+        fail_msg: DOCKER-USER persistence service is not enabled and active.
+
+    - name: Assert exact enforcement and supplementary INPUT state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_script_verify.rc == 0
+          - hbr_ac04_forward_rules.stdout_lines | length >= 3
+          - hbr_ac04_forward_rules.stdout_lines[1] == '-A FORWARD -j DOCKER-USER'
+          - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
+          - hbr_ac04_fds_jump_rules | length == 1
+          - hbr_ac04_docker_user_rules.stdout_lines | length >= 2
+          - hbr_ac04_docker_user_rules.stdout_lines[1] is search('-j ' ~ hbr_ac04_chain)
+          - hbr_ac04_managed_chain.rc == 0
+          - hbr_ac04_host443_dnat_rules | length == 1
+          - hbr_ac04_runtime_generic.rc == 1
+          - hbr_ac04_permanent_generic.rc == 1
+          - "'https' not in hbr_ac04_runtime_services.stdout.split()"
+          - "'https' not in hbr_ac04_permanent_services.stdout.split()"
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"') | list | sort)
+            == (hbr_ac04_expected_rules | sort)
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"') | list | sort)
+            == (hbr_ac04_expected_rules | sort)
+        fail_msg: >-
+          AC-04 configuration verification failed. Do not start Runtime
+          traffic acceptance tests.
+
+    - name: Print verify verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          docker_user_chain: "{{ hbr_ac04_chain }}"
+          source_rules: "{{ hbr_ac04_sources | map(attribute='address') | list }}"
+          generic_input_443: ABSENT
+          runtime_traffic_tests: REQUIRED
+          verdict: CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING
