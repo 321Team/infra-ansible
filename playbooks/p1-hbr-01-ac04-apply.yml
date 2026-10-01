@@ -1,22 +1,353 @@
 ---
-# SAFETY HOLD (2026-10-01):
-# The original INPUT-only implementation is intentionally disabled.
-# Harbor HTTPS is Docker-published and traverses DNAT/FORWARD/DOCKER-USER.
-# Do not restore the old implementation. Rebuild apply only after the
-# read-only forward discovery is reviewed and the enforcement path is fixed.
-- name: P1-HBR-01 AC-04 apply safety hold
+- name: P1-HBR-01 AC-04 Runtime authorization gate
   hosts: localhost
   connection: local
   gather_facts: false
   any_errors_fatal: true
 
   tasks:
-    - name: Refuse Runtime mutation until FORWARD enforcement design is reviewed
-      ansible.builtin.fail:
-        msg: >-
-          NOT RUN: P1-HBR-01 AC-04 INPUT-only remediation was rejected.
-          Harbor 443 follows PREROUTING DNAT -> FORWARD -> DOCKER-USER ->
-          DOCKER-FORWARD -> DOCKER. Run and review
-          playbooks/p1-hbr-01-ac04-forward-discover.yml first, then replace
-          this safety hold with the independently reviewed FORWARD-path
-          implementation. Runtime firewall mutation is prohibited at this HEAD.
+    - name: Require reviewed change, UI fallback and change-window attestations
+      ansible.builtin.assert:
+        that:
+          - (hbr_ac04_change_approved | default('')) == 'P1-HBR-01-AC04'
+          - (hbr_ac04_ui_fallback_confirmed | default('')) == 'P1-HBR-01-AC04'
+          - (hbr_ac04_change_window_confirmed | default('')) == 'P1-HBR-01-AC04'
+        fail_msg: >-
+          NOT RUN. Runtime apply requires exact-HEAD review approval,
+          confirmed control01 Harbor UI fallback, and an approved non-overlap
+          change window.
+
+- name: P1-HBR-01 AC-04 apply DOCKER-USER source allowlist
+  hosts: hbr
+  gather_facts: true
+  become: true
+  serial: 1
+  any_errors_fatal: true
+
+  tasks:
+    - name: Observe INPUT/public-zone surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker FORWARD enforcement surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Check for existing AC-04 change state
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_existing_state
+
+    - name: Fail closed unless exact reviewed prestate is still present
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_backend == 'docker-user'
+          - hbr_ac04_docker_active.stdout | trim == 'active'
+          - hbr_ac04_ip_forward.stdout | trim == '1'
+          - hbr_ac04_forward_rules.stdout_lines | length >= 3
+          - hbr_ac04_forward_rules.stdout_lines[0] == '-P FORWARD DROP'
+          - hbr_ac04_forward_rules.stdout_lines[1] == '-A FORWARD -j DOCKER-USER'
+          - hbr_ac04_forward_rules.stdout_lines[2] == '-A FORWARD -j DOCKER-FORWARD'
+          - hbr_ac04_docker_user_rules.stdout_lines == ['-N DOCKER-USER']
+          - hbr_ac04_managed_chain.rc != 0
+          - hbr_ac04_fds_jump_rules | length == 0
+          - hbr_ac04_host443_dnat_rules | length == 1
+          - hbr_ac04_host443_dnat_rules[0] is search('--to-destination [0-9.]+:8443')
+          - hbr_ac04_runtime_generic.rc == 0
+          - hbr_ac04_permanent_generic.rc == 0
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - not hbr_ac04_filter_script_stat.stat.exists
+          - not hbr_ac04_filter_unit_stat.stat.exists
+          - not hbr_ac04_existing_state.stat.exists
+          - hbr_ac04_zone_xml_stat.stat.exists
+        fail_msg: >-
+          Prestate drifted after review. Runtime mutation is prohibited until
+          a new read-only capture is reviewed.
+
+    - name: Capture KST prestate timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_captured_at
+      changed_when: false
+
+    - name: Create root-owned state directory
+      ansible.builtin.file:
+        path: "{{ hbr_ac04_state_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Preserve original public zone XML
+      ansible.builtin.copy:
+        src: "{{ hbr_ac04_zone_xml }}"
+        dest: "{{ hbr_ac04_state_dir }}/original-public.xml"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Hash preserved public zone XML
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-public.xml"
+        checksum_algorithm: sha256
+      register: hbr_ac04_original_zone_copy
+
+    - name: Preserve filter table source
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/iptables-filter-before.txt"
+        content: "{{ hbr_ac04_filter_save.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Preserve NAT table source
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/iptables-nat-before.txt"
+        content: "{{ hbr_ac04_nat_save.stdout }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Build immutable original-state record
+      ansible.builtin.set_fact:
+        hbr_ac04_original_state:
+          schema: 2
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          captured_at_kst: "{{ hbr_ac04_captured_at.stdout | trim }}"
+          inventory_hostname: "{{ inventory_hostname }}"
+          ansible_hostname: "{{ ansible_hostname }}"
+          address: "{{ ansible_default_ipv4.address }}"
+          zone: "{{ hbr_ac04_zone }}"
+          interface: "{{ hbr_ac04_interface }}"
+          host_ip: "{{ hbr_ac04_host_ip }}"
+          docker_service: "{{ hbr_ac04_docker_service }}"
+          forward_rules: "{{ hbr_ac04_forward_rules.stdout_lines }}"
+          docker_user_rules: "{{ hbr_ac04_docker_user_rules.stdout_lines }}"
+          docker_nat_rules: "{{ hbr_ac04_docker_nat.stdout_lines }}"
+          runtime_ports: "{{ hbr_ac04_runtime_ports.stdout.split() }}"
+          permanent_ports: "{{ hbr_ac04_permanent_ports.stdout.split() }}"
+          runtime_services: "{{ hbr_ac04_runtime_services.stdout.split() }}"
+          permanent_services: "{{ hbr_ac04_permanent_services.stdout.split() }}"
+          runtime_rich_rules: "{{ hbr_ac04_runtime_rich.stdout_lines }}"
+          permanent_rich_rules: "{{ hbr_ac04_permanent_rich.stdout_lines }}"
+          original_public_xml_sha256: "{{ hbr_ac04_original_zone_copy.stat.checksum }}"
+          filter_script_existed: "{{ hbr_ac04_filter_script_stat.stat.exists }}"
+          filter_unit_existed: "{{ hbr_ac04_filter_unit_stat.stat.exists }}"
+          approved_sources: "{{ hbr_ac04_sources }}"
+          denied_same_l2_source: "{{ hbr_ac04_denied_same_l2_source }}"
+          mgmt_negative_source: "{{ hbr_ac04_mgmt_negative_source }}"
+
+    - name: Write immutable original-state record
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/original-state.json"
+        content: "{{ hbr_ac04_original_state | to_nice_json }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Render managed DOCKER-USER filter script
+      ansible.builtin.template:
+        src: ../templates/p1-hbr-01-ac04-filter.sh.j2
+        dest: "{{ hbr_ac04_filter_script }}"
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Validate managed filter shell syntax before mutation
+      ansible.builtin.command:
+        argv: [bash, -n, "{{ hbr_ac04_filter_script }}"]
+      changed_when: false
+
+    - name: Render lifecycle persistence unit
+      ansible.builtin.template:
+        src: ../templates/p1-hbr-01-ac04-filter.service.j2
+        dest: "{{ hbr_ac04_filter_unit }}"
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Reload systemd unit metadata only
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+
+    - name: Apply reviewed firewall contract
+      block:
+        - name: Enable and start DOCKER-USER persistence unit
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_filter_service }}"
+            enabled: true
+            state: started
+
+        - name: Verify DOCKER-USER rules immediately
+          ansible.builtin.command:
+            argv: ["{{ hbr_ac04_filter_script }}", verify]
+          register: hbr_ac04_script_verify_initial
+          changed_when: false
+
+        - name: Add permanent INPUT 443 source rules as supplementary hardening
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+
+        - name: Add runtime INPUT 443 source rules as supplementary hardening
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+
+        - name: Remove permanent generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-port={{ hbr_ac04_generic_port }}"
+
+        - name: Remove runtime generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-port={{ hbr_ac04_generic_port }}"
+
+        - name: Validate permanent firewalld configuration
+          ansible.builtin.command:
+            argv: [firewall-cmd, --check-config]
+          changed_when: false
+
+        - name: Re-observe INPUT/public-zone surface
+          ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+        - name: Re-observe Docker FORWARD enforcement surface
+          ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+        - name: Verify managed filter script after complete apply
+          ansible.builtin.command:
+            argv: ["{{ hbr_ac04_filter_script }}", verify]
+          register: hbr_ac04_script_verify_final
+          changed_when: false
+
+        - name: Assert complete applied configuration
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_script_verify_final.rc == 0
+              - hbr_ac04_fds_jump_rules | length == 1
+              - hbr_ac04_docker_user_rules.stdout_lines | length >= 2
+              - hbr_ac04_docker_user_rules.stdout_lines[1] is search('-j ' ~ hbr_ac04_chain)
+              - hbr_ac04_managed_chain.rc == 0
+              - hbr_ac04_runtime_generic.rc == 1
+              - hbr_ac04_permanent_generic.rc == 1
+              - >-
+                (hbr_ac04_runtime_rich.stdout_lines
+                 | select('search', 'port port="443"') | list | sort)
+                == (hbr_ac04_expected_rules | sort)
+              - >-
+                (hbr_ac04_permanent_rich.stdout_lines
+                 | select('search', 'port port="443"') | list | sort)
+                == (hbr_ac04_expected_rules | sort)
+              - hbr_ac04_host443_dnat_rules | length == 1
+            fail_msg: Applied state does not match the reviewed AC-04 contract.
+
+      rescue:
+        - name: Rescue - restore permanent generic INPUT 443 first
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+          failed_when: false
+
+        - name: Rescue - restore runtime generic INPUT 443
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--add-port={{ hbr_ac04_generic_port }}"
+          failed_when: false
+
+        - name: Rescue - remove permanent supplementary rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - --permanent
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Rescue - remove runtime supplementary rich rules
+          ansible.builtin.command:
+            argv:
+              - firewall-cmd
+              - "--zone={{ hbr_ac04_zone }}"
+              - "--remove-rich-rule={{ item }}"
+          loop: "{{ hbr_ac04_expected_rules }}"
+          failed_when: false
+
+        - name: Rescue - stop and disable managed filter service
+          ansible.builtin.systemd_service:
+            name: "{{ hbr_ac04_filter_service }}"
+            state: stopped
+            enabled: false
+          failed_when: false
+
+        - name: Rescue - explicitly remove managed DOCKER-USER rules
+          ansible.builtin.command:
+            argv: ["{{ hbr_ac04_filter_script }}", remove]
+          failed_when: false
+          changed_when: false
+
+        - name: Rescue - remove managed unit
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_filter_unit }}"
+            state: absent
+
+        - name: Rescue - remove managed filter script
+          ansible.builtin.file:
+            path: "{{ hbr_ac04_filter_script }}"
+            state: absent
+
+        - name: Rescue - reload systemd metadata
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+
+        - name: Stop after best-effort rescue
+          ansible.builtin.fail:
+            msg: >-
+              AC-04 apply failed. Generic INPUT 443 restoration and managed
+              DOCKER-USER removal were attempted. Run the reviewed rollback
+              against preserved state before any retry.
+
+    - name: Capture KST apply completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: hbr_ac04_applied_at
+      changed_when: false
+
+    - name: Write apply marker
+      ansible.builtin.copy:
+        dest: "{{ hbr_ac04_state_dir }}/applied.txt"
+        content: |
+          change_id={{ hbr_ac04_change_id }}
+          backend={{ hbr_ac04_backend }}
+          applied_at_kst={{ hbr_ac04_applied_at.stdout | trim }}
+          host={{ inventory_hostname }}
+          docker_user_chain={{ hbr_ac04_chain }}
+          approved_sources={{ hbr_ac04_sources | map(attribute='address') | join(',') }}
+          generic_input_443=REMOVED
+          firewalld_reload=NOT_USED
+        owner: root
+        group: root
+        mode: "0600"
