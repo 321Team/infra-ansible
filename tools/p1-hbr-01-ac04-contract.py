@@ -83,6 +83,9 @@ for gate in (
 
 require("schema: 3" in apply, "apply prestate schema must be 3")
 require("nft-ruleset-before.txt" in apply, "nft prestate source not preserved")
+require("PRESTATE_SHA256SUMS" in apply, "prestate SHA256 seal missing from apply")
+require(apply.find("PRESTATE_SHA256SUMS") < apply.find("Render dedicated nft guard"), "prestate must be sealed before guard rendering")
+require("PRESTATE_SHA256SUMS" in rollback, "rollback does not verify prestate SHA256 seal")
 require("nft -c" not in apply or "hbr_ac04_nft_file" in apply, "nft check must target managed source")
 require("hbr_ac04_guard_service" in apply, "guard service not applied")
 require("Assert fail-closed boot ordering before INPUT hardening" in apply,
