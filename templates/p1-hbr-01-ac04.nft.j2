@@ -1,21 +1,24 @@
-# Managed by infra-ansible for P1-HBR-01 AC-04.
-# Dedicated FORWARD enforcement for Docker-published Harbor TCP/443.
-# Docker/firewalld-owned tables and chains are intentionally not modified.
-table inet p1_hbr_ac04 {
-  set allowed_v4 {
-    type ipv4_addr
-    flags interval
-    elements = {
-{% for source in hbr_ac04_sources %}
-      {{ source.address }}{{ "," if not loop.last else "" }}
+# Managed by P1-HBR-01 AC-04. Do not edit manually.
+# Atomic replace: destroy is idempotent and the nft -f batch is transactional.
+destroy table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}
+
+table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }} {
+    set approved_v4 {
+        type ipv4_addr
+        elements = {
+{% for item in hbr_ac04_sources %}
+            {{ item.address }}{% if not loop.last %},{% endif %}
 {% endfor %}
+        }
     }
-  }
 
-  chain forward_guard {
-    type filter hook forward priority -1; policy accept;
+    chain {{ hbr_ac04_nft_chain }} {
+        type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;
 
-    iifname "{{ hbr_ac04_interface }}" ct status dnat meta nfproto ipv4 ct original ip daddr 10.1.93.54 meta l4proto tcp ct original proto-dst {{ hbr_ac04_port }} ip saddr @allowed_v4 counter accept comment "{{ hbr_ac04_change_id }} allow approved IPv4"
-    iifname "{{ hbr_ac04_interface }}" ct status dnat meta nfproto ipv4 ct original ip daddr 10.1.93.54 meta l4proto tcp ct original proto-dst {{ hbr_ac04_port }} counter drop comment "{{ hbr_ac04_change_id }} deny unapproved IPv4"
-  }
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             ip saddr @approved_v4             counter accept             comment "P1-HBR-01-AC04 approved IPv4"
+
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny unapproved IPv4"
+
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv6             ct status dnat             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny IPv6 published 443"
+    }
 }
