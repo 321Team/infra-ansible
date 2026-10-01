@@ -111,28 +111,32 @@
   ansible.builtin.set_fact:
     hbr_ac04_nft_expected_meta: >-
       type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;
+    # nftables v1.1.5 canonical list output captured on ansible01 with the
+    # same version as harbor01. The parser compares the post-list form, not
+    # the input source aliases (dnat/tcp/ipv4/ipv6).
     hbr_ac04_nft_expected_rules:
       - >-
-        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4
-        ct status dnat
+        iifname "{{ hbr_ac04_interface }}"
+        ct status 0x20
         ct original ip daddr {{ hbr_ac04_host_ip }}
-        ct original protocol tcp
+        ct protocol 6
         ct original proto-dst {{ hbr_ac04_port }}
         ip saddr @approved_v4
         counter accept
         comment "P1-HBR-01-AC04 approved IPv4"
       - >-
-        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4
-        ct status dnat
+        iifname "{{ hbr_ac04_interface }}"
+        ct status 0x20
         ct original ip daddr {{ hbr_ac04_host_ip }}
-        ct original protocol tcp
+        ct protocol 6
         ct original proto-dst {{ hbr_ac04_port }}
         counter drop
         comment "P1-HBR-01-AC04 deny unapproved IPv4"
       - >-
-        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv6
-        ct status dnat
-        ct original protocol tcp
+        iifname "{{ hbr_ac04_interface }}"
+        meta nfproto 10
+        ct status 0x20
+        ct protocol 6
         ct original proto-dst {{ hbr_ac04_port }}
         counter drop
         comment "P1-HBR-01-AC04 deny IPv6 published 443"
@@ -151,6 +155,7 @@
   ansible.builtin.assert:
     that:
       - hbr_ac04_nft_check.rc == 0
+      - hbr_ac04_nft_version in hbr_ac04_nft_supported_versions
       - hbr_ac04_nft_table_set_count | int == 1
       - hbr_ac04_nft_table_chain_count | int == 1
       - hbr_ac04_nft_table_live.stdout is search('set approved_v4')
