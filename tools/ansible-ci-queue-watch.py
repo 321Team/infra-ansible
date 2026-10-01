@@ -155,6 +155,9 @@ def classify(
         classification = "UNRECOGNIZED_JOB_STATUS"
     elif online_matching:
         classification = "QUEUED_WITH_MATCHING_RUNNER_ONLINE"
+    elif matching:
+        classification = "MATCHING_RUNNER_OFFLINE"
+        action_required = True
     elif age_minutes is None:
         classification = "QUEUED_AGE_UNKNOWN"
     elif age_minutes < threshold_minutes:
