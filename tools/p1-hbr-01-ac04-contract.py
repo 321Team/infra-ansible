@@ -113,6 +113,27 @@ for token in (
 ):
     require(token in nft_verify, f"live nft verifier missing: {token}")
 
+for token in (
+    "hbr_ac04_nft_table_set_count",
+    "hbr_ac04_nft_table_chain_count",
+    "hbr_ac04_nft_chain_meta_lines",
+    "hbr_ac04_nft_rule_lines_normalized",
+    "hbr_ac04_nft_expected_rules_normalized",
+    "Extra objects or rules, rule reordering, expression drift",
+):
+    require(token in nft_verify, f"exact live nft verifier missing: {token}")
+
+require("hbr_ac04_nft_rule_lines_normalized | length == 3" in nft_verify,
+        "live nft verifier must require exactly three rules")
+require("hbr_ac04_nft_table_set_count | int == 1" in nft_verify,
+        "live nft verifier must reject extra managed sets")
+require("hbr_ac04_nft_table_chain_count | int == 1" in nft_verify,
+        "live nft verifier must reject extra managed chains")
+require("== hbr_ac04_nft_expected_rules_normalized" in nft_verify,
+        "live nft verifier must compare ordered canonical rules exactly")
+require("counter packets [0-9]+ bytes [0-9]+" in nft_verify,
+        "live nft verifier must normalize volatile counters")
+
 old_script = read("templates/p1-hbr-01-ac04-filter.sh.j2")
 old_unit = read("templates/p1-hbr-01-ac04-filter.service.j2")
 require("REJECTED_BACKEND" in old_script and "exit 64" in old_script,
