@@ -173,6 +173,22 @@
         group: root
         mode: "0600"
 
+    - name: Seal prestate hashes before any firewall mutation
+      ansible.builtin.shell: |
+        cd {{ hbr_ac04_state_dir | quote }}
+        sha256sum original-state.json original-public.xml iptables-filter-before.txt iptables-nat-before.txt nft-ruleset-before.txt > PRESTATE_SHA256SUMS
+        sha256sum -c PRESTATE_SHA256SUMS
+      args:
+        executable: /bin/bash
+      register: hbr_ac04_prestate_hash
+      changed_when: true
+
+    - name: Require valid sealed prestate
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_hash.rc == 0
+        fail_msg: Prestate hash seal failed. Do not proceed to firewall mutation.
+
     - name: Render dedicated nft guard
       ansible.builtin.template:
         src: ../templates/p1-hbr-01-ac04.nft.j2
