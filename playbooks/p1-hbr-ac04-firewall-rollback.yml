@@ -122,6 +122,12 @@
           - (runtime_443_after.rc == 0) == (original_state.runtime_generic_443_before | bool)
           - (permanent_443_after.rc == 0) == (original_state.permanent_generic_443_before | bool)
 
+    - name: Capture exact rollback completion timestamp
+      ansible.builtin.command:
+        argv: [date, --iso-8601=seconds]
+      register: rollback_timestamp
+      changed_when: false
+
     - name: Save rollback completion marker
       ansible.builtin.copy:
         dest: "{{ p1_hbr_ac04_state_dir }}/ROLLED_BACK.json"
@@ -132,7 +138,7 @@
           {{
             {
               'change_id': p1_hbr_ac04_change_id,
-              'rolled_back_at': ansible_date_time.iso8601,
+              'rolled_back_at': rollback_timestamp.stdout | trim,
               'generic_443_restored': true,
               'managed_nft_table_removed': true
             } | to_nice_json
