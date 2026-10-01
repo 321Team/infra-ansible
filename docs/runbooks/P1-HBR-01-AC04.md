@@ -52,6 +52,12 @@ The .50 and .102 entries are temporary exceptions, not baseline expansion.
 - Never edit firewalld-owned nft tables directly.
 - Do not enable global `StrictForwardPorts` for this change.
 - Do not call `firewall-cmd --reload`.
+- While the guard is enabled as `RequiredBy=docker.service`, do not stop or
+  restart the guard directly. Disable the dependency, run `daemon-reload`,
+  then stop the guard.
+- While the guard declares `Requires=firewalld.service`, do not stop or
+  restart firewalld as part of AC-04. Such a lifecycle operation can propagate
+  through the dependency graph and requires a separately reviewed procedure.
 - Do not use TLS verification bypass.
 - Code merge is not Runtime approval.
 - Configuration verify is not AC-04 acceptance.
@@ -134,6 +140,8 @@ Required marker:
 Precheck requires the reviewed baseline to remain unchanged:
 
 - Docker/firewalld active;
+- `nft --version` parses as semantic version and is at least `1.0.6`
+  because rollback/rescue uses `nft destroy table`;
 - IPv4 forwarding enabled;
 - FORWARD begins with DOCKER-USER then DOCKER-FORWARD;
 - DOCKER-USER still empty;
@@ -189,8 +197,11 @@ Mutation order:
 
 No INPUT rich rule is added in the final design.
 
-On apply failure, rescue restores generic INPUT 443 first, disables/removes the
-guard and fails the play. Preserved prestate remains for reviewed rollback.
+On apply failure, rescue restores generic INPUT 443 first. It then disables
+the guard dependency, runs systemd daemon-reload, confirms Docker is still
+active, stops the guard, destroys only the managed nft table, and removes the
+managed files. The rescue path never intentionally stops/restarts Docker or
+firewalld. Preserved prestate remains for reviewed rollback.
 
 ## 8. Configuration verify
 
@@ -254,14 +265,21 @@ ansible-playbook   -i inventory/hbr.yml   playbooks/p1-hbr-01-ac04-rollback.yml 
 
 Rollback order is outage-safe:
 
-1. restore permanent generic INPUT 443;
-2. restore runtime generic INPUT 443;
-3. validate firewalld;
-4. stop/disable guard;
-5. destroy only `inet p1_hbr_ac04`;
-6. remove managed unit/nft source;
-7. reload systemd metadata;
-8. verify Docker/firewalld surface equals captured prestate.
+1. verify the sealed prestate and require nftables >= 1.0.6;
+2. restore permanent generic INPUT 443;
+3. restore runtime generic INPUT 443;
+4. validate firewalld;
+5. disable the Docker guard dependency;
+6. run systemd daemon-reload;
+7. confirm Docker remains active;
+8. stop the guard only after dependency detach;
+9. confirm Docker remains active again;
+10. destroy only `inet p1_hbr_ac04`;
+11. remove managed unit/nft source;
+12. reload systemd metadata;
+13. verify Docker/firewalld surface equals captured prestate.
+
+Do not stop/restart firewalld while the guard dependency graph is active.
 
 Original evidence is retained.
 
