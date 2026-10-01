@@ -1,0 +1,77 @@
+---
+- name: Validate managed nft source syntax
+  ansible.builtin.command:
+    argv: [nft, -c, -f, "{{ hbr_ac04_nft_file }}"]
+  register: hbr_ac04_nft_check
+  changed_when: false
+
+- name: Read managed nft table
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - table
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+  register: hbr_ac04_nft_table_live
+  changed_when: false
+
+- name: Read managed approved IPv4 set
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - set
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+      - approved_v4
+  register: hbr_ac04_nft_set_live
+  changed_when: false
+
+- name: Read managed forward guard chain
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - chain
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+      - "{{ hbr_ac04_nft_chain }}"
+  register: hbr_ac04_nft_chain_live
+  changed_when: false
+
+- name: Extract managed approved IPv4 set
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_set_ips: >-
+      {{
+        hbr_ac04_nft_set_live.stdout
+        | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}')
+        | unique
+        | list
+      }}
+
+- name: Assert exact nft guard contract
+  ansible.builtin.assert:
+    that:
+      - hbr_ac04_nft_check.rc == 0
+      - hbr_ac04_nft_set_ips | sort == (hbr_ac04_sources | map(attribute='address') | list | sort)
+      - hbr_ac04_nft_chain_live.stdout is search('type filter hook forward priority -1; policy accept;')
+      - hbr_ac04_nft_chain_live.stdout is search('iifname "' ~ hbr_ac04_interface ~ '"')
+      - hbr_ac04_nft_chain_live.stdout is search('ct original ip daddr ' ~ hbr_ac04_host_ip)
+      - hbr_ac04_nft_chain_live.stdout is search('ct original proto-dst ' ~ (hbr_ac04_port | string))
+      - hbr_ac04_nft_chain_live.stdout is search('meta nfproto ipv4')
+      - hbr_ac04_nft_chain_live.stdout is search('ip saddr @approved_v4')
+      - hbr_ac04_nft_chain_live.stdout is search('P1-HBR-01-AC04 approved IPv4')
+      - hbr_ac04_nft_chain_live.stdout is search('P1-HBR-01-AC04 deny unapproved IPv4')
+      - hbr_ac04_nft_chain_live.stdout is search('meta nfproto ipv6')
+      - hbr_ac04_nft_chain_live.stdout is search('P1-HBR-01-AC04 deny IPv6 published 443')
+      - >-
+        (hbr_ac04_nft_chain_live.stdout
+         | regex_findall('comment "P1-HBR-01-AC04')
+         | length) == 3
+    fail_msg: >-
+      Managed nft guard does not match the reviewed IPv4 allow / IPv4 deny /
+      IPv6 deny contract.
