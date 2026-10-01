@@ -1,0 +1,15 @@
+[Unit]
+Description=FDS Harbor AC-04 fail-closed nftables guard
+After=firewalld.service
+Before=docker.service
+Requires=firewalld.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f {{ hbr_ac04_nft_file }}
+ExecStart=/usr/sbin/nft -n list table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}
+ExecStop=/usr/sbin/nft destroy table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}
+RemainAfterExit=yes
+
+[Install]
+RequiredBy=docker.service
