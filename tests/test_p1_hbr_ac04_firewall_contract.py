@@ -138,6 +138,14 @@ assert "ip6tables_after_rules" in VERIFY
 assert "Docker-managed iptables rules are unchanged" in VERIFY
 assert "sealed_prestate" in PRECHECK
 assert "sealed_prestate_before" in APPLY
+assert "state_dir" in PRECHECK
+assert "state_dir_before" in APPLY
+assert "prestate_timestamp.stdout" in APPLY
+assert "applied_timestamp.stdout" in APPLY
+assert "rollback_timestamp.stdout" in ROLLBACK
+assert "'captured_at': ansible_date_time.iso8601" not in APPLY
+assert "'applied_at': ansible_date_time.iso8601" not in APPLY
+assert "'rolled_back_at': ansible_date_time.iso8601" not in ROLLBACK
 
 print("P1-HBR-AC04_FIREWALL_CONTRACT=PASS")
 print(f"APPROVED_SOURCE_COUNT={len(actual)}")
