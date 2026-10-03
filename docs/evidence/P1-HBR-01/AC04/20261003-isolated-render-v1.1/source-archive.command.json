@@ -1,0 +1,9 @@
+[
+  "git",
+  "-C",
+  "/home/server01_ansible/p1-ans-01",
+  "archive",
+  "--format=tar",
+  "--output=/home/server01_ansible/hbr-ac04-render-2ri8mdbn/source.tar",
+  "badbe29440916ec3ec79da8fc81722c2e6c4e75b"
+]

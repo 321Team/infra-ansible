@@ -1,0 +1,151 @@
+{
+    "_meta": {
+        "hostvars": {
+            "harbor01": {
+                "ansible_host": "10.1.93.54",
+                "ansible_python_interpreter": "/usr/bin/python3",
+                "ansible_ssh_common_args": "-o StrictHostKeyChecking=yes -o UserKnownHostsFile=%d/.ssh/known_hosts -o IdentitiesOnly=yes",
+                "ansible_user": "svc_ansible",
+                "bootstrap_host_records": [
+                    {
+                        "fqdn": "k8s-control01.fds.internal",
+                        "hostname": "k8s-control01",
+                        "ip": "10.1.93.102"
+                    },
+                    {
+                        "fqdn": "k8s-control02.fds.internal",
+                        "hostname": "k8s-control02",
+                        "ip": "10.1.93.103"
+                    },
+                    {
+                        "fqdn": "k8s-control03.fds.internal",
+                        "hostname": "k8s-control03",
+                        "ip": "10.1.93.104"
+                    },
+                    {
+                        "fqdn": "k8s-worker01.fds.internal",
+                        "hostname": "k8s-worker01",
+                        "ip": "10.1.93.105"
+                    },
+                    {
+                        "fqdn": "k8s-worker02.fds.internal",
+                        "hostname": "k8s-worker02",
+                        "ip": "10.1.93.107"
+                    },
+                    {
+                        "fqdn": "k8s-worker03.fds.internal",
+                        "hostname": "k8s-worker03",
+                        "ip": "10.1.93.108"
+                    }
+                ],
+                "cr_dns_change_id": "CR-P1-ANS-01-01",
+                "cr_dns_expected_address": "10.1.93.109",
+                "cr_dns_external_name": "github.com",
+                "cr_dns_internal_name": "k8s-api.fds.internal",
+                "cr_dns_search_domains": [
+                    "fds.internal"
+                ],
+                "cr_dns_servers": [
+                    "10.1.93.52",
+                    "10.1.93.53"
+                ],
+                "cr_dns_short_name": "k8s-api",
+                "cr_dns_state_dir": "/var/lib/fds-change/CR-P1-ANS-01-01",
+                "cr_mon_allowed_domains": [
+                    "discord.com"
+                ],
+                "cr_mon_change_id": "CR-P1-MON-01-01",
+                "cr_mon_proxy_allowed_clients": [
+                    "10.1.93.105",
+                    "10.1.93.107",
+                    "10.1.93.108"
+                ],
+                "cr_mon_state_dir": "/var/lib/fds-change/CR-P1-MON-01-01",
+                "cr_ntp_change_id": "CR-P1-NTP-01-01",
+                "cr_ntp_client_ips": [
+                    "10.1.93.103",
+                    "10.1.93.104",
+                    "10.1.93.105",
+                    "10.1.93.107",
+                    "10.1.93.108"
+                ],
+                "cr_ntp_dropin_path": "/etc/chrony.d/50-cr-p1-ntp-01-01.conf",
+                "cr_ntp_migrate_main": false,
+                "cr_ntp_offset_max_ms": 100,
+                "cr_ntp_source_host": "k8s-control01",
+                "cr_ntp_source_ip": "10.1.93.102",
+                "cr_ntp_source_upstreams": [],
+                "cr_ntp_state_dir": "/var/lib/fds-change/CR-P1-NTP-01-01",
+                "expected_hostname": "harbor01",
+                "hbr_ac04_backend": "nftables-guard",
+                "hbr_ac04_change_id": "P1-HBR-01-AC04",
+                "hbr_ac04_denied_same_l2_source": "10.1.93.26",
+                "hbr_ac04_docker_service": "docker.service",
+                "hbr_ac04_generic_port": "443/tcp",
+                "hbr_ac04_guard_service": "fds-harbor-ac04-guard.service",
+                "hbr_ac04_guard_unit": "/etc/systemd/system/fds-harbor-ac04-guard.service",
+                "hbr_ac04_host_ip": "10.1.93.54",
+                "hbr_ac04_interface": "ens160",
+                "hbr_ac04_mgmt_negative_source": "10.250.10.10",
+                "hbr_ac04_nft_chain": "forward_guard",
+                "hbr_ac04_nft_family": "inet",
+                "hbr_ac04_nft_file": "/etc/p1-hbr-ac04.nft",
+                "hbr_ac04_nft_priority": -1,
+                "hbr_ac04_nft_supported_versions": [
+                    "1.1.5"
+                ],
+                "hbr_ac04_nft_table": "p1_hbr_ac04",
+                "hbr_ac04_port": 443,
+                "hbr_ac04_protocol": "tcp",
+                "hbr_ac04_sources": [
+                    {
+                        "address": "10.250.10.20",
+                        "classification": "BASELINE_ALLOW",
+                        "owner": "cicd-runner01"
+                    },
+                    {
+                        "address": "10.1.93.105",
+                        "classification": "BASELINE_ALLOW",
+                        "owner": "k8s-worker01"
+                    },
+                    {
+                        "address": "10.1.93.107",
+                        "classification": "BASELINE_ALLOW",
+                        "owner": "k8s-worker02"
+                    },
+                    {
+                        "address": "10.1.93.108",
+                        "classification": "BASELINE_ALLOW",
+                        "owner": "k8s-worker03"
+                    },
+                    {
+                        "address": "10.1.93.50",
+                        "classification": "TEMP_EXCEPTION",
+                        "expiry_condition": "Remove after edge01 migration completes and robot$fds-ci cleanup is complete; record removal in P1-HBR-01 and re-run same-L2 negative test.",
+                        "owner": "edge01"
+                    },
+                    {
+                        "address": "10.1.93.102",
+                        "classification": "TEMP_MANAGEMENT_EXCEPTION",
+                        "expiry_condition": "Remove after IF-09 Runner production Push path is active and remaining HBR candidate push/scan/manual management work is complete; record removal in P1-HBR-01 and re-run same-L2 negative test.",
+                        "owner": "k8s-control01"
+                    }
+                ],
+                "hbr_ac04_state_dir": "/var/lib/fds-change/P1-HBR-01-AC04",
+                "hbr_ac04_zone": "public",
+                "hbr_ac04_zone_xml": "/etc/firewalld/zones/public.xml"
+            }
+        }
+    },
+    "all": {
+        "children": [
+            "ungrouped",
+            "hbr"
+        ]
+    },
+    "hbr": {
+        "hosts": [
+            "harbor01"
+        ]
+    }
+}

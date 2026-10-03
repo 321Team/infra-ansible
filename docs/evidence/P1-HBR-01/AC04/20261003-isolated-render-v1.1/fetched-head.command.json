@@ -1,0 +1,7 @@
+[
+  "git",
+  "-C",
+  "/home/server01_ansible/p1-ans-01",
+  "rev-parse",
+  "FETCH_HEAD"
+]

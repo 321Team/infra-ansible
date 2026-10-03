@@ -1,0 +1,6 @@
+[
+  "python3",
+  "-I",
+  "-B",
+  "tools/p1-hbr-01-ac04-contract.py"
+]

@@ -1,0 +1,6 @@
+[
+  "ansible-inventory",
+  "-i",
+  "inventory/hbr.yml",
+  "--list"
+]

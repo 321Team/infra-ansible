@@ -1,0 +1,14 @@
+[
+  "ansible",
+  "localhost",
+  "-i",
+  "localhost,",
+  "-c",
+  "local",
+  "-m",
+  "ansible.builtin.template",
+  "-a",
+  "src=templates/p1-hbr-01-ac04.nft.j2 dest=/home/server01_ansible/hbr-ac04-render-2ri8mdbn/candidate.nft mode=0600",
+  "-e",
+  "@inventory/group_vars/hbr.yml"
+]

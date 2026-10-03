@@ -1,0 +1,17 @@
+[
+  "sudo",
+  "-n",
+  "unshare",
+  "--net",
+  "--",
+  "/usr/bin/python3",
+  "-I",
+  "-B",
+  "/home/server01_ansible/hbr-render-start.k4xsZlg6/FDS_HBR_AC04_PR63_Render_Probe_v1_1/isolated_capture.py",
+  "net:[4026531840]",
+  "/home/server01_ansible/hbr-ac04-render-2ri8mdbn/candidate.nft",
+  "cdc84effbb370ac394408294e21a4d3cbb67c3d69e93ea53e86667d4326cf5cc",
+  "/home/server01_ansible/hbr-ac04-render-2ri8mdbn/source/isolated-render-verify.yml",
+  "/home/server01_ansible/hbr-ac04-render-2ri8mdbn/source",
+  "/usr/bin/ansible-playbook"
+]

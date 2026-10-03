@@ -1,0 +1,8 @@
+[
+  "git",
+  "-C",
+  "/home/server01_ansible/p1-ans-01",
+  "fetch",
+  "origin",
+  "feat/p1-hbr-01-ac04-firewall-allowlist"
+]

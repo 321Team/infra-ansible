@@ -1,0 +1,18 @@
+localhost | CHANGED => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/bin/python3"
+    },
+    "changed": true,
+    "checksum": "3ae2a87c022dbd7fb30452b2e0ef8176f4c437ab",
+    "dest": "/home/server01_ansible/hbr-ac04-render-2ri8mdbn/candidate.nft",
+    "gid": 1000,
+    "group": "server01_ansible",
+    "md5sum": "0b155a55a0ff1382ee88aaed45f510ef",
+    "mode": "0600",
+    "owner": "server01_ansible",
+    "secontext": "unconfined_u:object_r:user_home_t:s0",
+    "size": 1316,
+    "src": "/home/server01_ansible/.ansible/tmp/ansible-tmp-1791029278.6672635-89043-176975872443835/source",
+    "state": "file",
+    "uid": 1000
+}

@@ -1,0 +1,18 @@
+{
+  "source_commit": "badbe29440916ec3ec79da8fc81722c2e6c4e75b",
+  "repository": "321Team/infra-ansible",
+  "host": "ansible01",
+  "started_at": "2026-10-03T12:07:56.289726+00:00",
+  "status": "ISOLATED_RENDER_VERIFIER_PASS",
+  "production_apply": false,
+  "engine_transition": false,
+  "scope": "current template render and actual verifier in isolated network namespace",
+  "kit_version": "1.1",
+  "nic_vip_client_review": "PENDING_APPLY_TIME_RECONFIRMATION",
+  "source_archive_sha256": "3e0b3ddd351df28962804e511a2a723cf0b9196f9dfb95400c1bef2aa0b55259",
+  "rendered_sha256": "cdc84effbb370ac394408294e21a4d3cbb67c3d69e93ea53e86667d4326cf5cc",
+  "parent_netns": "net:[4026531840]",
+  "live_output_verifier": "EXACT_HEAD_UNCHANGED_VERIFIER_PASS",
+  "finished_at": "2026-10-03T12:08:03.703293+00:00",
+  "rc": 0
+}

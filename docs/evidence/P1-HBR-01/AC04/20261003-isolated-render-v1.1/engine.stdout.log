@@ -1,0 +1,9 @@
+ansible-playbook [core 2.16.19]
+  config file = /home/server01_ansible/hbr-ac04-render-2ri8mdbn/source/ansible.cfg
+  configured module search path = ['/home/server01_ansible/hbr-ac04-render-2ri8mdbn/source/library']
+  ansible python module location = /usr/lib/python3.12/site-packages/ansible
+  ansible collection location = /home/server01_ansible/.ansible/collections:/usr/share/ansible/collections
+  executable location = /usr/bin/ansible-playbook
+  python version = 3.12.14 (main, Aug 13 2026, 00:00:00) [GCC 14.4.1 20260724 (Red Hat 14.4.1-3)] (/usr/bin/python3)
+  jinja version = 3.1.6
+  libyaml = True
