@@ -179,7 +179,7 @@
           async_status:
             jid: "{{ td_job.ansible_job_id }}"
           register: td_done
-          until: td_done.finished
+          until: td_done is finished
           retries: 15
           delay: 3
           failed_when: false
@@ -243,7 +243,7 @@
       assert:
         that:
           - hostvars[item].verdict is defined
-          - not ((hostvars[item].verdict | default({'failed': true})).failed | default(true))
+          - (hostvars[item].verdict.failed | default(true)) is false
         fail_msg: "{{ item }}: 판정 실패 또는 판정 자체가 생성되지 않음 (CHECK) — 이 실행은 최종 PASS로 보고하면 안 됨"
         success_msg: "{{ item }}: PASS"
       loop: "{{ groups['k8s_workers'] }}"
