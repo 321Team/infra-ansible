@@ -15,7 +15,9 @@ class P1SecB2ConditionalCompatTests(unittest.TestCase):
 
     def test_playbook_yaml_parses(self):
         docs = list(yaml.safe_load_all(self.source))
-        self.assertEqual(len(docs), 3)
+        self.assertEqual(len(docs), 1)
+        self.assertIsInstance(docs[0], list)
+        self.assertEqual(len(docs[0]), 3)
 
     def test_async_status_uses_finished_test(self):
         self.assertIn("until: td_done is finished", self.source)
