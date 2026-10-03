@@ -123,7 +123,9 @@ The verifier is fixture-backed. The reviewed capture under
 `tests/fixtures/p1_hbr_ac04/nftables-v1.1.5-list.txt` was produced in an
 isolated network namespace on ansible01 after confirming harbor01 and ansible01
 both report `nftables v1.1.5 (Commodore Bullmoose #6)`. The fixture records
-the actual `nft -n list table` / `list chain` canonical output:
+the captured `list table` / `list chain` canonical output (the fixture
+headers do not preserve the exact invocation flags; numeric `-n` equivalence
+must be confirmed with fresh runtime output):
 `ct status 0x20`, `ct protocol 6`, IPv4 nfproto elision, and
 `meta nfproto 10` for IPv6. `tests/test_p1_hbr_ac04_nft_fixture.py` must
 pass before Runtime apply. A nftables version outside the supported set is a
@@ -206,9 +208,12 @@ RequiredBy dependency, reloads systemd metadata, and requires Docker to remain
 active before guard stop. After guard stop it requires Docker to remain active
 and the guard to be inactive before destroying the managed nft table. Any
 service-state mismatch preserves the guard table and stops rescue for manual
-reconciliation. Preserved prestate remains for reviewed rollback. Because the
-guard Requires=firewalld.service, do not stop/restart firewalld while Docker
-depends on the guard.
+reconciliation. Preserved prestate remains for reviewed rollback. The guard
+has only `After=firewalld.service`; firewalld is not a required/lifecycle-bound
+dependency of the guard. Docker still requires the guard and guard stop must
+still follow dependency detach. Firewalld maintenance remains a separately
+reviewed operation: verify the dedicated nft table and traffic after maintenance;
+absence of lifecycle coupling is not Runtime persistence evidence.
 
 ## 8. Configuration verify
 
@@ -301,4 +306,64 @@ Until complete:
 `AC04=FAIL_BLOCKER / RUNTIME_CHANGE=NOT_PERFORMED`
 
 
-Operational dependency note: while Docker Requires the AC-04 guard and the guard Requires firewalld, do not stop or restart firewalld outside a separately reviewed maintenance path; dependency propagation can stop the guard/Docker chain.
+## 12. Review follow-up and partial-apply reconciliation
+
+The guard retains `After=firewalld.service`, `Before=docker.service`, and
+`RequiredBy=docker.service`. It must not contain `Requires`, `Requisite`,
+`BindsTo`, `PartOf`, `Wants`, or `Upholds` toward firewalld. Removing that
+coupling prevents introducing a firewalld lifecycle dependency into Docker;
+actual maintenance/persistence behavior still requires Runtime verification.
+
+### Failure before the apply block
+
+State capture, template rendering, `nft -c`, and initial daemon-reload precede
+the apply block. Failures there are not handled by its rescue. Do not retry
+apply, delete the state directory, edit the original record, or fabricate a
+completion marker. Preserve the original files, hashes, failed task/rc, and
+fresh read-only `systemctl show/is-active`, nft and Docker/firewalld observations.
+
+- With a complete sealed prestate, use the reviewed rollback path with explicit
+  rollback intent. It checks whether the managed unit exists and skips disable/
+  stop only when that unit has not yet been created. Dependency graph reload,
+  Docker active assertions, exact surface checks and evidence retention remain.
+- With an incomplete/missing prestate seal, rollback must stop. The Lead must
+  reconcile the partial files against independent pre-change captures and
+  authorize a scoped recovery plan. Never remove the dedicated table or state
+  solely to make apply rerunnable; preserve and archive the failed attempt.
+- Apply remains blocked by the existing original-state record until a separately
+  reviewed recovery/retry plan identifies how that attempt is retained and the
+  next attempt receives a new evidence binding.
+
+### Docker recreation during the change window
+
+Keep exact Docker/firewalld rule comparisons. If a container is recreated,
+stop acceptance and retain prestate plus current captures. Identify the event
+and compare every rule delta with the new container/network/IP identity and
+both timestamps. A successful table removal alone is not `ROLLED_BACK`.
+Do not weaken assertions or manually write `rolled-back.txt`. The Lead must
+review the reconciliation and authorize a new bound observation/test plan.
+The AC-04 window must not overlap Harbor recreation, HA drain/rebalance,
+registry-sync or monitoring rollout that changes clients/enforcement state.
+
+### Apply-time assumptions requiring renewed observations
+
+Immediately before apply, use the existing read-only precheck/discovery and
+retain their original output. Confirm:
+
+- published 443 is reachable only through reviewed `ens160` / `10.1.93.54`;
+  enumerate current NICs, addresses, DNAT/publication bindings and VIPs. Another
+  ingress/destination is a STOP requiring scope/design review, not an implicit
+  allowlist expansion;
+- collect actual Harbor clients again, including registry-sync/monitoring.
+  Unapproved new clients require Lead disposition before apply;
+- run the verifier's actual `nft -n list table` and `nft -n list chain` forms
+  after installation, preserve output/rc and compare with the same-version
+  fixture. Do not relabel the historical capture if its command differs;
+- `.50` and `.102` remain temporary exceptions under baseline issue #13:
+  https://github.com/321Team/fds-project-baseline/issues/13 . Record the Lead's
+  removal trigger, responsible owner, and removal evidence there before closure.
+  This follow-up does not change their approved source set or invent an expiry.
+
+CI is syntax and localhost fixtures only. A prior HEAD's PASS is historical
+and does not validate a changed HEAD. Require fresh CI and independent approval
+for the new exact HEAD; PRECHECK/Apply/Runtime are separate gates.

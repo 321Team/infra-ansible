@@ -68,11 +68,14 @@ require("table inet firewalld" not in nft, "nft template must not touch firewall
 for token in (
     "After=firewalld.service",
     "Before=docker.service",
-    "Requires=firewalld.service",
     "RequiredBy=docker.service",
     "RemainAfterExit=yes",
 ):
     require(token in unit, f"fail-closed systemd contract missing: {token}")
+# firewalld ordering must not introduce lifecycle propagation into Docker.
+for directive in ("Requires", "Requisite", "BindsTo", "PartOf", "Wants", "Upholds"):
+    require(not re.search(r"^" + directive + r"=.*\bfirewalld[.]service\b", unit, re.M),
+            "guard must only order after firewalld, not couple its lifecycle: " + directive)
 require("After=docker.service" not in unit, "guard must not start after Docker")
 require("WantedBy=docker.service" not in unit, "guard must be a required dependency, not only wanted")
 require("ExecStop=" not in unit, "service stop must not remove the fail-closed guard")
@@ -135,6 +138,11 @@ for token in (
     "Rescue - require safe service state before nft table removal",
 ):
     require(token in apply, f"apply rescue safety assertion missing: {token}")
+
+require("Check managed guard unit before service operations" in rollback,
+        "rollback must inspect unit existence before service operations")
+require(rollback.count("when: hbr_ac04_rollback_guard_unit.stat.exists") == 2,
+        "rollback disable and stop must tolerate a not-yet-created unit")
 
 rollback_disable = rollback.find("Disable Docker guard dependency before stopping guard")
 rollback_reload = rollback.find("Reload dependency graph after disabling guard")

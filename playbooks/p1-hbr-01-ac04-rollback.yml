@@ -124,6 +124,12 @@
           nftables is older than 1.0.6 or version parsing failed. Do not
           attempt destroy-table rollback on this host.
 
+    - name: Check managed guard unit before service operations
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_guard_unit }}"
+        follow: false
+      register: hbr_ac04_rollback_guard_unit
+
     - name: Restore generic INPUT 443 before removing guard
       block:
         - name: Restore permanent generic INPUT 443
@@ -150,6 +156,7 @@
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             enabled: false
+          when: hbr_ac04_rollback_guard_unit.stat.exists
 
         - name: Reload dependency graph after disabling guard
           ansible.builtin.systemd_service:
@@ -174,6 +181,7 @@
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             state: stopped
+          when: hbr_ac04_rollback_guard_unit.stat.exists
 
         - name: Verify Docker remains active after guard stop
           ansible.builtin.command:
