@@ -1,6 +1,6 @@
 # P1-HBR-01 AC-04 pre-apply worksheet
 
-Updated after host captures14:15/14:45 KST, 2026-10-04.
+Updated after host captures14:15/14:45/15:15 KST, 2026-10-04.
 Status: READONLY_CAPTURE_REVIEWED / OPERATIONAL_CONDITIONS_PENDING / APPLY_NOT_EXECUTED / WINDOW_NOT_CONFIRMED.
 
 ## Current verified scope
@@ -74,10 +74,37 @@ Technical interpretation references:
 https://docs.docker.com/engine/network/port-publishing/
 https://wiki.nftables.org/wiki-nftables/index.php/Netfilter_hooks
 
+## Saved IPv6 configuration evidence —15:15 KST
+
+- Capture15:15:46–15:15:50 KST; archive SHA256
+  `4bdd667209f7ecfc22a84bd76ed05177f1a0ad2cb167f9d75adee20d12382caf`;
+  32 manifest entries and deployed collector SHA verified;7 command rc0;
+  supplemental ok3/changed0/failed0/unreachable0; exact source unchanged.
+- Active ens160 NM connection UUID:
+  `3094c330-0b11-4463-9409-29c11bca6fcb`.
+  Effective query: interface ens160, autoconnect yes, ipv6.method disabled.
+- One matching file-backed profile:
+  `/etc/NetworkManager/system-connections/fds-harbor01.nmconnection`;
+  SHA256 `110883e9363a878da5962e32fb5631a36cdddb675f8014a39f2c3d79ff68c0bf`.
+  Saved UUID/interface/ipv6.method match the active connection. Saved
+  autoconnect is not explicitly present in selected file fields; the effective
+  query says yes. Do not rewrite the saved file to insert that value.
+- NetworkManager active/running/enabled. systemd-sysctl active/exited;
+  loader ExecStart observed, no drop-in.
+- Selected all/default/ens160 disable_ipv6 directives were absent in captured
+  regular sysctl files. The99-sysctl.conf link is recorded as../sysctl.conf;
+  the separately captured/etc/sysctl.conf contains no selected disable directive.
+  This is not a complete custom/wildcard sysctl or profile-loader precedence audit.
+- Verdict: SAVED_IPV6_DISABLED_CONFIGURATION_CONFIRMED_SCOPE.
+  Actual reboot/reconnect persistence remains NOT_TESTED, not PASS.
+  No additional read-only recollection is required by this result alone.
+  Post-change/persistence testing belongs to the approved window and plan.
+
 ## Lead/operations decision record — unapproved worksheet
 
 Recommended path: retain the existing Phase1 IPv4 ingress baseline and review
-the ens160 IPv6-disabled constraint before using the reviewed source.
+the ens160 IPv6-disabled constraint, now backed by a saved matching profile,
+before using the reviewed source.
 This is not an accepted exception or lowered AC. If persistence cannot be
 demonstrated or IPv6 support is required, prepare a separate INPUT/proxy
 enforcement design and new-head validation/review.
@@ -85,7 +112,7 @@ enforcement design and new-head validation/review.
 | Required decision | Concrete record required | Status |
 |---|---|---|
 | IPv4-only ingress / IPv6-disabled constraint | Lead disposition, exact scope, persistence configuration/evidence; no invented exception | PENDING |
-| Reboot/reconnect and future address changes | Persistent IPv6 disable basis; interface/VIP/IPv6 change STOP and re-review condition | NOT_VERIFIED |
+| Reboot/reconnect and future address changes | Saved NM disabled profile confirmed; actual reboot/reconnect test and interface/VIP/IPv6 change STOP condition still required | CONFIG_CONFIRMED / RUNTIME_NOT_TESTED |
 | Ruleset loader maintenance | Reload/stop/main.nft load coordination, reviewed recovery and post-maintenance exact guard/managed-table checks | PENDING |
 | Clients and temporary sources | .20/.105/.107/.108 actual use; .50/.102 need, owner, removal trigger and baseline13 reference | NOT_RECONFIRMED |
 | UI fallback | Fresh control01 access evidence immediately before apply | NOT_RECONFIRMED |
