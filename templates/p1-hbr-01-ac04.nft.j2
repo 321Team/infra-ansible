@@ -1,0 +1,24 @@
+# Managed by P1-HBR-01 AC-04. Do not edit manually.
+# Atomic replace: destroy is idempotent and the nft -f batch is transactional.
+destroy table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}
+
+table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }} {
+    set approved_v4 {
+        type ipv4_addr
+        elements = {
+{% for item in hbr_ac04_sources %}
+            {{ item.address }}{% if not loop.last %},{% endif %}
+{% endfor %}
+        }
+    }
+
+    chain {{ hbr_ac04_nft_chain }} {
+        type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;
+
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             ip saddr @approved_v4             counter accept             comment "P1-HBR-01-AC04 approved IPv4"
+
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny unapproved IPv4"
+
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv6             ct status dnat             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny IPv6 published 443"
+    }
+}
