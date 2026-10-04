@@ -1,0 +1,103 @@
+
+PLAY [localhost] ***************************************************************
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [ansible.builtin.add_host] ************************************************
+ok: [localhost]
+
+TASK [Evaluate exact production final condition] *******************************
+ok: [localhost] => (item=ok) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": "ok",
+    "msg": "All assertions passed"
+}
+failed: [localhost] (item=failed) => {
+    "ansible_loop_var": "item",
+    "assertion": "(hostvars[item].verdict.failed | default(true)) is false",
+    "changed": false,
+    "evaluated_to": false,
+    "item": "failed",
+    "msg": "Assertion failed"
+}
+failed: [localhost] (item=empty) => {
+    "ansible_loop_var": "item",
+    "assertion": "(hostvars[item].verdict.failed | default(true)) is false",
+    "changed": false,
+    "evaluated_to": false,
+    "item": "empty",
+    "msg": "Assertion failed"
+}
+failed: [localhost] (item=string_false) => {
+    "ansible_loop_var": "item",
+    "assertion": "(hostvars[item].verdict.failed | default(true)) is false",
+    "changed": false,
+    "evaluated_to": false,
+    "item": "string_false",
+    "msg": "Assertion failed"
+}
+failed: [localhost] (item=zero) => {
+    "ansible_loop_var": "item",
+    "assertion": "(hostvars[item].verdict.failed | default(true)) is false",
+    "changed": false,
+    "evaluated_to": false,
+    "item": "zero",
+    "msg": "Assertion failed"
+}
+failed: [localhost] (item=missing) => {
+    "ansible_loop_var": "item",
+    "assertion": "hostvars[item].verdict is defined",
+    "changed": false,
+    "evaluated_to": false,
+    "item": "missing",
+    "msg": "Assertion failed"
+}
+...ignoring
+
+TASK [Only explicit false is accepted] *****************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Async finished scalar 0] *************************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Async finished scalar 1] *************************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Async finished scalar False] *********************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Async finished scalar True] **********************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=12   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=1   
+

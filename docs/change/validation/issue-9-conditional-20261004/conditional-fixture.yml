@@ -1,0 +1,81 @@
+- hosts: localhost
+  gather_facts: false
+  tasks:
+  - ansible.builtin.add_host:
+      name: ok
+      verdict:
+        failed: false
+    changed_when: false
+  - ansible.builtin.add_host:
+      name: failed
+      verdict:
+        failed: true
+    changed_when: false
+  - ansible.builtin.add_host:
+      name: empty
+      verdict: {}
+    changed_when: false
+  - ansible.builtin.add_host:
+      name: string_false
+      verdict:
+        failed: 'false'
+    changed_when: false
+  - ansible.builtin.add_host:
+      name: zero
+      verdict:
+        failed: 0
+    changed_when: false
+  - ansible.builtin.add_host:
+      name: missing
+    changed_when: false
+  - name: Evaluate exact production final condition
+    ansible.builtin.assert:
+      that:
+      - hostvars[item].verdict is defined
+      - (hostvars[item].verdict.failed | default(true)) is false
+    loop:
+    - ok
+    - failed
+    - empty
+    - string_false
+    - zero
+    - missing
+    ignore_errors: true
+    register: observed
+  - name: Only explicit false is accepted
+    ansible.builtin.assert:
+      that:
+      - (observed.results | rejectattr("failed") | map(attribute="item") | list) ==
+        ["ok"]
+  - name: Async finished scalar 0
+    ansible.builtin.assert:
+      that:
+      - (td_done is finished) == expected
+    vars:
+      td_done:
+        finished: 0
+      expected: false
+  - name: Async finished scalar 1
+    ansible.builtin.assert:
+      that:
+      - (td_done is finished) == expected
+    vars:
+      td_done:
+        finished: 1
+      expected: true
+  - name: Async finished scalar False
+    ansible.builtin.assert:
+      that:
+      - (td_done is finished) == expected
+    vars:
+      td_done:
+        finished: false
+      expected: false
+  - name: Async finished scalar True
+    ansible.builtin.assert:
+      that:
+      - (td_done is finished) == expected
+    vars:
+      td_done:
+        finished: true
+      expected: true

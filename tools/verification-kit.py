@@ -429,6 +429,8 @@ def run(runtime, expected, destination):
             commands.append((name, [pythons[0], '-B', repo / 'tests' / script, '--python216', pythons[0],
                                    '--python221', pythons[1], '--output', out / (name + '-results')]))
         for engine, python in zip(engines, pythons):
+            commands.append(('b2-conditions-' + engine, [python, '-B',
+                repo / 'tests/run-p1-sec-b2-conditions.py', '--output', out / ('b2-conditions-' + engine + '-results')]))
             commands.append(('dns-' + engine, [python.parent / 'ansible-playbook', '-i', 'localhost,', '-c', 'local',
                 '-e', 'ansible_python_interpreter=' + str(python), repo / 'tests/test-dns-resolver-normalization.yml']))
         for name, cmd in commands:
