@@ -1,9 +1,58 @@
 # P1-HBR-01 AC-04 pre-apply worksheet
 
-Updated 2026-10-04 KST after source review/CI and evidence import; host captures remain 14:15/14:45/15:15 KST.
-Status: HISTORICAL_READONLY_CAPTURE_REVIEWED / CURRENT_SOURCE_f222f1f_CODE_APPROVED_CI_PASS / CURRENT_SOURCE_HOST_PRECHECK_NOT_RUN / OPERATIONAL_CONDITIONS_PENDING / APPLY_NOT_EXECUTED / WINDOW_NOT_CONFIRMED.
+Updated 2026-10-04 after 21:31 KST CI cleanup receipt; historical host captures remain 14:15/14:45/15:15 KST.
+Status: PR68_MERGED / REVIEWED_SOURCE_efe82dda_CI_PASS / MERGED_SOURCE_e1c4458_PRECHECK_LEAD_REPORTED_PASS / PRIOR_APPLY_FAILED / RETRY_NOT_EXECUTED / NEW_SOURCE_GO_PENDING / PR67_DRAFT_HOLD.
 
-## Merged source and execution decision — 2026-10-04 19:32 KST
+## Current retry readiness — 2026-10-04 after 21:31 KST
+
+This section supersedes the current-status wording in the historical sections
+below. The earlier GO was explicitly bound to 09264ae; it is not automatically
+transferred to the corrected source.
+
+| Item | Confirmed record / remaining boundary |
+|---|---|
+| Reviewed fix | [PR68](https://github.com/321Team/infra-ansible/pull/68), exact HEAD `efe82dda8cff8594533d2603e2a0e567e07dded9`, independent code APPROVED |
+| Merged retry source candidate | `e1c4458cf95dacca76870d7b9b012f8615f6974a`; GitHub compare from reviewed HEAD reports zero changed files. Pin this commit, not moving main |
+| CI | [Run37197754190/Attempt1](https://github.com/321Team/infra-ansible/actions/runs/37197754190), Job111423030828, reviewed HEAD above: success at 21:25:49 KST. Syntax72/72 rc0, both engines2.16.19/2.21.3 and localhost fixtures PASS; artifact upload success |
+| Merge/CI chronology | User explicitly requested merge at 20:53 while CI was queued. CI succeeded afterward; do not rewrite this as pre-merge CI success or a separate execution of merge commit e1c4458 |
+| Host PRECHECK | [HBR Lead 21:10 report](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5979797361): e1c4458 HEAD_MATCH, syntax5/5, contract PASS, tests13/13; PRECHECK_PASS_RUNTIME_NOT_CHANGED, ok47/changed0/failed0. Filter/NAT iptables-save rc0 (29/16 lines). This worksheet references the Lead report; it does not claim independent re-execution or raw-file verification |
+| CI Runner cleanup | Runner ID50/name ansible-ci-fc36a38ff4d945748b04085c14e9c037 linked to Job; submitted archive hash/outer16 and inner9 manifest entries verified, isolation18/18 PASS, runner/proxy/workspace REMOVED. [21:31 user-submitted admin GET](https://github.com/321Team/infra-ansible/pull/68#pullrequestreview-5406127260): total_count0/runners[] |
+| Evidence limits | CI artifact metadata/digest and Job logs checked; artifact ZIP internal file rehash and token-file deletion independently unverified. No production apply or engine transition was performed by the CI session |
+| Authorization | New-source GO and a still-valid non-overlap window remain pending. Execution remains hayeounglee; GO/STOP/result acceptance remains GWONUK. No role reassignment |
+| Acceptance | Corrected-source apply/verify/traffic/pull/persistence and AC04 acceptance are NOT EXECUTED / NOT PASSED |
+
+### Failed attempt and residual-state disposition
+
+[Lead failure report](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5979320115):
+20:02:28–20:02:44 KST on 09264ae, APPLY_RC2, ok49/changed2/failed1,
+undefined hbr_ac04_filter_save. The state directory and original-public.xml
+(392 bytes) were created; Lead reported no guard, generic443 retained, no rich
+rules, Docker active and Harbor health200. These are reported observations,
+not a successful apply or proof of unchanged state at a later time.
+
+The corrected apply checks original-state.json existence, not directory
+existence. Therefore the reported directory containing only original-public.xml
+does not itself require deletion to retry. The copy task can replace that XML
+with the current source XML; it is not an archive of the failed attempt.
+
+Recommended disposition before an authorized retry:
+- Preserve the failed-attempt output, residual directory listing and original XML
+  bytes/hash in that attempt's evidence before a task can overwrite them.
+- Do not delete the directory merely to bypass a gate. If original-state.json,
+  a seal, guard files/unit/table or other unexpected state exists, STOP for
+  reconciliation rather than remove it to satisfy assertions.
+- Reuse the 21:10 PRECHECK record when still applicable; do not demand a duplicate
+  full collection solely because this documentation changed. Reconfirm immediate
+  ingress/loader/client/UI/non-overlap conditions and investigate actual drift.
+- The original 22:00 cutoff is not extended here. If the remaining window cannot
+  accommodate verification and failure recovery, defer to a newly confirmed
+  non-overlap window. Do not prefill authorization attestations without GO.
+
+This is documentation/readiness follow-up only. PR67 remains Draft with its
+existing explicit merge HOLD; its merge is not an added runtime prerequisite.
+
+
+## Historical merged source and execution decision — 2026-10-04 19:32 KST
 
 PR63 is merged. The operational source is pinned to
 `09264ae3880e5c1764e4f3406543e8bb4d664de4`, not a moving main checkout.
@@ -28,7 +77,7 @@ its own disposition. The historical captures below remain bound to badbe294.
 - Source approval is not merge, change-window authorization, production apply or AC-04 acceptance.
 - This document-only follow-up is a separate diff. If incorporated into the source branch, use the resulting new HEAD for required CI/PRECHECK/review.
 
-## Current source status — f222f1f
+## Historical source status — f222f1f
 
 The badbe294 approval and host captures above are historical. Subsequent review
 identified B-HBR-01 (rescue/rollback dependency-detach failure handling) and
