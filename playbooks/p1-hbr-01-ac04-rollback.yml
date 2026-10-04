@@ -162,6 +162,21 @@
           ansible.builtin.systemd_service:
             daemon_reload: true
 
+        - name: read Docker dependencies after daemon reload
+          ansible.builtin.command:
+            argv: [systemctl, show, "{{ hbr_ac04_docker_service }}", --property=Requires, --value]
+          register: hbr_ac04_rollback_detached_requires
+          changed_when: false
+
+        - name: require confirmed dependency detach before guard stop
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rollback_detached_requires.rc == 0
+              - hbr_ac04_guard_service not in hbr_ac04_rollback_detached_requires.stdout.split()
+            fail_msg: >-
+              Docker guard dependency removal is not confirmed. Leave the guard
+              and nft table in place; stop for manual reconciliation.
+
         - name: Verify Docker remains active before guard stop
           ansible.builtin.command:
             argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
@@ -284,3 +299,4 @@
           backend: "{{ hbr_ac04_backend }}"
           original_surface_restored: true
           verdict: ROLLED_BACK
+
