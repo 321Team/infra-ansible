@@ -391,6 +391,13 @@ policy resolution. Do not disable or restart services as part of this check.
 Neither an inactive service alone nor a missing literal `flush ruleset` proves
 that all competing boot/maintenance loaders are absent.
 
+The captured nftables.service ExecReload and ExecStop commands contain
+`flush ruleset`. Explicit reload or stop can therefore erase the dedicated guard
+and Docker/firewalld managed tables even when the service was previously
+observed disabled/inactive. Coordinate such maintenance through the reviewed
+recovery plan and recheck exact guard/managed-table state and traffic afterward.
+The read-only observations in the worksheet do not authorize these operations.
+
 An active oneshot unit with RemainAfterExit does not prove that its nft table
 exists. Operational follow-up must assign an owner, schedule and failure response
 for exact configuration verification and verification after firewall/Docker
