@@ -1,9 +1,55 @@
 # P1-HBR-01 AC-04 pre-apply worksheet
 
-Updated 2026-10-04 after 21:31 KST CI cleanup receipt; historical host captures remain 14:15/14:45/15:15 KST.
-Status: PR68_MERGED / REVIEWED_SOURCE_efe82dda_CI_PASS / MERGED_SOURCE_e1c4458_PRECHECK_LEAD_REPORTED_PASS / PRIOR_APPLY_FAILED / RETRY_NOT_EXECUTED / NEW_SOURCE_GO_PENDING / PR67_DRAFT_HOLD.
+Updated 2026-10-04 against records available at 22:57 KST.
+Status: APPLY2_COMPLETED / CONFIG_VERIFY_PASS / TRAFFIC_AND_PERSISTENCE_PENDING / AC04_NOT_PASSED / PR67_DRAFT_HOLD.
 
-## Current retry readiness — 2026-10-04 after 21:31 KST
+## Current post-apply status — 2026-10-04 22:57 KST
+
+This section supersedes current-status statements in the historical sections
+below. It records submitted evidence and decisions; it does not grant a new
+execution window or retrospectively authorize an earlier action.
+
+| Item | Confirmed record / remaining boundary |
+|---|---|
+| Applied source | `e1c4458cf95dacca76870d7b9b012f8615f6974a`, merged PR68; use the exact SHA, not moving main |
+| Apply / configuration verify | [Evidence PR109](https://github.com/321Team/fds-project-evidence/pull/109), original reviewed HEAD `c8ae9931687ed0e2e66951eec76f83751e0de45b`: apply2 21:32:34–21:33:20 KST, ok162/changed12/failed0; verify 21:34:05, ok67/changed0, CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING |
+| Evidence integrity and integration | [PMO/QA review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406364585): 14 file hashes and collection-to-root registry match. [Independent review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406382674) covers original evidence. PR109 current integration HEAD `ebb782cc0970ebf8df0bee058b9d9ef43558916b` remains Draft pending independent delta reapproval; do not equate hash integrity with Runtime acceptance |
+| Authorization chronology | Apply2 preceded the [21:37 conditional GO](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5979990693). Preserve the deviation and omitted pre-apply records. This worksheet does not retroactively approve them |
+| 21:10 PRECHECK limitation | Lead reported a PASS on screen, but the named file is now 37 bytes containing User interrupted execution. Cause is unknown; preserve the anomalous original. Older intact PASS files are historical evidence, not substitute bytes for this run |
+| Original XML | Apply2 Preserve original public zone XML task reported ok, not changed. Do not assert it was overwritten. The first-attempt post-copy hash was not captured; that limitation remains |
+| Post-apply observations | Runner positive and local health were reported. Browser failure / proxy-log silence alone do not prove firewall DROP; curl -k localhost health is not TLS validation |
+| Monitoring | [MON Lead 22:12 observation](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980433117): Target23/23 and nodes6/6. This is a single-time post-apply observation, not future restart-window regression credit |
+| Current authorization | The earlier 22:00 window has ended. [22:53 PMO/QA decision](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980737850) accepts the AC03 execution model and retains read-only precheck GO; actual login/pull/push/Pod tests remain HOLD pending field precheck and a new non-overlap window |
+| Roles and acceptance | Execution: hayeounglee; GO/STOP/result acceptance: GWONUK. AC03/AC04 NOT PASSED. PR67 remains Draft under its existing merge HOLD; its merge is not a new Runtime prerequisite |
+
+### Next actions — reuse completed work
+
+1. Preserve the actual state-file bytes/hash and anomalous 37-byte precheck file
+   requested in #13. Do not recreate historical records or replace them with a
+   later capture. PR109 already contains a state-file observation/hash listing;
+   that listing is distinct from the underlying server-file bytes.
+2. Consume one field precheck submission and a concrete new non-overlap window
+   under the [existing AC03 decision](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980737850).
+   Existing source review/MOCK/handoff checks need not be repeated without drift.
+   AC03 execution source remains `030a4ce14acdab3a58c4767455b7555aaf8ce949`;
+   workload SA is the existing `transaction-api-sa` in `fds-app`.
+   Do not create credentials/SA/RBAC or change CA settings under read-only GO.
+3. After explicit Runtime GO, bind Worker node/control results, final exit codes
+   and cleanup to the official Run/digest. Reuse successful approved-source
+   traffic as AC04 positive evidence only for the tested path.
+4. Complete AC04 controlled negative-source attribution, remaining positive
+   paths, approved Docker-restart persistence with monitoring regression, and
+   temporary .50/.102 exception disposition/removal tracking. Do not add VM
+   reboot or NetworkManager reconnect as a new mandatory gate.
+5. Review the remaining results for AC04 acceptance. Unexpected results require
+   STOP and evidence-preserving reconciliation/recovery under the reviewed plan.
+
+## Historical retry readiness — 2026-10-04 after 21:31 KST
+
+The following section is retained as the pre-retry record. Its RETRY_NOT_EXECUTED,
+new-GO-pending and precheck assumptions are superseded above. In particular,
+the prospective XML-overwrite caution below is not a claim that apply2 overwrote
+the XML; apply2 reported ok.
 
 This section supersedes the current-status wording in the historical sections
 below. The earlier GO was explicitly bound to 09264ae; it is not automatically
