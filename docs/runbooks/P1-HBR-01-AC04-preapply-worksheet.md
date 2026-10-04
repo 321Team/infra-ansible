@@ -112,7 +112,7 @@ enforcement design and new-head validation/review.
 | Required decision | Concrete record required | Status |
 |---|---|---|
 | IPv4-only ingress / IPv6-disabled constraint | Lead disposition, exact scope, persistence configuration/evidence; no invented exception | PENDING |
-| Reboot/reconnect and future address changes | Saved NM disabled profile confirmed; actual reboot/reconnect test and interface/VIP/IPv6 change STOP condition still required | CONFIG_CONFIRMED / RUNTIME_NOT_TESTED |
+| Reboot/reconnect and future address changes | Saved NM disabled profile confirmed; interface/VIP/IPv6 change STOP condition pending; additional reboot/reconnect testing only if included in an approved plan | CONFIG_CONFIRMED / RUNTIME_NOT_TESTED |
 | Ruleset loader maintenance | Reload/stop/main.nft load coordination, reviewed recovery and post-maintenance exact guard/managed-table checks | PENDING |
 | Clients and temporary sources | .20/.105/.107/.108 actual use; .50/.102 need, owner, removal trigger and baseline13 reference | NOT_RECONFIRMED |
 | UI fallback | Fresh control01 access evidence immediately before apply | NOT_RECONFIRMED |
@@ -140,6 +140,15 @@ Docker/Harbor. Failure handling follows the reviewed rescue/rollback procedure.
 
 Do not publish this draft as a scheduled change before the Lead confirms the
 window and impact. Do not treat code approval as approval to execute apply.
+
+## Persistence scope — existing acceptance criteria
+
+The exact source runbook section9 requires guard/dependency and positive/negative
+verification before/after an approved Docker restart. That required persistence
+scope is retained. VM reboot or NetworkManager reconnect is not added as a new
+mandatory acceptance gate by this worksheet. Saved IPv6-disabled configuration
+is confirmed; actual reboot/reconnect remains NOT_TESTED and may be included in
+a separately approved plan if Lead considers it necessary.
 
 ## After authorized apply
 
