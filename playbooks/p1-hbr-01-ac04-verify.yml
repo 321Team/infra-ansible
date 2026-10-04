@@ -1,0 +1,133 @@
+---
+- name: P1-HBR-01 AC-04 verify dedicated nftables guard
+  hosts: hbr
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  tasks:
+    - name: Check preserved original-state record
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_file
+
+    - name: Require preserved state from reviewed apply
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_state_file.stat.exists
+        fail_msg: >-
+          Verification requires the state captured by the reviewed apply.
+          Do not infer prestate from the current server.
+
+    - name: Check sealed prestate manifest before verification
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/PRESTATE_SHA256SUMS"
+        follow: false
+      register: hbr_ac04_prestate_manifest
+
+    - name: Require regular sealed prestate manifest
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_manifest.stat.exists
+          - hbr_ac04_prestate_manifest.stat.isreg | default(false)
+        fail_msg: Prestate manifest missing or not a regular file. Stop and reconcile evidence.
+
+    - name: Verify sealed prestate hashes before consuming state
+      ansible.builtin.command:
+        argv: [sha256sum, --check, --strict, PRESTATE_SHA256SUMS]
+        chdir: "{{ hbr_ac04_state_dir }}"
+      register: hbr_ac04_prestate_verify
+      changed_when: false
+
+    - name: Require valid prestate hashes before consuming state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_verify.rc == 0
+        fail_msg: Prestate hash verification failed. Do not report configuration PASS.
+
+    - name: Read preserved original-state record
+      ansible.builtin.slurp:
+        src: "{{ hbr_ac04_state_dir }}/original-state.json"
+      register: hbr_ac04_state_raw
+
+    - name: Decode preserved original-state record
+      ansible.builtin.set_fact:
+        hbr_ac04_original: "{{ hbr_ac04_state_raw.content | b64decode | from_json }}"
+
+    - name: Validate verification-state binding
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_original.schema == 3
+          - hbr_ac04_original.change_id == hbr_ac04_change_id
+          - hbr_ac04_original.backend == 'nftables-guard'
+          - hbr_ac04_original.inventory_hostname == inventory_hostname
+          - hbr_ac04_original.ansible_hostname == ansible_hostname
+          - hbr_ac04_original.address == ansible_default_ipv4.address
+          - hbr_ac04_original.interface == hbr_ac04_interface
+          - hbr_ac04_original.host_ip == hbr_ac04_host_ip
+          - hbr_ac04_original.nft_family == hbr_ac04_nft_family
+          - hbr_ac04_original.nft_table == hbr_ac04_nft_table
+          - hbr_ac04_original.nft_chain == hbr_ac04_nft_chain
+          - hbr_ac04_original.nft_priority | int == hbr_ac04_nft_priority | int
+        fail_msg: Preserved state does not bind to this exact AC-04 contract.
+
+    - name: Observe INPUT/public-zone surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-observe.yml
+
+    - name: Observe Docker and nft enforcement surface
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-forward-observe.yml
+
+    - name: Validate permanent firewalld configuration
+      ansible.builtin.command:
+        argv: [firewall-cmd, --check-config]
+      changed_when: false
+
+    - name: Verify exact nft guard contract
+      ansible.builtin.include_tasks: tasks/p1-hbr-01-ac04-nft-verify.yml
+
+    - name: Assert fail-closed persistence and no Docker-managed drift
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_guard_enabled.rc == 0
+          - hbr_ac04_guard_enabled.stdout | trim == 'enabled'
+          - hbr_ac04_guard_active.rc == 0
+          - hbr_ac04_guard_active.stdout | trim == 'active'
+          - hbr_ac04_nft_file_stat.stat.exists
+          - hbr_ac04_guard_unit_stat.stat.exists
+          - hbr_ac04_guard_service in hbr_ac04_docker_requires.stdout.split()
+          - hbr_ac04_docker_service in hbr_ac04_guard_before.stdout.split()
+          - "'firewalld.service' in hbr_ac04_guard_after.stdout.split()"
+          - hbr_ac04_runtime_generic.rc == 1
+          - hbr_ac04_permanent_generic.rc == 1
+          - "'https' not in hbr_ac04_runtime_services.stdout.split()"
+          - "'https' not in hbr_ac04_permanent_services.stdout.split()"
+          - >-
+            (hbr_ac04_runtime_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - >-
+            (hbr_ac04_permanent_rich.stdout_lines
+             | select('search', 'port port="443"') | list | length) == 0
+          - hbr_ac04_forward_rules.stdout_lines == hbr_ac04_original.forward_rules
+          - hbr_ac04_docker_user_rules.stdout_lines == hbr_ac04_original.docker_user_rules
+          - hbr_ac04_docker_forward_rules.stdout_lines == hbr_ac04_original.docker_forward_rules
+          - hbr_ac04_docker_filter_rules.stdout_lines == hbr_ac04_original.docker_filter_rules
+          - hbr_ac04_docker_nat.stdout_lines == hbr_ac04_original.docker_nat_rules
+        fail_msg: >-
+          AC-04 configuration verification failed. Do not start Runtime
+          positive/negative acceptance tests.
+
+    - name: Print verify verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ hbr_ac04_change_id }}"
+          backend: "{{ hbr_ac04_backend }}"
+          nft_table: "{{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }}"
+          nft_priority: "{{ hbr_ac04_nft_priority }}"
+          ipv4_allow_set: "{{ hbr_ac04_sources | map(attribute='address') | list }}"
+          ipv4_default: DROP_FOR_HARBOR_443
+          ipv6_default: DROP_FOR_PUBLISHED_443
+          generic_input_443: ABSENT
+          docker_managed_rules: UNCHANGED
+          runtime_traffic_tests: REQUIRED
+          verdict: CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING
+

@@ -1,0 +1,36 @@
+=== ISOLATED NFT FIXTURE ===
+2026-10-01T20:33:00+09:00
+ansible01
+nftables v1.1.5 (Commodore Bullmoose #6)
+
+=== LOAD ===
+LOAD_RC=0
+
+=== LIST TABLE ===
+table inet p1_hbr_ac04 {
+	set approved_v4 {
+		type ipv4_addr
+		elements = { 10.1.93.50, 10.1.93.102,
+			     10.1.93.105, 10.1.93.107,
+			     10.1.93.108, 10.250.10.20 }
+	}
+
+	chain forward_guard {
+		type filter hook forward priority -1; policy accept;
+		iifname "ens160" ct status 0x20 ct original ip daddr 10.1.93.54 ct protocol 6 ct original proto-dst 443 ip saddr @approved_v4 counter packets 0 bytes 0 accept comment "P1-HBR-01-AC04 approved IPv4"
+		iifname "ens160" ct status 0x20 ct original ip daddr 10.1.93.54 ct protocol 6 ct original proto-dst 443 counter packets 0 bytes 0 drop comment "P1-HBR-01-AC04 deny unapproved IPv4"
+		iifname "ens160" meta nfproto 10 ct status 0x20 ct protocol 6 ct original proto-dst 443 counter packets 0 bytes 0 drop comment "P1-HBR-01-AC04 deny IPv6 published 443"
+	}
+}
+TABLE_RC=0
+
+=== LIST CHAIN ===
+table inet p1_hbr_ac04 {
+	chain forward_guard {
+		type filter hook forward priority -1; policy accept;
+		iifname "ens160" ct status 0x20 ct original ip daddr 10.1.93.54 ct protocol 6 ct original proto-dst 443 ip saddr @approved_v4 counter packets 0 bytes 0 accept comment "P1-HBR-01-AC04 approved IPv4"
+		iifname "ens160" ct status 0x20 ct original ip daddr 10.1.93.54 ct protocol 6 ct original proto-dst 443 counter packets 0 bytes 0 drop comment "P1-HBR-01-AC04 deny unapproved IPv4"
+		iifname "ens160" meta nfproto 10 ct status 0x20 ct protocol 6 ct original proto-dst 443 counter packets 0 bytes 0 drop comment "P1-HBR-01-AC04 deny IPv6 published 443"
+	}
+}
+CHAIN_RC=0

@@ -1,0 +1,9 @@
+# REJECTED_BACKEND
+# P1-HBR-01 AC-04 no longer uses this DOCKER-USER unit.
+# The active design is templates/p1-hbr-01-ac04-guard.service.j2.
+[Unit]
+Description=REJECTED P1-HBR-01 AC-04 DOCKER-USER backend
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/false

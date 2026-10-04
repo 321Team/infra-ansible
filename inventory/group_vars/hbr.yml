@@ -1,0 +1,58 @@
+---
+hbr_ac04_change_id: P1-HBR-01-AC04
+hbr_ac04_zone: public
+hbr_ac04_interface: ens160
+hbr_ac04_host_ip: 10.1.93.54
+hbr_ac04_port: 443
+hbr_ac04_protocol: tcp
+hbr_ac04_generic_port: "443/tcp"
+hbr_ac04_state_dir: /var/lib/fds-change/P1-HBR-01-AC04
+hbr_ac04_zone_xml: /etc/firewalld/zones/public.xml
+
+# Primary enforcement backend selected after forward-path discovery.
+# Dedicated nftables table is evaluated after DNAT and before Docker filter
+# priority 0, without modifying Docker/firewalld managed tables.
+hbr_ac04_backend: nftables-guard
+hbr_ac04_nft_family: inet
+hbr_ac04_nft_table: p1_hbr_ac04
+hbr_ac04_nft_chain: forward_guard
+hbr_ac04_nft_priority: -1
+hbr_ac04_nft_supported_versions:
+  - "1.1.5"
+hbr_ac04_nft_file: /etc/p1-hbr-ac04.nft
+hbr_ac04_guard_unit: /etc/systemd/system/fds-harbor-ac04-guard.service
+hbr_ac04_guard_service: fds-harbor-ac04-guard.service
+hbr_ac04_docker_service: docker.service
+
+# HBR Lead final decision:
+# fds-project-baseline#13 comment 5925930576 (2026-10-01 KST).
+# .50 and .102 are temporary exceptions, not baseline allowlist expansion.
+hbr_ac04_sources:
+  - address: 10.250.10.20
+    classification: BASELINE_ALLOW
+    owner: cicd-runner01
+  - address: 10.1.93.105
+    classification: BASELINE_ALLOW
+    owner: k8s-worker01
+  - address: 10.1.93.107
+    classification: BASELINE_ALLOW
+    owner: k8s-worker02
+  - address: 10.1.93.108
+    classification: BASELINE_ALLOW
+    owner: k8s-worker03
+  - address: 10.1.93.50
+    classification: TEMP_EXCEPTION
+    owner: edge01
+    expiry_condition: >-
+      Remove after edge01 migration completes and robot$fds-ci cleanup is
+      complete; record removal in P1-HBR-01 and re-run same-L2 negative test.
+  - address: 10.1.93.102
+    classification: TEMP_MANAGEMENT_EXCEPTION
+    owner: k8s-control01
+    expiry_condition: >-
+      Remove after IF-09 Runner production Push path is active and remaining
+      HBR candidate push/scan/manual management work is complete; record
+      removal in P1-HBR-01 and re-run same-L2 negative test.
+
+hbr_ac04_denied_same_l2_source: 10.1.93.26
+hbr_ac04_mgmt_negative_source: 10.250.10.10
