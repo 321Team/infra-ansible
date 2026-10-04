@@ -92,4 +92,33 @@ class PrestateSeal(unittest.TestCase):
                 r=subprocess.run(command['argv'],cwd=td,capture_output=True)
                 self.assertEqual(r.returncode==0,failure is None)
 
+class ApplyDataflow(unittest.TestCase):
+    """Apply must register every prestate value it consumes before using it."""
+    EXTRA_VARS = {'hbr_ac04_change_approved', 'hbr_ac04_ui_fallback_confirmed',
+                  'hbr_ac04_change_window_confirmed'}
+
+    def test_prestate_sources_registered_before_preserve(self):
+        seq = tasks('p1-hbr-01-ac04-apply.yml')
+        names = [t['name'] for t in seq]
+        for var, writer in (('hbr_ac04_filter_save', 'Preserve filter table source'),
+                            ('hbr_ac04_nat_save', 'Preserve NAT table source'),
+                            ('hbr_ac04_nft_ruleset_before', 'Preserve nft ruleset source')):
+            registered = [i for i, t in enumerate(seq) if t.get('register') == var]
+            self.assertEqual(len(registered), 1, var + ' must be registered exactly once in apply')
+            self.assertLess(registered[0], names.index(writer), var + ' must precede ' + writer)
+            self.assertNotIn('failed_when', seq[registered[0]], var + ' capture must fail closed')
+
+    def test_every_apply_variable_is_defined(self):
+        import re
+        text = (ROOT / 'playbooks' / 'p1-hbr-01-ac04-apply.yml').read_text()
+        includes = re.findall(r'include_tasks:\s*(\S+)', text)
+        sources = [text] + [(ROOT / 'playbooks' / inc).read_text() for inc in includes]
+        defined = set(yaml.safe_load((ROOT / 'inventory' / 'group_vars' / 'hbr.yml').read_text()))
+        defined |= self.EXTRA_VARS
+        for src in sources:
+            defined |= set(re.findall(r'register:\s*(\w+)', src))
+            defined |= set(re.findall(r'^\s+(hbr_ac04_\w+):', src, re.M))
+        used = set(re.findall(r'\b(hbr_ac04_\w+)', text))
+        self.assertEqual(sorted(v for v in used if v not in defined), [])
+
 if __name__=='__main__': unittest.main()
