@@ -1,0 +1,30 @@
+[ERROR]: Unexpected Exception, this is probably a bug: Local RPC server did not start.
+
+Traceback (most recent call last):
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/cli/__init__.py", line 663, in cli_executor
+    exit_code = cli.run()
+                ^^^^^^^^^
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/cli/playbook.py", line 148, in run
+    pbex = PlaybookExecutor(playbooks=context.CLIARGS['args'], inventory=inventory,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/executor/playbook_executor.py", line 59, in __init__
+    self._tqm = TaskQueueManager(
+                ^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/executor/task_queue_manager.py", line 173, in __init__
+    _rpc_host.LocalManager.shared_instance()  # ensure the RPC host is available
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/_internal/_rpc_host.py", line 113, in shared_instance
+    instance.start()
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/multiprocessing/managers.py", line 562, in start
+    self._process.start()
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/_internal/_rpc_host.py", line 51, in start
+    raise TimeoutError("Local RPC server did not start.")
+TimeoutError: Local RPC server did not start.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/scratch/b148f4e175f5/ansible9/venv-2.21.3/lib/python3.12/site-packages/ansible/cli/__init__.py", line 672, in cli_executor
+    raise AnsibleError("Unexpected Exception, this is probably a bug.") from ex
+ansible.errors.AnsibleError: Unexpected Exception, this is probably a bug: Local RPC server did not start.
+
