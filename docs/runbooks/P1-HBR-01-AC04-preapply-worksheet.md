@@ -1,9 +1,9 @@
 # P1-HBR-01 AC-04 pre-apply worksheet
 
-Updated after host captures14:15/14:45/15:15 KST, 2026-10-04.
+Updated 2026-10-04 KST after source review/CI and evidence import; host captures remain 14:15/14:45/15:15 KST.
 Status: READONLY_CAPTURE_REVIEWED / OPERATIONAL_CONDITIONS_PENDING / APPLY_NOT_EXECUTED / WINDOW_NOT_CONFIRMED.
 
-## Current verified scope
+## Historical host-capture scope — badbe294
 
 - Source: badbe29440916ec3ec79da8fc81722c2e6c4e75b.
 - Independent code review: hayeounglee APPROVED 2026-10-04 08:59:08 KST; earlier nft-output hypothesis withdrawn.
@@ -11,6 +11,20 @@ Status: READONLY_CAPTURE_REVIEWED / OPERATIONAL_CONDITIONS_PENDING / APPLY_NOT_E
 - Isolated render/verifier: PASS; raw evidence commit31089383e6a43103c1e8ccca8e41e572acb8ac61.
 - Source approval is not merge, change-window authorization, production apply or AC-04 acceptance.
 - This document-only follow-up is a separate diff. If incorporated into the source branch, use the resulting new HEAD for required CI/PRECHECK/review.
+
+## Current source status — f222f1f
+
+The badbe294 approval and host captures above are historical. Subsequent review
+identified B-HBR-01 (rescue/rollback dependency-detach failure handling) and
+B-HBR-02 (verifier prestate seal consumption); they do not constitute apply GO.
+Both findings were fixed in `f222f1f15c52c74c1800ce1b4040a21e439e19ed`.
+[Exact-source code re-review](https://github.com/321Team/infra-ansible/pull/63#pullrequestreview-5404881855)
+by hayeounglee APPROVED the fixes; [CI Run37185044833](https://github.com/321Team/infra-ansible/actions/runs/37185044833)
+succeeded with 90 unit tests and 72 syntax checks. Runner local cleanup and
+user-provided remote absence were verified. This source has no new harbor01
+PRECHECK or production apply evidence. Draft/merge HOLD and operational decisions
+remain pending. Integrating this documentation changes the source HEAD; bind
+required checks and review to that resulting HEAD before apply.
 
 ## Execution environment and evidence
 
@@ -35,24 +49,28 @@ collection unless drift, missing evidence or an approved verification plan requi
   `3e0b3ddd351df28962804e511a2a723cf0b9196f9dfb95400c1bef2aa0b55259`.
 - Review index: https://github.com/321Team/infra-ansible/issues/62.
   Original text files and deployed collectors are preserved in
-  [evidence Draft PR105](https://github.com/321Team/fds-project-evidence/pull/105), exact commit
-  `979ae50a59c3a79e8d989a7cb943320e34057877`.
-  Draft/open/unmerged at this update; independent evidence review PENDING.
-  [CI37183878567](https://github.com/321Team/fds-project-evidence/actions/runs/37183878567) passed unit tests
+  [merged evidence PR105](https://github.com/321Team/fds-project-evidence/pull/105), exact commit
+  `dd6ea250da6d69477d2b038abcab13f5743cb246`.
+  Independent reviewer supreme33-kr APPROVED this HEAD after B-105-01 archive
+  preservation was fixed; PR105 is merged. This is evidence import acceptance only.
+  [CI37187267018](https://github.com/321Team/fds-project-evidence/actions/runs/37187267018) passed unit tests
   and evidence layout/exception/registry checks. CI is not independent acceptance.
 
 ### Immutable capture review map
 
 | Capture | Original files and manifest | Deployed collector |
 |---|---|---|
-| Preapply | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/preapply/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/preapply/collector) |
-| Listener/loader | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/path-loader/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/path-loader/collector) |
-| Saved IPv6 configuration | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/ipv6-config/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/ipv6-config/collector) |
+| Preapply | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/preapply/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/preapply/collector) |
+| Listener/loader | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/path-loader/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/path-loader/collector) |
+| Saved IPv6 configuration | [raw / SHA256SUMS](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/ipv6-config/raw) | [collector](https://github.com/321Team/fds-project-evidence/tree/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/ipv6-config/collector) |
 
-[RECEIPT.json](https://github.com/321Team/fds-project-evidence/blob/979ae50a59c3a79e8d989a7cb943320e34057877/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/RECEIPT.json)
+[RECEIPT.json](https://github.com/321Team/fds-project-evidence/blob/dd6ea250da6d69477d2b038abcab13f5743cb246/evidence/P1-HBR-01/infra-ansible-ac04-readonly-20261004/RECEIPT.json)
 binds each original attachment ID, received time, archive size/hash and capture
-source/times. Original archives remain user attachments; this Git commit preserves
-119 extracted original files and 24 collector files without altering their bytes.
+source/times. The merged evidence commit preserves all three original tar.gz
+files without recompression in archives/, with SHA256 sidecars and archive index,
+as well as 119 extracted original files and 24 collector files. Independent
+[re-review](https://github.com/321Team/fds-project-evidence/pull/105#pullrequestreview-5404965662)
+confirmed archive-to-raw file sets and bytes; raw and collector bytes are unchanged.
 Raw manifests cover 116 entries; collector manifests cover 21 entries.
 Collector independent code review remains NOT PERFORMED (Pre-check); PR63 source
 code approval does not cover these separate collectors. Evidence import review,
