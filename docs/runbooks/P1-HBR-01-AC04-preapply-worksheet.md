@@ -1,6 +1,6 @@
 # P1-HBR-01 AC-04 pre-apply worksheet
 
-Updated 2026-10-04 against records available at 22:57 KST.
+Updated 2026-10-04 against records available at 23:28 KST.
 Status: APPLY2_COMPLETED / CONFIG_VERIFY_PASS / TRAFFIC_AND_PERSISTENCE_PENDING / AC04_NOT_PASSED / PR67_DRAFT_HOLD.
 
 ## Current post-apply status — 2026-10-04 22:57 KST
@@ -13,7 +13,7 @@ execution window or retrospectively authorize an earlier action.
 |---|---|
 | Applied source | `e1c4458cf95dacca76870d7b9b012f8615f6974a`, merged PR68; use the exact SHA, not moving main |
 | Apply / configuration verify | [Evidence PR109](https://github.com/321Team/fds-project-evidence/pull/109), original reviewed HEAD `c8ae9931687ed0e2e66951eec76f83751e0de45b`: apply2 21:32:34–21:33:20 KST, ok162/changed12/failed0; verify 21:34:05, ok67/changed0, CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING |
-| Evidence integrity and integration | [PMO/QA review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406364585): 14 file hashes and collection-to-root registry match. [Independent review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406382674) covers original evidence. PR109 current integration HEAD `ebb782cc0970ebf8df0bee058b9d9ef43558916b` remains Draft pending independent delta reapproval; do not equate hash integrity with Runtime acceptance |
+| Evidence integrity and integration | [PMO/QA review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406364585): 14 file hashes and collection-to-root registry match. [Independent review](https://github.com/321Team/fds-project-evidence/pull/109#pullrequestreview-5406382674) covers original evidence. PR109 integration HEAD `ebb782cc0970ebf8df0bee058b9d9ef43558916b` received independent delta reapproval and was merged as `c4c203b52819851b94e0b4e4a8aeb79c6f6fa12f`; do not equate hash integrity with Runtime acceptance |
 | Authorization chronology | Apply2 preceded the [21:37 conditional GO](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5979990693). Preserve the deviation and omitted pre-apply records. This worksheet does not retroactively approve them |
 | 21:10 PRECHECK limitation | Lead reported a PASS on screen, but the named file is now 37 bytes containing User interrupted execution. Cause is unknown; preserve the anomalous original. Older intact PASS files are historical evidence, not substitute bytes for this run |
 | Original XML | Apply2 Preserve original public zone XML task reported ok, not changed. Do not assert it was overwritten. The first-attempt post-copy hash was not captured; that limitation remains |
@@ -21,6 +21,8 @@ execution window or retrospectively authorize an earlier action.
 | Monitoring | [MON Lead 22:12 observation](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980433117): Target23/23 and nodes6/6. This is a single-time post-apply observation, not future restart-window regression credit |
 | Current authorization | The earlier 22:00 window has ended. [22:53 PMO/QA decision](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980737850) accepts the AC03 execution model and retains read-only precheck GO; actual login/pull/push/Pod tests remain HOLD pending field precheck and a new non-overlap window |
 | Roles and acceptance | Execution: hayeounglee; GO/STOP/result acceptance: GWONUK. AC03/AC04 NOT PASSED. PR67 remains Draft under its existing merge HOLD; its merge is not a new Runtime prerequisite |
+
+Lead [confirmed the schedule](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5980927741): one read-only field precheck on 2026-10-05 morning, followed by submission of its results and a proposed non-overlap window. This is a plan, not a completed precheck or automatic Runtime GO.
 
 ### Next actions — reuse completed work
 
