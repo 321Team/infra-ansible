@@ -324,12 +324,25 @@
           ansible.builtin.systemd_service:
             name: "{{ hbr_ac04_guard_service }}"
             enabled: false
-          failed_when: false
 
         - name: Rescue - reload dependency graph after disabling guard
           ansible.builtin.systemd_service:
             daemon_reload: true
-          failed_when: false
+
+        - name: Rescue - read Docker dependencies after daemon reload
+          ansible.builtin.command:
+            argv: [systemctl, show, "{{ hbr_ac04_docker_service }}", --property=Requires, --value]
+          register: hbr_ac04_rescue_detached_requires
+          changed_when: false
+
+        - name: Rescue - require confirmed dependency detach before guard stop
+          ansible.builtin.assert:
+            that:
+              - hbr_ac04_rescue_detached_requires.rc == 0
+              - hbr_ac04_guard_service not in hbr_ac04_rescue_detached_requires.stdout.split()
+            fail_msg: >-
+              Docker guard dependency removal is not confirmed. Leave the guard
+              and nft table in place; stop for manual reconciliation.
 
         - name: Rescue - verify Docker remains active after dependency detach
           ansible.builtin.command:
@@ -430,3 +443,4 @@
         owner: root
         group: root
         mode: "0600"
+

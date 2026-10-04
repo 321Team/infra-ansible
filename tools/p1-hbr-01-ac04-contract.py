@@ -215,4 +215,30 @@ for text, label in ((precheck, "precheck"), (apply, "apply"), (verify, "verify")
     require("hbr_ac04_filter_service" not in text, f"stale DOCKER-USER service variable remains in {label}")
     require("hbr_ac04_chain" not in text, f"stale DOCKER-USER chain variable remains in {label}")
 
+# Bind failure recovery and integrity gates to task structure, not comments.
+import yaml
+for source, key in ((apply, 'rescue'), (rollback, 'block')):
+    task_list = yaml.safe_load(source)[-1]['tasks']
+    recovery = next(t[key] for t in task_list if key in t)
+    stop = next(i for i,t in enumerate(recovery)
+                if t.get('ansible.builtin.systemd_service', {}).get('state') == 'stopped')
+    detach = next(i for i,t in enumerate(recovery)
+                  if 'require confirmed dependency detach' in t['name'])
+    query = next(i for i,t in enumerate(recovery)
+                 if '--property=Requires' in t.get('ansible.builtin.command', {}).get('argv', []))
+    require(query < detach < stop, 'confirmed dependency detach must precede stop')
+    for t in recovery[:stop]:
+        if 'ansible.builtin.systemd_service' in t or t is recovery[query]:
+            require('failed_when' not in t and not t.get('ignore_errors'),
+                    'dependency detach/query failures must stop recovery')
+verification = yaml.safe_load(verify)[-1]['tasks']
+seal = next(i for i,t in enumerate(verification)
+            if t.get('ansible.builtin.command', {}).get('argv') ==
+            ['sha256sum', '--check', '--strict', 'PRESTATE_SHA256SUMS'])
+read_state = next(i for i,t in enumerate(verification) if 'ansible.builtin.slurp' in t)
+require(seal < read_state, 'prestate seal must be checked before state consumption')
+require('failed_when' not in verification[seal] and not verification[seal].get('ignore_errors'),
+        'prestate hash failure must stop verification')
+
 print("P1_HBR_AC04_STATIC_CONTRACT=PASS")
+

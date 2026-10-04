@@ -19,6 +19,32 @@
           Verification requires the state captured by the reviewed apply.
           Do not infer prestate from the current server.
 
+    - name: Check sealed prestate manifest before verification
+      ansible.builtin.stat:
+        path: "{{ hbr_ac04_state_dir }}/PRESTATE_SHA256SUMS"
+        follow: false
+      register: hbr_ac04_prestate_manifest
+
+    - name: Require regular sealed prestate manifest
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_manifest.stat.exists
+          - hbr_ac04_prestate_manifest.stat.isreg | default(false)
+        fail_msg: Prestate manifest missing or not a regular file. Stop and reconcile evidence.
+
+    - name: Verify sealed prestate hashes before consuming state
+      ansible.builtin.command:
+        argv: [sha256sum, --check, --strict, PRESTATE_SHA256SUMS]
+        chdir: "{{ hbr_ac04_state_dir }}"
+      register: hbr_ac04_prestate_verify
+      changed_when: false
+
+    - name: Require valid prestate hashes before consuming state
+      ansible.builtin.assert:
+        that:
+          - hbr_ac04_prestate_verify.rc == 0
+        fail_msg: Prestate hash verification failed. Do not report configuration PASS.
+
     - name: Read preserved original-state record
       ansible.builtin.slurp:
         src: "{{ hbr_ac04_state_dir }}/original-state.json"
@@ -104,3 +130,4 @@
           docker_managed_rules: UNCHANGED
           runtime_traffic_tests: REQUIRED
           verdict: CONFIG_PASS_RUNTIME_TRAFFIC_TESTS_PENDING
+

@@ -3,6 +3,22 @@
 Updated 2026-10-04 KST after source review/CI and evidence import; host captures remain 14:15/14:45/15:15 KST.
 Status: HISTORICAL_READONLY_CAPTURE_REVIEWED / CURRENT_SOURCE_f222f1f_CODE_APPROVED_CI_PASS / CURRENT_SOURCE_HOST_PRECHECK_NOT_RUN / OPERATIONAL_CONDITIONS_PENDING / APPLY_NOT_EXECUTED / WINDOW_NOT_CONFIRMED.
 
+## Merged source and execution decision — 2026-10-04 19:32 KST
+
+PR63 is merged. The operational source is pinned to
+`09264ae3880e5c1764e4f3406543e8bb4d664de4`, not a moving main checkout.
+[PMO/QA decision](https://github.com/321Team/fds-project-baseline/issues/13#issuecomment-5979057315)
+assigns execution to hayeounglee and GO/STOP/result acceptance to GWONUK.
+The decision grants conditional GO before 22:00 KST on 2026-10-04 only,
+after merged-source PRECHECK and all listed pre-apply conditions pass.
+The reviewed f222f1f CI is historical exact-source credit; the merge differs only
+in three runner-related files, with AC04 content unchanged. No separate merged
+commit CI or successful runtime execution is claimed here.
+This documentation PR is not a prerequisite for that execution and does not
+change the pinned operational source or authorize an overlapping change window.
+PR63 merge HOLD has been resolved; this separate PR67 remains Draft pending
+its own disposition. The historical captures below remain bound to badbe294.
+
 ## Historical host-capture scope — badbe294
 
 - Source: badbe29440916ec3ec79da8fc81722c2e6c4e75b.
@@ -22,8 +38,9 @@ Both findings were fixed in `f222f1f15c52c74c1800ce1b4040a21e439e19ed`.
 by hayeounglee APPROVED the fixes; [CI Run37185044833](https://github.com/321Team/infra-ansible/actions/runs/37185044833)
 succeeded with 90 unit tests and 72 syntax checks. Runner local cleanup and
 user-provided remote absence were verified. This source has no new harbor01
-PRECHECK or production apply evidence. Draft/merge HOLD and operational decisions
-remain pending. Integrating this documentation changes the source HEAD; bind
+PRECHECK or production apply evidence. That source review did not authorize runtime execution. The later merged-source
+conditional decision above governs execution; its PRECHECK and runtime outcomes
+have not been supplied to this worksheet. Integrating this documentation changes the source HEAD; bind
 required checks and review to that resulting HEAD before apply.
 
 ## Execution environment and evidence
