@@ -15,6 +15,10 @@ test -n "${ANSIBLE_PRIVATE_KEY_FILE:-}"
 test -r "${ANSIBLE_PRIVATE_KEY_FILE}"
 mkdir -p "${evidence_root}"
 
+# Load from this wrapper, not the caller working directory.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/lib/ansible-engine.sh" || exit 1
+fds_engine_init || exit "$?"
+
 run_playbook() {
   local label="$1"
   local target="$2"
@@ -35,7 +39,7 @@ run_playbook() {
       "${timestamp}" "$$" "${run_sha}" "${run_tree}" "${label}" "${target}" \
       "${input_hash}" "$(date -Iseconds)"
     set +e
-    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" 2>&1
+    fds_engine_exec ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" 2>&1
     rc=$?
     set -e
     printf '# rc=%s finished=%s\n' "${rc}" "$(date -Iseconds)"
@@ -72,7 +76,7 @@ assert_idempotent() {
     printf '%s\n' "${recap_lines}" >&2
     exit 1
   fi
-  expected_hosts="$(ansible-inventory -i "${repo_root}/inventory/hosts.yml" --graph egress_proxy \
+  expected_hosts="$(fds_engine_exec ansible-inventory -i "${repo_root}/inventory/hosts.yml" --graph egress_proxy \
     | sed -n 's/^.*--//p' | grep -vE '^@|:$' | sort)"
   actual_hosts="$(printf '%s\n' "${recap_lines}" | awk '{print $1}' | sort)"
   if [[ "${expected_hosts}" != "${actual_hosts}" ]]; then

@@ -32,6 +32,10 @@ mkdir -p "${evidence_root}"
 # 사용한다. (참고: "|| true"로 파이프라인 실패를 무마하는 방식은
 # 채택하지 않는다 — true가 실행되는 순간 그 자체가 새 명령이 되어
 # PIPESTATUS를 덮어쓸 수 있기 때문이다.)
+# Load from this wrapper, not the caller working directory.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/lib/ansible-engine.sh" || exit 1
+fds_engine_init || exit "$?"
+
 run_playbook() {
   local label="$1"
   shift
@@ -43,7 +47,7 @@ run_playbook() {
 
   run_head_sha="$(git -C "${repo_root}" rev-parse --verify HEAD)"
 
-  if ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" \
+  if fds_engine_exec ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" \
       2>&1 | tee "${evidence_root}/${timestamp}_${label}.txt"; then
     pipe_status=("${PIPESTATUS[@]}")
   else
@@ -73,7 +77,7 @@ run_playbook() {
 
 case "${action}" in
   syntax)
-    ansible-playbook -i "${repo_root}/inventory/hosts.yml" --syntax-check \
+    fds_engine_exec ansible-playbook -i "${repo_root}/inventory/hosts.yml" --syntax-check \
       "${repo_root}/playbooks/p1-k8s-01-gate0-precheck.yml"
     ;;
   check)
@@ -96,12 +100,12 @@ case "${action}" in
       echo
       echo "## Environment (per code review request)"
       echo '```text'
-      ansible --version
+      fds_engine_exec ansible --version
       echo '```'
       echo
       echo "### ansible-config dump --only-changed"
       echo '```text'
-      (cd "${repo_root}" && ansible-config dump --only-changed)
+      (cd "${repo_root}" && fds_engine_exec ansible-config dump --only-changed)
       echo '```'
       echo
       # F07 재검토: *.meta 기준 순회는 실행이 중단되어 .meta가 없는
