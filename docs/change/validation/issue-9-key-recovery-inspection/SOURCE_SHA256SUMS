@@ -1,0 +1,3 @@
+d3416b98980937fc62291393b9a09c1a6b2a25596a785d32fe09b65db93442e6  docs/runbooks/Issue9-Key-Recovery-Preflight.md
+681be18401b81f52688dc6fd979e022e2d875b1995e3aba7e00331c3d6343603  tests/test_worker02_key_recovery_inspection.py
+affa67f1509c62f08270f33e266291f014dbcd717f10ea6e42a372700d594727  tools/inspect-worker02-key-recovery.py
