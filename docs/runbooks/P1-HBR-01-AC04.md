@@ -367,3 +367,45 @@ retain their original output. Confirm:
 CI is syntax and localhost fixtures only. A prior HEAD's PASS is historical
 and does not validate a changed HEAD. Require fresh CI and independent approval
 for the new exact HEAD; PRECHECK/Apply/Runtime are separate gates.
+
+## 13. Guard maintenance and change-window notice
+
+Do not restart the guard alone. Docker requires it through
+`RequiredBy=docker.service`, so a guard restart can restart Docker, interrupt
+Harbor and recreate DNAT rules. Source-set changes must follow an approved,
+reviewed rollback and reapply in a non-conflicting window. Guard stop still
+requires dependency detach, daemon-reload and Docker-active checks in section 10.
+Do not bypass these steps with a standalone stop or restart.
+
+The change-window notice must state that existing TCP/443 sessions from
+unapproved sources can lose their next packets when the guard becomes effective.
+Reconfirm actual clients and the continued need for temporary .50/.102 exceptions
+with the Lead. Track removal in baseline #13; do not invent an expiry or add
+sources implicitly.
+
+Before apply, retain read-only observations of nftables.service enabled/active
+state, its loaded unit/drop-ins and referenced configuration. Check whether its
+startup path can execute `flush ruleset` or otherwise replace the dedicated guard.
+If a competing ruleset loader can erase the guard, stop for reviewed ordering/
+policy resolution. Do not disable or restart services as part of this check.
+Neither an inactive service alone nor a missing literal `flush ruleset` proves
+that all competing boot/maintenance loaders are absent.
+
+The captured nftables.service ExecReload and ExecStop commands contain
+`flush ruleset`. Explicit reload or stop can therefore erase the dedicated guard
+and Docker/firewalld managed tables even when the service was previously
+observed disabled/inactive. Coordinate such maintenance through the reviewed
+recovery plan and recheck exact guard/managed-table state and traffic afterward.
+The read-only observations in the worksheet do not authorize these operations.
+
+An active oneshot unit with RemainAfterExit does not prove that its nft table
+exists. Operational follow-up must assign an owner, schedule and failure response
+for exact configuration verification and verification after firewall/Docker
+maintenance. Preserve table/chain/set/rules, command exit codes and traffic
+observations. A missing/mismatched guard is an incident requiring the reviewed
+recovery path; do not automatically restart the guard. This document introduces
+no timer, monitoring deployment or new periodic production commands.
+
+Use [the pre-apply worksheet](P1-HBR-01-AC04-preapply-worksheet.md) to retain
+observations, decisions and the change-window notice. A completed worksheet
+does not substitute for explicit change approval or Runtime acceptance.
