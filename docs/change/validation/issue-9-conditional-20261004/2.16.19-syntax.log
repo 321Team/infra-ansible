@@ -1,0 +1,4 @@
+
+playbook: /workspace/scratch/b148f4e175f5/ansible9/playbooks/p1-sec-01-b2-collect-58.yml
+[WARNING]: Could not match supplied host pattern, ignoring: k8s_control_plane
+[WARNING]: Could not match supplied host pattern, ignoring: k8s_workers

@@ -158,7 +158,7 @@ def classify(
     idle_online_matching = [r for r in online_matching if r.get("busy") is False]
     busy_online_matching = [r for r in online_matching if r.get("busy") is True]
     unknown_busy_online_matching = [
-        r for r in online_matching if r.get("busy") not in (True, False)
+        r for r in online_matching if r.get("busy") is not True and r.get("busy") is not False
     ]
 
     isolated_job = EXPECTED_LABELS <= job_labels

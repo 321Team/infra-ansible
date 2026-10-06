@@ -1,0 +1,178 @@
+---
+- name: Validate managed nft source syntax
+  ansible.builtin.command:
+    argv: [nft, -c, -f, "{{ hbr_ac04_nft_file }}"]
+  register: hbr_ac04_nft_check
+  changed_when: false
+
+- name: Read managed nft table
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - table
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+  register: hbr_ac04_nft_table_live
+  changed_when: false
+
+- name: Read managed approved IPv4 set
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - set
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+      - approved_v4
+  register: hbr_ac04_nft_set_live
+  changed_when: false
+
+- name: Read managed forward guard chain
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - chain
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+      - "{{ hbr_ac04_nft_chain }}"
+  register: hbr_ac04_nft_chain_live
+  changed_when: false
+
+- name: Extract managed approved IPv4 set
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_set_ips: >-
+      {{
+        hbr_ac04_nft_set_live.stdout
+        | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}')
+        | unique
+        | list
+      }}
+
+- name: Count managed table objects
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_table_set_count: >-
+      {{
+        hbr_ac04_nft_table_live.stdout
+        | regex_findall('(?m)^\s*set\s+\S+\s*\{')
+        | length
+      }}
+    hbr_ac04_nft_table_chain_count: >-
+      {{
+        hbr_ac04_nft_table_live.stdout
+        | regex_findall('(?m)^\s*chain\s+\S+\s*\{')
+        | length
+      }}
+
+- name: Extract canonical chain metadata
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_chain_meta_lines: >-
+      {{
+        hbr_ac04_nft_chain_live.stdout_lines
+        | map('trim')
+        | select('match', '^type filter hook ')
+        | map('regex_replace', '\s+', ' ')
+        | list
+      }}
+
+- name: Extract live rule lines only
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_rule_lines_raw: >-
+      {{
+        hbr_ac04_nft_chain_live.stdout_lines
+        | map('trim')
+        | reject('equalto', '')
+        | reject('match', '^table ')
+        | reject('match', '^chain ')
+        | reject('match', '^type filter hook ')
+        | reject('equalto', '}')
+        | list
+      }}
+
+- name: Normalize volatile nft counter values and whitespace
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_rule_lines_normalized: >-
+      {{
+        hbr_ac04_nft_rule_lines_raw
+        | map(
+            'regex_replace',
+            '\s+counter packets [0-9]+ bytes [0-9]+\s+',
+            ' counter '
+          )
+        | map('regex_replace', '\s+', ' ')
+        | list
+      }}
+
+- name: Build exact reviewed rule contract
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_expected_meta: >-
+      type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;
+    # nftables v1.1.5 canonical list output captured on ansible01 with the
+    # same version as harbor01. The parser compares the post-list form, not
+    # the input source aliases (dnat/tcp/ipv4/ipv6).
+    hbr_ac04_nft_expected_rules:
+      - >-
+        iifname "{{ hbr_ac04_interface }}"
+        ct status 0x20
+        ct original ip daddr {{ hbr_ac04_host_ip }}
+        ct protocol 6
+        ct original proto-dst {{ hbr_ac04_port }}
+        ip saddr @approved_v4
+        counter accept
+        comment "P1-HBR-01-AC04 approved IPv4"
+      - >-
+        iifname "{{ hbr_ac04_interface }}"
+        ct status 0x20
+        ct original ip daddr {{ hbr_ac04_host_ip }}
+        ct protocol 6
+        ct original proto-dst {{ hbr_ac04_port }}
+        counter drop
+        comment "P1-HBR-01-AC04 deny unapproved IPv4"
+      - >-
+        iifname "{{ hbr_ac04_interface }}"
+        meta nfproto 10
+        ct status 0x20
+        ct protocol 6
+        ct original proto-dst {{ hbr_ac04_port }}
+        counter drop
+        comment "P1-HBR-01-AC04 deny IPv6 published 443"
+
+- name: Normalize reviewed rule contract
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_expected_rules_normalized: >-
+      {{
+        hbr_ac04_nft_expected_rules
+        | map('regex_replace', '\s+', ' ')
+        | map('trim')
+        | list
+      }}
+
+- name: Assert exact nft guard contract
+  ansible.builtin.assert:
+    that:
+      - hbr_ac04_nft_check.rc == 0
+      - hbr_ac04_nft_version in hbr_ac04_nft_supported_versions
+      - hbr_ac04_nft_table_set_count | int == 1
+      - hbr_ac04_nft_table_chain_count | int == 1
+      - hbr_ac04_nft_table_live.stdout is search('set approved_v4')
+      - hbr_ac04_nft_table_live.stdout is search('chain ' ~ hbr_ac04_nft_chain)
+      - hbr_ac04_nft_set_live.stdout is search('type ipv4_addr')
+      - >-
+        hbr_ac04_nft_set_ips | sort
+        == (hbr_ac04_sources | map(attribute='address') | list | sort)
+      - hbr_ac04_nft_chain_meta_lines | length == 1
+      - >-
+        hbr_ac04_nft_chain_meta_lines[0]
+        == (hbr_ac04_nft_expected_meta | regex_replace('\s+', ' ') | trim)
+      - hbr_ac04_nft_rule_lines_normalized | length == 3
+      - >-
+        hbr_ac04_nft_rule_lines_normalized
+        == hbr_ac04_nft_expected_rules_normalized
+    fail_msg: >-
+      Managed nft guard does not exactly match the reviewed table/chain/set
+      contract. Extra objects or rules, rule reordering, expression drift, or
+      source-set drift is a STOP. Counter values are intentionally ignored.

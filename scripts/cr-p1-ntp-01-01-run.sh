@@ -120,6 +120,10 @@ bind_source() {
   fi
 }
 
+# Load from this wrapper, not the caller working directory.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/lib/ansible-engine.sh" || exit 1
+fds_engine_init || exit "$?"
+
 run_playbook() {
   local label="$1"
   shift
@@ -129,7 +133,7 @@ run_playbook() {
   log_file="$(mktemp "${evidence_root}/${timestamp}_${label}.XXXXXX.txt")"
   {
     printf 'SOURCE_HEAD=%s\n' "${bound_source_head}"
-    ansible-playbook -i "${repo_root}/inventory/hosts.yml" "${ntp_mode_args[@]}" "${runtime_vars_args[@]}" "$@"
+    fds_engine_exec ansible-playbook -i "${repo_root}/inventory/hosts.yml" "${ntp_mode_args[@]}" "${runtime_vars_args[@]}" "$@"
   } 2>&1 | tee "${log_file}" || run_rc=$?
   if ! require_clean_source || [[ "${current_source_head}" != "${bound_source_head}" ]]; then
     printf 'STOP: source changed during execution; this evidence requires review\n' \

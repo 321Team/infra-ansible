@@ -94,6 +94,19 @@ class QueueWatchTests(unittest.TestCase):
         self.assertTrue(result["action_required"])
         self.assertEqual(result["runner_observation"]["matching_unknown_busy_online_count"], 1)
 
+    def test_numeric_busy_is_unknown_instead_of_offline(self):
+        # bool membership compares 0/1 equal to False/True; identity is required.
+        for malformed in (0, 1, 0.0, 1.0, "false", "true"):
+            with self.subTest(busy=malformed):
+                result = self.classify(job(), [runner(busy=malformed)])
+                self.assertEqual(result["classification"], "QUEUED_WITH_MATCHING_RUNNER_BUSY_UNKNOWN")
+                self.assertTrue(result["action_required"])
+                counts = result["runner_observation"]
+                self.assertEqual(counts["matching_online_count"], 1)
+                self.assertEqual(counts["matching_idle_online_count"], 0)
+                self.assertEqual(counts["matching_busy_online_count"], 0)
+                self.assertEqual(counts["matching_unknown_busy_online_count"], 1)
+
     def test_matching_offline_runner_does_not_count_as_online_supply(self):
         result = self.classify(job(), [runner(status="offline")])
         self.assertEqual(result["classification"], "MATCHING_RUNNER_OFFLINE")

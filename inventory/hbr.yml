@@ -1,0 +1,15 @@
+---
+all:
+  children:
+    hbr:
+      hosts:
+        harbor01:
+          ansible_host: 10.1.93.54
+          expected_hostname: harbor01
+  vars:
+    ansible_user: svc_ansible
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_common_args: >-
+      -o StrictHostKeyChecking=yes
+      -o UserKnownHostsFile=%d/.ssh/known_hosts
+      -o IdentitiesOnly=yes

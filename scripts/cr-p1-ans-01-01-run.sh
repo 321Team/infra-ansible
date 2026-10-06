@@ -16,10 +16,14 @@ test -r "${ANSIBLE_PRIVATE_KEY_FILE}"
 git -C "${repo_root}" merge-base --is-ancestor "${expected_base}" HEAD
 mkdir -p "${evidence_root}"
 
+# Load from this wrapper, not the caller working directory.
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/lib/ansible-engine.sh" || exit 1
+fds_engine_init || exit "$?"
+
 run_playbook() {
   local label="$1"
   shift
-  ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" \
+  fds_engine_exec ansible-playbook -i "${repo_root}/inventory/hosts.yml" "$@" \
     2>&1 | tee "${evidence_root}/${timestamp}_${label}.txt"
 }
 

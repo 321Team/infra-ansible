@@ -1,0 +1,165 @@
+---
+- name: Assert exact Harbor target identity
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'harbor01'
+      - ansible_hostname == (expected_hostname | default('harbor01'))
+      - ansible_default_ipv4.address == hbr_ac04_host_ip
+    fail_msg: Refusing AC-04 work because target is not reviewed harbor01.
+
+- name: Read Docker service state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ hbr_ac04_docker_service }}"]
+  register: hbr_ac04_docker_active
+  changed_when: false
+  failed_when: false
+
+- name: Read IPv4 forwarding state
+  ansible.builtin.command:
+    argv: [sysctl, -n, net.ipv4.ip_forward]
+  register: hbr_ac04_ip_forward
+  changed_when: false
+
+- name: Read FORWARD chain
+  ansible.builtin.command:
+    argv: [iptables, -w, "5", -t, filter, -S, FORWARD]
+  register: hbr_ac04_forward_rules
+  changed_when: false
+
+- name: Read DOCKER-USER chain for non-interference verification
+  ansible.builtin.command:
+    argv: [iptables, -w, "5", -t, filter, -S, DOCKER-USER]
+  register: hbr_ac04_docker_user_rules
+  changed_when: false
+  failed_when: false
+
+- name: Read DOCKER-FORWARD chain for non-interference verification
+  ansible.builtin.command:
+    argv: [iptables, -w, "5", -t, filter, -S, DOCKER-FORWARD]
+  register: hbr_ac04_docker_forward_rules
+  changed_when: false
+  failed_when: false
+
+- name: Read Docker filter chain for non-interference verification
+  ansible.builtin.command:
+    argv: [iptables, -w, "5", -t, filter, -S, DOCKER]
+  register: hbr_ac04_docker_filter_rules
+  changed_when: false
+  failed_when: false
+
+- name: Read Docker NAT chain
+  ansible.builtin.command:
+    argv: [iptables, -w, "5", -t, nat, -S, DOCKER]
+  register: hbr_ac04_docker_nat
+  changed_when: false
+
+- name: Read IPv6 Docker NAT chain when present
+  ansible.builtin.command:
+    argv: [ip6tables, -w, "5", -t, nat, -S, DOCKER]
+  register: hbr_ac04_ip6_docker_nat
+  changed_when: false
+  failed_when: false
+
+- name: Read nftables version
+  ansible.builtin.command:
+    argv: [nft, --version]
+  register: hbr_ac04_nft_version_raw
+  changed_when: false
+
+- name: Parse nftables semantic version
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_version: >-
+      {{
+        hbr_ac04_nft_version_raw.stdout
+        | regex_findall('[0-9]+[.][0-9]+[.][0-9]+')
+        | first
+        | default('')
+      }}
+
+- name: Read nft table inventory
+  ansible.builtin.command:
+    argv: [nft, -n, list, tables]
+  register: hbr_ac04_nft_tables
+  changed_when: false
+
+- name: Read dedicated nft guard when present
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - table
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+  register: hbr_ac04_nft_guard
+  changed_when: false
+  failed_when: false
+
+- name: Check managed nft source file
+  ansible.builtin.stat:
+    path: "{{ hbr_ac04_nft_file }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: hbr_ac04_nft_file_stat
+
+- name: Check managed guard unit
+  ansible.builtin.stat:
+    path: "{{ hbr_ac04_guard_unit }}"
+    checksum_algorithm: sha256
+    follow: false
+  register: hbr_ac04_guard_unit_stat
+
+- name: Read guard service enabled state
+  ansible.builtin.command:
+    argv: [systemctl, is-enabled, "{{ hbr_ac04_guard_service }}"]
+  register: hbr_ac04_guard_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Read guard service active state
+  ansible.builtin.command:
+    argv: [systemctl, is-active, "{{ hbr_ac04_guard_service }}"]
+  register: hbr_ac04_guard_active
+  changed_when: false
+  failed_when: false
+
+- name: Read Docker Requires dependencies
+  ansible.builtin.command:
+    argv: [systemctl, show, "{{ hbr_ac04_docker_service }}", --property=Requires, --value]
+  register: hbr_ac04_docker_requires
+  changed_when: false
+  failed_when: false
+
+- name: Read guard Before ordering
+  ansible.builtin.command:
+    argv: [systemctl, show, "{{ hbr_ac04_guard_service }}", --property=Before, --value]
+  register: hbr_ac04_guard_before
+  changed_when: false
+  failed_when: false
+
+- name: Read guard After ordering
+  ansible.builtin.command:
+    argv: [systemctl, show, "{{ hbr_ac04_guard_service }}", --property=After, --value]
+  register: hbr_ac04_guard_after
+  changed_when: false
+  failed_when: false
+
+- name: Locate Docker published host 443 DNAT rules
+  ansible.builtin.set_fact:
+    hbr_ac04_host443_dnat_rules: >-
+      {{
+        hbr_ac04_docker_nat.stdout_lines
+        | select('search', '--dport 443')
+        | select('search', '-j DNAT')
+        | list
+      }}
+
+- name: Locate IPv6 Docker published host 443 DNAT rules
+  ansible.builtin.set_fact:
+    hbr_ac04_ip6_host443_dnat_rules: >-
+      {{
+        hbr_ac04_ip6_docker_nat.stdout_lines | default([])
+        | select('search', '--dport 443')
+        | select('search', '-j DNAT')
+        | list
+      }}
