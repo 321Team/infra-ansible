@@ -1,0 +1,66 @@
+{
+  "schema": "fds.hbr.offline-linux-mock-receipt.v1",
+  "source_commit": "b067a21f8ecce0c79052b0ac2ba9f2df54fab882",
+  "host": "ansible01",
+  "account": "server01_ansible",
+  "python": "3.12.14",
+  "workspace": "/home/server01_ansible/p1-offline-validation.bHRqcUbI",
+  "test_command": "python3.12 -B hbr/tests/test_p1_hbr_ac04_docker_chain_analysis.py > hbr-test.stdout.log 2> hbr-test.stderr.log",
+  "tests": 18,
+  "test_conclusion": "OK",
+  "exit_code": 0,
+  "exit_code_origin": "original execution tool stdout HBR_TEST_RC=0; no server rc file was created",
+  "test_time_basis": "server file mtime 2026-10-07T19:37:31+09:00; not an independently logged start/end interval",
+  "source_files": [
+    {
+      "path": "docs/runbooks/P1-HBR-01-AC04-Docker-Chain-Analysis-SOURCE.json",
+      "blob": "55d9cea55c9060d774d1e525326bfe3b586e9de7",
+      "sha256": "131f16cd3247825497291970df2c0d0e4b90a0d59fd537867da871f7d47898eb"
+    },
+    {
+      "path": "docs/runbooks/P1-HBR-01-AC04-Docker-Chain-Analysis.md",
+      "blob": "91a7e155e142964f94dea345928ae7a745dd2455",
+      "sha256": "c80c2134af72267536a1c93df83637788d94632d8ffe70df648fb9af6a0d02f7"
+    },
+    {
+      "path": "tests/test_p1_hbr_ac04_docker_chain_analysis.py",
+      "blob": "357fc24f3acae0189495e5beb9a9a4fa984cc2e9",
+      "sha256": "71d1710a8e571d7db39315930cb352088062734ee678c4e828e5cc21d2bb6568"
+    },
+    {
+      "path": "tools/p1-hbr-ac04-docker-chain-analysis.py",
+      "blob": "e658f8f4872991d81a088c4fe24e29c711654966",
+      "sha256": "de8026756ca429031199ffc87cd9773ff399923f31c38888819a5d07a7bd6699"
+    }
+  ],
+  "server_recheck_command": "cd /home/server01_ansible/p1-offline-validation.bHRqcUbI && date --iso-8601=seconds && hostname -s && id -un && python3.12 --version && sha256sum hbr-test.stdout.log hbr-test.stderr.log hbr/docs/runbooks/P1-HBR-01-AC04-Docker-Chain-Analysis-SOURCE.json hbr/docs/runbooks/P1-HBR-01-AC04-Docker-Chain-Analysis.md hbr/tests/test_p1_hbr_ac04_docker_chain_analysis.py hbr/tools/p1-hbr-ac04-docker-chain-analysis.py && stat --format='%n %y %s' hbr-test.stdout.log hbr-test.stderr.log",
+  "server_recheck_exit_code": 0,
+  "server_recheck_time": "2026-10-07T19:58:00+09:00",
+  "logs": [
+    {
+      "path": "hbr-test.stderr.log",
+      "sha256": "83f2e5990908583d1a25d47ecaf79f4703e675cfece86d8e90f0e39b1b51d2f2",
+      "size_bytes": 2259
+    },
+    {
+      "path": "hbr-test.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "server-recheck.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    {
+      "path": "server-recheck.stdout.log",
+      "sha256": "142f9aca4aca01b656af686cb836efa025c163681b24302e813b8bb082b976a0",
+      "size_bytes": 847
+    }
+  ],
+  "field_input": "NOT_RECEIVED",
+  "docker_runtime": "NOT_RUN_BY_THIS_SESSION",
+  "runtime_go": false,
+  "ac04_accepted": false,
+  "test_source_changed": false
+}

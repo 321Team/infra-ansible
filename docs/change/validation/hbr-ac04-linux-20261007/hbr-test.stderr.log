@@ -1,0 +1,23 @@
+test_accept_prefix_reorder_rejected (__main__.ChainAnalysisTests.test_accept_prefix_reorder_rejected) ... ok
+test_both_swaps_do_not_become_pass (__main__.ChainAnalysisTests.test_both_swaps_do_not_become_pass) ... ok
+test_cli_candidate_returns_two_and_hides_extra_secrets (__main__.ChainAnalysisTests.test_cli_candidate_returns_two_and_hides_extra_secrets) ... ok
+test_cli_read_failure_is_categorical (__main__.ChainAnalysisTests.test_cli_read_failure_is_categorical) ... ok
+test_duplicate_keys_rejected (__main__.ChainAnalysisTests.test_duplicate_keys_rejected) ... ok
+test_exact_is_chain_scope_and_never_go (__main__.ChainAnalysisTests.test_exact_is_chain_scope_and_never_go) ... ok
+test_filter_tail_swap_is_review_candidate (__main__.ChainAnalysisTests.test_filter_tail_swap_is_review_candidate) ... ok
+test_forward_tail_swap_is_review_candidate (__main__.ChainAnalysisTests.test_forward_tail_swap_is_review_candidate) ... ok
+test_insert_delete_duplicate_mutations_rejected (__main__.ChainAnalysisTests.test_insert_delete_duplicate_mutations_rejected) ... ok
+test_invalid_json_nonfinite_and_array_rejected (__main__.ChainAnalysisTests.test_invalid_json_nonfinite_and_array_rejected) ... ok
+test_missing_or_malformed_fields_rejected (__main__.ChainAnalysisTests.test_missing_or_malformed_fields_rejected) ... ok
+test_nat_user_forward_drift_rejected (__main__.ChainAnalysisTests.test_nat_user_forward_drift_rejected) ... ok
+test_option_interface_or_target_change_rejected (__main__.ChainAnalysisTests.test_option_interface_or_target_change_rejected) ... ok
+test_original_hash_mismatch_and_malformed_hash_rejected (__main__.ChainAnalysisTests.test_original_hash_mismatch_and_malformed_hash_rejected) ... ok
+test_prefix_reorder_rejected (__main__.ChainAnalysisTests.test_prefix_reorder_rejected) ... ok
+test_reverse_original_order_supported (__main__.ChainAnalysisTests.test_reverse_original_order_supported) ... ok
+test_schema_bool_or_other_version_rejected (__main__.ChainAnalysisTests.test_schema_bool_or_other_version_rejected) ... ok
+test_size_limit_and_oversize_file_rejected (__main__.ChainAnalysisTests.test_size_limit_and_oversize_file_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.006s
+
+OK

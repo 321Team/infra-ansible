@@ -1,0 +1,37 @@
+{
+  "schema": "HBR-AC04-offline-analysis-source-1",
+  "repository": "321Team/infra-ansible",
+  "base_commit": "61a77ad2f984cbf9e74a95f779691e2831a5a2a6",
+  "recorded_at_utc": "2026-10-07T07:29:51.555376+00:00",
+  "source_files": {
+    "tools/p1-hbr-ac04-docker-chain-analysis.py": {
+      "sha256": "de8026756ca429031199ffc87cd9773ff399923f31c38888819a5d07a7bd6699",
+      "size_bytes": 6120
+    },
+    "tests/test_p1_hbr_ac04_docker_chain_analysis.py": {
+      "sha256": "71d1710a8e571d7db39315930cb352088062734ee678c4e828e5cc21d2bb6568",
+      "size_bytes": 7969
+    },
+    "docs/runbooks/P1-HBR-01-AC04-Docker-Chain-Analysis.md": {
+      "sha256": "c80c2134af72267536a1c93df83637788d94632d8ffe70df648fb9af6a0d02f7",
+      "size_bytes": 5426
+    }
+  },
+  "verification": {
+    "static_ast_files": 2,
+    "local_mock_tests": 18,
+    "local_mock_conclusion": "OK",
+    "local_mock_exit_code": 0,
+    "command": "python tests/test_p1_hbr_ac04_docker_chain_analysis.py",
+    "python": "3.12.14",
+    "environment": "Windows-11-10.0.26200-SP0",
+    "log_origin": "EXEC_TOOL_RESPONSE_DIRECTLY_OBSERVED_NOT_SERVER_EVIDENCE",
+    "received_field_input": "NOT_RECEIVED",
+    "linux_ci": "NOT_RUN_PREPARATION_BRANCH_ONLY",
+    "independent_review": "NOT_SUBMITTED",
+    "runtime": "NOT_RUN",
+    "runtime_go": false,
+    "verifier_modified": false,
+    "baseline_modified": false
+  }
+}
