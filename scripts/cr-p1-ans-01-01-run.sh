@@ -64,6 +64,10 @@ case "${action}" in
     run_playbook "verify_all_nodes" \
       "${repo_root}/playbooks/cr-p1-ans-01-01-verify.yml"
     ;;
+  verify-worker02)
+    run_playbook "verify_worker02" \
+      "${repo_root}/playbooks/cr-p1-ans-01-01-verify-worker02.yml"
+    ;;
   rollback)
     require_change_approval
     rollback_host="${2:-}"
@@ -100,7 +104,7 @@ case "${action}" in
     )
     ;;
   *)
-    echo "usage: $0 {precheck|control-plane|workers|verify|rollback HOST|finalize}" >&2
+    echo "usage: $0 {precheck|control-plane|workers|verify|verify-worker02|rollback HOST|finalize}" >&2
     exit 64
     ;;
 esac

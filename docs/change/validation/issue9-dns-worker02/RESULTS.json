@@ -1,0 +1,97 @@
+{
+  "scope": "local-only fixture; no managed-host execution",
+  "archive_sha256": "0293d0f416e60f2ddcee79e082a4c52cea566be1e29a98a1d4e556516bd6c217",
+  "results": [
+    {
+      "name": "bash-syntax",
+      "argv": [
+        "/bin/bash",
+        "-n",
+        "/home/server01_ansible/issue9-dns-scope-test.yWhXJN3N/source/scripts/cr-p1-ans-01-01-run.sh"
+      ],
+      "started_at": "2026-10-07T16:08:53.801127+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:08:53.802564+00:00"
+    },
+    {
+      "name": "scope-2.16.19",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_dns_worker02_scope.py",
+        "-v"
+      ],
+      "started_at": "2026-10-07T16:08:53.802634+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:08:58.172777+00:00"
+    },
+    {
+      "name": "syntax-2.16.19",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "/home/server01_ansible/issue9-dns-scope-test.yWhXJN3N/source/playbooks/cr-p1-ans-01-01-verify-worker02.yml"
+      ],
+      "started_at": "2026-10-07T16:08:58.172868+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:08:58.443615+00:00"
+    },
+    {
+      "name": "scope-2.21.3",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_dns_worker02_scope.py",
+        "-v"
+      ],
+      "started_at": "2026-10-07T16:08:58.443683+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:09:03.688126+00:00"
+    },
+    {
+      "name": "syntax-2.21.3",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "/home/server01_ansible/issue9-dns-scope-test.yWhXJN3N/source/playbooks/cr-p1-ans-01-01-verify-worker02.yml"
+      ],
+      "started_at": "2026-10-07T16:09:03.688233+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:09:04.056456+00:00"
+    },
+    {
+      "name": "engine-mocks",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_ansible_engine_selection.py",
+        "-v"
+      ],
+      "started_at": "2026-10-07T16:09:04.056526+00:00",
+      "rc": 0,
+      "ended_at": "2026-10-07T16:09:06.425941+00:00"
+    }
+  ]
+}

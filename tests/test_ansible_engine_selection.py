@@ -163,6 +163,18 @@ elif 'rev-parse' in args:
                 self.assertNotEqual(r.returncode, 0)
                 self.assertNotIn('"cli":', r.stdout)
 
+    def test_dns_worker02_dispatch_is_separate_and_propagates_failure(self):
+        for rc in (0, 7):
+            with self.subTest(rc=rc):
+                r = self.wrapper('cr-p1-ans-01-01-run.sh', 'verify-worker02', rc)
+                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+                calls = [json.loads(line) for line in r.stdout.splitlines() if line.startswith('{')]
+                self.assertEqual(len(calls), 1)
+                self.assertTrue(calls[0]['argv'][-1].endswith('/cr-p1-ans-01-01-verify-worker02.yml'))
+                self.assertNotIn('--extra-vars', calls[0]['argv'])
+                self.assertNotIn('-e', calls[0]['argv'])
+                self.assertIn('"tty": "false"', r.stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

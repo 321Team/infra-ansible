@@ -1,0 +1,13 @@
+test_empty_inventory_is_not_success (test_dns_worker02_scope.Worker02Scope.test_empty_inventory_is_not_success) ... ok
+test_exact_worker02_only_with_other_workers_present (test_dns_worker02_scope.Worker02Scope.test_exact_worker02_only_with_other_workers_present) ... ok
+test_group_named_worker02_cannot_expand_scope (test_dns_worker02_scope.Worker02Scope.test_group_named_worker02_cannot_expand_scope) ... ok
+test_group_only_alias_cannot_select_worker01 (test_dns_worker02_scope.Worker02Scope.test_group_only_alias_cannot_select_worker01) ... ok
+test_missing_worker02_stops_before_managed_play (test_dns_worker02_scope.Worker02Scope.test_missing_worker02_stops_before_managed_play) ... ok
+test_role_failure_is_not_swallowed (test_dns_worker02_scope.Worker02Scope.test_role_failure_is_not_swallowed) ... ok
+test_wrong_address_or_account_stops (test_dns_worker02_scope.Worker02Scope.test_wrong_address_or_account_stops) ... ok
+test_wrong_group_membership_stops (test_dns_worker02_scope.Worker02Scope.test_wrong_group_membership_stops) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 4.324s
+
+OK

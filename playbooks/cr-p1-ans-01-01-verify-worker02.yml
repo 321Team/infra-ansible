@@ -1,0 +1,33 @@
+---
+- name: Guard the Issue9 worker02-only DNS verification target
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  any_errors_fatal: true
+
+  tasks:
+    - name: Reject a missing or ambiguous worker02 before contacting managed hosts
+      ansible.builtin.assert:
+        that:
+          - "'k8s-worker02' not in groups"
+          - query('ansible.builtin.inventory_hostnames', 'k8s-worker02') == ['k8s-worker02']
+          - "'k8s-worker02' in groups.get('k8s_workers', [])"
+          - "'k8s-worker02' in groups.get('k8s_nodes', [])"
+          - hostvars['k8s-worker02'].ansible_host | default('') == '10.1.93.107'
+          - hostvars['k8s-worker02'].ansible_user | default('') == 'svc_ansible'
+        fail_msg: >-
+          NOT RUN: expected only k8s-worker02 (10.1.93.107, svc_ansible)
+          in k8s_workers/k8s_nodes. Do not widen the target or fall back to verify.
+
+- name: CR-P1-ANS-01-01 verify DNS on worker02 only
+  hosts: k8s-worker02
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+
+  vars:
+    cr_dns_phase: verify
+
+  roles:
+    - role: dns_resolver

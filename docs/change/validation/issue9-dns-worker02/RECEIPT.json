@@ -1,0 +1,20 @@
+{
+  "classification": "STATIC and local-only FIXTURE; not operational DNS RUNTIME or GitHub CI",
+  "source_base": "da4e273e7e26a9a0b51211e5146066960df072b5",
+  "remote_directory": "/home/server01_ansible/issue9-dns-scope-test.yWhXJN3N",
+  "archive_sha256": "0293d0f416e60f2ddcee79e082a4c52cea566be1e29a98a1d4e556516bd6c217",
+  "transferred_source_files_compared": 140,
+  "tested_source_sha256": {
+    "scripts/cr-p1-ans-01-01-run.sh": "ebf31e5c7baa6d771a8282b58b05b6dcc8591d5da66c4a36e2c5624a3bbadf6c",
+    "scripts/lib/ansible-engine.sh": "aedf6cd8d2fa656784e5f93e4d507582efb39755655d2e2ad0696e6353f316dd",
+    "scripts/cr-p1-mon-01-01-run.sh": "bf3d0fe563341d70139c0fe10b3f55c94e91f4f7fc34959c5baaf842f897ea6e",
+    "scripts/cr-p1-ntp-01-01-run.sh": "3b89f74e31b000be343e7e512bf12369708b7ab334cd54a7ae1d0c0dcce20171",
+    "scripts/p1-k8s-01-gate0-run.sh": "c1eb995854e496ad74fa04f039f65b7321cafe8798ceea6f58d14f28799f8d3a",
+    "playbooks/cr-p1-ans-01-01-verify-worker02.yml": "316c2a57bdc08324547e1b3bcb559ac3a696e719a2dfe87316fb25f16f9b2ef0",
+    "tests/test_ansible_engine_selection.py": "9aa8ca1b6b885a3e61eb3b7a93b080aa14bf1109e5ce66205085589e8e099b1d",
+    "tests/test_dns_worker02_scope.py": "91a7c3380df2f2c748d5c74ee1915c23a2e2fcbfa2328a391a147f8a4289a20f"
+  },
+  "field_execution": "NOT_RUN",
+  "review": "PENDING",
+  "merge": "NOT_RUN"
+}
