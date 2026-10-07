@@ -155,6 +155,11 @@ def classify(
             )
 
     online_matching = [r for r in matching if r.get("status") == "online"]
+    idle_online_matching = [r for r in online_matching if r.get("busy") is False]
+    busy_online_matching = [r for r in online_matching if r.get("busy") is True]
+    unknown_busy_online_matching = [
+        r for r in online_matching if r.get("busy") is not True and r.get("busy") is not False
+    ]
 
     isolated_job = EXPECTED_LABELS <= job_labels
     action_required = False
@@ -167,8 +172,14 @@ def classify(
         classification = "JOB_COMPLETED"
     elif status != "queued":
         classification = "UNRECOGNIZED_JOB_STATUS"
-    elif online_matching:
+    elif idle_online_matching:
         classification = "QUEUED_WITH_MATCHING_RUNNER_ONLINE"
+    elif busy_online_matching:
+        classification = "QUEUED_WITH_MATCHING_RUNNER_BUSY"
+        action_required = True
+    elif unknown_busy_online_matching:
+        classification = "QUEUED_WITH_MATCHING_RUNNER_BUSY_UNKNOWN"
+        action_required = True
     elif matching:
         classification = "MATCHING_RUNNER_OFFLINE"
         action_required = True
@@ -210,6 +221,9 @@ def classify(
         "runner_observation": {
             "matching_count": len(matching),
             "matching_online_count": len(online_matching),
+            "matching_idle_online_count": len(idle_online_matching),
+            "matching_busy_online_count": len(busy_online_matching),
+            "matching_unknown_busy_online_count": len(unknown_busy_online_matching),
             "matching": matching,
         },
         "scope": (
