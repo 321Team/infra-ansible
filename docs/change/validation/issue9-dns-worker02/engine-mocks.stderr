@@ -1,0 +1,19 @@
+test_all_selected_clis_and_argument_boundaries (test_ansible_engine_selection.Selection.test_all_selected_clis_and_argument_boundaries) ... ok
+test_dns_worker02_dispatch_is_separate_and_propagates_failure (test_ansible_engine_selection.Selection.test_dns_worker02_dispatch_is_separate_and_propagates_failure) ... ok
+test_each_version_mismatch_blocks_execution (test_ansible_engine_selection.Selection.test_each_version_mismatch_blocks_execution) ... ok
+test_existing_change_approval_still_blocks (test_ansible_engine_selection.Selection.test_existing_change_approval_still_blocks) ... ok
+test_four_wrapper_dispatch_and_failure_propagation (test_ansible_engine_selection.Selection.test_four_wrapper_dispatch_and_failure_propagation) ... ok
+test_missing_cli_no_path_fallback (test_ansible_engine_selection.Selection.test_missing_cli_no_path_fallback) ... ok
+test_missing_or_unsupported_expected_version (test_ansible_engine_selection.Selection.test_missing_or_unsupported_expected_version) ... ok
+test_old_engine_can_be_explicitly_selected (test_ansible_engine_selection.Selection.test_old_engine_can_be_explicitly_selected) ... ok
+test_relative_and_missing_directory_rejected (test_ansible_engine_selection.Selection.test_relative_and_missing_directory_rejected) ... ok
+test_selected_command_failure_propagates (test_ansible_engine_selection.Selection.test_selected_command_failure_propagates) ... ok
+test_unset_preserves_path_and_tty (test_ansible_engine_selection.Selection.test_unset_preserves_path_and_tty) ... ok
+test_unsupported_cli_rejected (test_ansible_engine_selection.Selection.test_unsupported_cli_rejected) ... ok
+test_version_query_failure_blocks_execution (test_ansible_engine_selection.Selection.test_version_query_failure_blocks_execution) ... ok
+test_version_without_directory_rejected (test_ansible_engine_selection.Selection.test_version_without_directory_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 2.327s
+
+OK
