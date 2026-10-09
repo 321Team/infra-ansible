@@ -27,8 +27,15 @@ class Workstation:
         self.vmrun = str(vmrun)
         self.runner = runner or self._run
 
-    @staticmethod
-    def _run(argv, timeout=30):
+    def _run(self, argv, timeout=30):
+        # Host PC must stay on for Remote Desktop. This boundary accepts only
+        # VM inspection and a guest VM soft stop; never a shell/host power API.
+        require(argv[:3] == [self.vmrun, "-T", "ws"], "Only VMware Workstation guest commands are permitted")
+        valid = (len(argv) == 4 and argv[3] == "list") or (len(argv) == 5 and argv[3] == "checkToolsState") or \
+                (len(argv) == 6 and argv[3] == "stop" and argv[5] == "soft")
+        require(valid, "Host power actions, force stops and other VMware actions are forbidden")
+        if len(argv) > 4:
+            require(Path(argv[4]).is_absolute() and argv[4].lower().endswith(".vmx"), "Explicit guest VMX target required")
         try:
             result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -172,7 +179,8 @@ def main():
     args = parser.parse_args()
     try:
         require(os.name == "nt", "Run on the VM's Windows Workstation host")
-        require(args.vmrun.is_absolute() and args.vmrun.is_file(), "Installed absolute vmrun path required")
+        require(args.vmrun.is_absolute() and args.vmrun.is_file() and args.vmrun.name.casefold() == "vmrun.exe",
+                "Installed absolute vmrun.exe path required")
         plan = validate_plan(private_json(args.plan))
         sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
         require(sha == plan["source_commit"] and not

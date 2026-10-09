@@ -390,6 +390,24 @@ class WindowsFinalizer(unittest.TestCase):
         ws = windows.Workstation("MOCK", runner=lambda argv, timeout=30: "Total running VMs: 2\nC:/only.vmx")
         with self.assertRaises(core.Stop): ws.running()
 
+    def test_host_pc_power_commands_and_vm_hard_stop_are_forbidden(self):
+        ws = windows.Workstation("MOCK_VMRun")
+        commands = [["shutdown.exe", "/s"], ["powershell", "Stop-Computer"],
+            [ws.vmrun, "-T", "ws", "stop", "C:/VMs/guest.vmx", "hard"],
+            [ws.vmrun, "-T", "ws", "reset", "C:/VMs/guest.vmx", "soft"]]
+        with patch.object(windows.subprocess, "run") as backend:
+            for argv in commands:
+                with self.subTest(argv=argv), self.assertRaises(core.Stop): ws._run(argv)
+            backend.assert_not_called()
+
+    def test_gateway_allows_only_explicit_guest_soft_stop(self):
+        ws = windows.Workstation("MOCK_VMRun")
+        target = str(Path(self.temp.name) / "guest.vmx")
+        argv = [ws.vmrun, "-T", "ws", "stop", target, "soft"]
+        with patch.object(windows.subprocess, "run", return_value=types.SimpleNamespace(returncode=0, stdout="", stderr="")) as backend:
+            ws._run(argv)
+            self.assertEqual(argv, backend.call_args.args[0])
+
     def test_suspended_or_crashed_vm_is_unknown(self):
         with tempfile.TemporaryDirectory() as temp:
             p = plan(); name = "edge01"; b = p["bindings"]["resources"][name]
