@@ -2,7 +2,9 @@
 
 작성 기준: 2026-10-10 KST. **코드 작성·검증용 산출물이며 실제 17대 종료는 미실행**이다. 코드 독립 리뷰·병합과 실제 종료 회차의 Lead 판단은 별개다. 원본 데이터·컨테이너·설정·보안 통제를 유지하며 Windows 물리 PC 전원 종료는 자동화하지 않는다.
 
-**원격 데스크톱을 유지하기 위해 server01~server08 호스트 PC는 켜 둔다.** 종료 대상은 게스트 VM뿐이다. Windows 실행 경계는 VMware의 VM 목록/Tools 확인과 명시적 `.vmx`의 `soft` 종료만 허용한다. Windows shutdown/Stop-Computer/재부팅/절전 및 VMware hard stop은 사용하지 않는다. 관리 VM 두 대도 호스트 PC가 아닌 게스트다. RDP가 별도 게스트의 VPN/경로를 이용하는 환경이면 그 경로의 유지 조건을 담당자가 확인하고, 필요한 게스트 종료를 제외한 별도 계획을 검토한다.
+**Chrome 원격 데스크톱을 유지하기 위해 server01~server08 호스트 PC는 켜 둔다.** 종료 대상은 게스트 VM뿐이다. Windows 실행 경계는 VMware의 VM 목록/Tools 확인과 명시적 `.vmx`의 `soft` 종료만 허용한다. Windows shutdown/Stop-Computer/재부팅/절전 및 VMware hard stop은 사용하지 않는다. 관리 VM 두 대도 호스트 PC가 아닌 게스트다.
+
+사용자 확인에 따라 원격 접속 방식은 Chrome 원격 데스크톱이다. 호스트의 원격제어 서비스와 인터넷 연결을 유지하며, 이 도구는 해당 서비스나 호스트 네트워크 설정을 변경하지 않는다. Chrome 원격 데스크톱에는 [인터넷 연결이 필요하다](https://support.google.com/chrome/answer/1649523?hl=ko). 호스트 인터넷 경로가 종료 대상 게스트의 VPN/게이트웨이에 의존하는지는 아직 확인하지 않았으므로 실제 종료 전 확인한다. 의존성이 있으면 그 게스트를 유지하는 별도 종료 계획을 검토한다.
 
 자원 기준은 [Baseline v3.1.21 §§6.1·6.3·6.4](https://github.com/321Team/fds-project-baseline/blob/151a60536e6c18a9f6f3b0a1d20bf61db950b763/baseline/FDS_Project_Implementation_Baseline_v3.1.21.md)이다. 10.1.93.56 Egress는 Phase 1 변경결정을 반영한다. 기준 자원과 **현재 VM의 실제 신원·서비스 설정은 구분**하며 실행 전 별도로 측정한다.
 
