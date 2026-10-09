@@ -180,6 +180,10 @@
     timeout: 3
   check_mode: false
 
+- name: Bind the worker02 session before any resolver mutation
+  ansible.builtin.include_tasks: session-bind.yml
+  when: cr_dns_session_enabled | default(false) | bool
+
 - name: Create protected CR rollback state directory
   ansible.builtin.file:
     path: "{{ cr_dns_state_dir }}"
@@ -188,6 +192,7 @@
     group: root
     mode: "0700"
   when:
+    - not (cr_dns_session_enabled | default(false) | bool)
     - cr_dns_phase == 'apply'
     - not ansible_check_mode
 
@@ -212,6 +217,7 @@
         } | to_nice_json
       }}
   when:
+    - not (cr_dns_session_enabled | default(false) | bool)
     - cr_dns_phase == 'apply'
     - not ansible_check_mode
 

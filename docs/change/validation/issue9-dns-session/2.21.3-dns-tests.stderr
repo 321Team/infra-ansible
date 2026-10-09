@@ -1,0 +1,56 @@
+test_empty_inventory (test_dns_rollback_scope.RollbackScope.test_empty_inventory) ... ok
+test_empty_or_nonstring_target (test_dns_rollback_scope.RollbackScope.test_empty_or_nonstring_target) ... ok
+test_group_and_patterns (test_dns_rollback_scope.RollbackScope.test_group_and_patterns) ... ok
+test_group_host_collision (test_dns_rollback_scope.RollbackScope.test_group_host_collision) ... ok
+test_host_outside_k8s_nodes (test_dns_rollback_scope.RollbackScope.test_host_outside_k8s_nodes) ... ok
+test_missing_or_wrong_approval (test_dns_rollback_scope.RollbackScope.test_missing_or_wrong_approval) ... ok
+test_missing_target (test_dns_rollback_scope.RollbackScope.test_missing_target) ... ok
+test_only_selected_host_collects_facts (test_dns_rollback_scope.RollbackScope.test_only_selected_host_collects_facts) ... ok
+test_remote_failure_propagates (test_dns_rollback_scope.RollbackScope.test_remote_failure_propagates) ... ok
+test_unknown_host (test_dns_rollback_scope.RollbackScope.test_unknown_host) ... ok
+test_check_prepare_has_no_file_or_usable_hash (test_dns_session.SessionState.test_check_prepare_has_no_file_or_usable_hash) ... ok
+test_duplicate_prepare_never_overwrites (test_dns_session.SessionState.test_duplicate_prepare_never_overwrites) ... ok
+test_first_apply_rejects_stale_future_or_changed_snapshot (test_dns_session.SessionState.test_first_apply_rejects_stale_future_or_changed_snapshot) ... ok
+test_interface_or_connection_change_stops_all_actions (test_dns_session.SessionState.test_interface_or_connection_change_stops_all_actions) ... ok
+test_interrupted_prepare_directory_not_reused (test_dns_session.SessionState.test_interrupted_prepare_directory_not_reused) ... ok
+test_missing_and_wrong_hash (test_dns_session.SessionState.test_missing_and_wrong_hash) ... ok
+test_original_tamper_rejected_by_pinned_hash (test_dns_session.SessionState.test_original_tamper_rejected_by_pinned_hash) ... ok
+test_path_traversal_or_invalid_source_rejected_without_writes (test_dns_session.SessionState.test_path_traversal_or_invalid_source_rejected_without_writes) ... ok
+test_prepare_apply_reapply_and_restore_same_original (test_dns_session.SessionState.test_prepare_apply_reapply_and_restore_same_original) ... ok
+test_reapply_does_not_silently_repair_new_drift (test_dns_session.SessionState.test_reapply_does_not_silently_repair_new_drift) ... ok
+test_rollback_rejects_unrelated_drift_but_has_no_expiry (test_dns_session.SessionState.test_rollback_rejects_unrelated_drift_but_has_no_expiry) ... ok
+test_snapshot_mode_hardlink_symlink_rejected (test_dns_session.SessionState.test_snapshot_mode_hardlink_symlink_rejected) ... ok
+test_unsafe_session_directory_and_ancestor_rejected (test_dns_session.SessionState.test_unsafe_session_directory_and_ancestor_rejected) ... ok
+test_valid_hash_does_not_replace_binding_checks (test_dns_session.SessionState.test_valid_hash_does_not_replace_binding_checks) ... ok
+test_wrong_source_or_desired (test_dns_session.SessionState.test_wrong_source_or_desired) ... ok
+test_apply_failure_runs_rescue_then_stays_failed (test_dns_session_flow.SessionFlow.test_apply_failure_runs_rescue_then_stays_failed) ... ok
+test_bad_hash_blocks_before_any_modify (test_dns_session_flow.SessionFlow.test_bad_hash_blocks_before_any_modify) ... ok
+test_full_flow_reapply_changes_zero_and_rollback_restores_original (test_dns_session_flow.SessionFlow.test_full_flow_reapply_changes_zero_and_rollback_restores_original) ... ok
+test_post_validation_failure_runs_rescue_and_stays_failed (test_dns_session_flow.SessionFlow.test_post_validation_failure_runs_rescue_and_stays_failed) ... ok
+test_unrelated_drift_stops_reapply_and_manual_rollback (test_dns_session_flow.SessionFlow.test_unrelated_drift_stops_reapply_and_manual_rollback) ... ok
+test_all_four_actions_are_single_host (test_dns_session_scope.SessionScope.test_all_four_actions_are_single_host) ... ok
+test_bad_or_missing_inputs_stop_before_facts (test_dns_session_scope.SessionScope.test_bad_or_missing_inputs_stop_before_facts) ... ok
+test_empty_inventory_is_not_success (test_dns_session_scope.SessionScope.test_empty_inventory_is_not_success) ... ok
+test_exact_worker02_only_with_other_workers_present (test_dns_session_scope.SessionScope.test_exact_worker02_only_with_other_workers_present) ... ok
+test_group_named_worker02_cannot_expand_scope (test_dns_session_scope.SessionScope.test_group_named_worker02_cannot_expand_scope) ... ok
+test_group_only_alias_cannot_select_worker01 (test_dns_session_scope.SessionScope.test_group_only_alias_cannot_select_worker01) ... ok
+test_missing_worker02_stops_before_managed_play (test_dns_session_scope.SessionScope.test_missing_worker02_stops_before_managed_play) ... ok
+test_role_failure_is_not_swallowed (test_dns_session_scope.SessionScope.test_role_failure_is_not_swallowed) ... ok
+test_wrong_address_or_account_stops (test_dns_session_scope.SessionScope.test_wrong_address_or_account_stops) ... ok
+test_wrong_group_membership_stops (test_dns_session_scope.SessionScope.test_wrong_group_membership_stops) ... ok
+test_check_flags_and_failed_playbook_propagation (test_dns_session_wrapper.SessionWrapper.test_check_flags_and_failed_playbook_propagation) ... ok
+test_four_actions_use_one_narrow_entrypoint_and_exact_inputs (test_dns_session_wrapper.SessionWrapper.test_four_actions_use_one_narrow_entrypoint_and_exact_inputs) ... ok
+test_missing_approval_dirty_source_or_unselected_engine_never_invokes_playbook (test_dns_session_wrapper.SessionWrapper.test_missing_approval_dirty_source_or_unselected_engine_never_invokes_playbook) ... ok
+test_empty_inventory_is_not_success (test_dns_worker02_scope.Worker02Scope.test_empty_inventory_is_not_success) ... ok
+test_exact_worker02_only_with_other_workers_present (test_dns_worker02_scope.Worker02Scope.test_exact_worker02_only_with_other_workers_present) ... ok
+test_group_named_worker02_cannot_expand_scope (test_dns_worker02_scope.Worker02Scope.test_group_named_worker02_cannot_expand_scope) ... ok
+test_group_only_alias_cannot_select_worker01 (test_dns_worker02_scope.Worker02Scope.test_group_only_alias_cannot_select_worker01) ... ok
+test_missing_worker02_stops_before_managed_play (test_dns_worker02_scope.Worker02Scope.test_missing_worker02_stops_before_managed_play) ... ok
+test_role_failure_is_not_swallowed (test_dns_worker02_scope.Worker02Scope.test_role_failure_is_not_swallowed) ... ok
+test_wrong_address_or_account_stops (test_dns_worker02_scope.Worker02Scope.test_wrong_address_or_account_stops) ... ok
+test_wrong_group_membership_stops (test_dns_worker02_scope.Worker02Scope.test_wrong_group_membership_stops) ... ok
+
+----------------------------------------------------------------------
+Ran 51 tests in 55.937s
+
+OK

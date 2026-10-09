@@ -2,6 +2,8 @@
 
 2026-10-09 KST · CODEX_ASSISTED · 이권욱. **설계 및 범위 수정 검증 / 운영 실행 NOT_RUN.** 책임 [Issue9](https://github.com/321Team/infra-ansible/issues/9). 이 문서는 다음 회차의 구체적 검토안이며 DNS role 채택·현장 GO·기존 AC 변경을 확정하지 않는다.
 
+후속 구현은 [worker02 DNS 회차 적용·복구 계약](Issue9-Worker02-DNS-Session.md)에 기록한다. 아래의 미구현 항목과 13:20~15:00 창은 PR75 작성 시점의 준비 상태다. 이후 창은 17:00까지 연장됐으며, 코드 구현·리뷰·CI·Runtime GO 상태는 후속 기록에서 구분한다.
+
 ## 확보한 입력과 재사용
 
 - [일반 CI Issue5 종결](https://github.com/321Team/infra-ansible/issues/5#issuecomment-5845142603): 2026-09-26 인수. 이를 후보 엔진 운영 전환으로 확대하지 않는다.

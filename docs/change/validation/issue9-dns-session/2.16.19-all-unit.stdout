@@ -1,0 +1,12 @@
+{"status": "COLLECTED_REVIEW_REQUIRED", "output": "/tmp/tmpnpwwv7wy/ansible-callpaths-nax3l2qd", "rc": 0}
+{"status": "COLLECTED_REVIEW_REQUIRED", "output": "/tmp/tmpnpwwv7wy/ansible-callpaths-2k_r9o8w", "rc": 0}
+{
+  "status": "PASS"
+}
+{
+  "status": "FAIL"
+}
+P1_HBR_AC04_STATIC_CONTRACT=PASS
+{"engine": "2.16.19", "total": 14, "outcomes": {"PASS": 14, "FAIL": 0, "ERROR": 0}, "status": "PASS"}
+{"engine": null, "total": 14, "outcomes": {"PASS": 0, "FAIL": 0, "ERROR": 14}, "status": "FAIL"}
+{"engine": "2.16.19", "total": 14, "outcomes": {"PASS": 0, "FAIL": 0, "ERROR": 14}, "status": "FAIL"}

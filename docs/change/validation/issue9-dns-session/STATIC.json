@@ -1,0 +1,8 @@
+{
+  "legacy_role_without_opt_in": "UNCHANGED_YAML_OBJECTS",
+  "legacy_wrapper_cases": "UNCHANGED_BYTES",
+  "legacy_rollback": "UNCHANGED_BYTES",
+  "changed_files_checked": 12,
+  "secret_pattern_scan": "NO_MATCH",
+  "result": "PASS"
+}
