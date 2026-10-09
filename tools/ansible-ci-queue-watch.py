@@ -64,7 +64,7 @@ def gh_json(path: str, *, paginate: bool = False) -> Any:
         result = subprocess.run(
             command,
             capture_output=True,
-            text=True,
+            text=False,
             timeout=45,
             env=clean_env(),
         )
@@ -75,7 +75,11 @@ def gh_json(path: str, *, paginate: bool = False) -> Any:
     if result.returncode != 0:
         raise WatchError("GITHUB_API_READ_FAILED")
     try:
-        return json.loads(result.stdout)
+        # Decode in this thread: Windows subprocess text-reader failures can
+        # otherwise leave stdout=None and leak a thread traceback.
+        return json.loads(result.stdout.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        raise WatchError("GITHUB_API_INVALID_UTF8") from exc
     except json.JSONDecodeError as exc:
         raise WatchError("GITHUB_API_INVALID_JSON") from exc
 
@@ -328,7 +332,9 @@ def main() -> int:
         )
         if args.output:
             write_observation(args.output, observation)
-        print(json.dumps(observation, ensure_ascii=False, sort_keys=True))
+        # Keep console output portable on non-UTF-8 Windows terminals. The
+        # observation file remains UTF-8; JSON escapes preserve the same values.
+        print(json.dumps(observation, ensure_ascii=True, sort_keys=True))
         if args.strict and observation["action_required"]:
             return 2
         return 0
