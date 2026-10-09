@@ -1,0 +1,139 @@
+{
+  "schema": "fds.dns-rollback-scope-fixture.v1",
+  "host": "ansible01",
+  "uid": 1000,
+  "records": [
+    {
+      "label": "2.16.19-version",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--version"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:48:39.417254+09:00",
+      "end": "2026-10-09T13:48:39.576821+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-scope",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_dns_rollback_scope.py",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:48:39.576847+09:00",
+      "end": "2026-10-09T13:48:47.848790+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "-e",
+        "cr_dns_rollback_host=k8s-worker02",
+        "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl/playbooks/cr-p1-ans-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:48:47.848834+09:00",
+      "end": "2026-10-09T13:48:48.129371+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-base-regression",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "test_dns_rollback_scope.RollbackScope.test_only_selected_host_collects_facts",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl/mutation/tests",
+      "start": "2026-10-09T13:48:48.129398+09:00",
+      "end": "2026-10-09T13:48:54.439090+09:00",
+      "rc": 1
+    },
+    {
+      "label": "2.21.3-version",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "--version"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:48:54.439186+09:00",
+      "end": "2026-10-09T13:48:54.693114+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-scope",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_dns_rollback_scope.py",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:48:54.693152+09:00",
+      "end": "2026-10-09T13:49:05.738528+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "-e",
+        "cr_dns_rollback_host=k8s-worker02",
+        "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl/playbooks/cr-p1-ans-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl",
+      "start": "2026-10-09T13:49:05.738581+09:00",
+      "end": "2026-10-09T13:49:06.130978+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-base-regression",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "test_dns_rollback_scope.RollbackScope.test_only_selected_host_collects_facts",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-rollback-scope.W7a4KvOl/mutation/tests",
+      "start": "2026-10-09T13:49:06.131005+09:00",
+      "end": "2026-10-09T13:49:12.864665+09:00",
+      "rc": 1
+    }
+  ],
+  "result": "PASS",
+  "remote_dns_rollback": "NOT_RUN",
+  "fixture_connections": "LOCAL_ONLY",
+  "rollback_tasks": "REPLACED_WITH_MARKER_OR_FAILURE",
+  "source_hashes": {
+    "tests/test_dns_rollback_scope.py": "bb59bad8a301f668431a13afc462045c8e67f74534b94223d238cec8e390ef4c",
+    "playbooks/cr-p1-ans-01-01-rollback.yml": "47a3c14843ef8a608cb19d7c10fea6d62d2b34df1e55310df167b16af1538b2f",
+    "base-rollback.yml": "9c9d2c141fdbfa162bbbd3dc393621744172ab905b70bb1384dd932fbf865568",
+    "run-rollback-scope-validation.py": "5a0c3b4315a2d6956c932d46409648e37bde325495537ee4b125cdedacab4898"
+  }
+}

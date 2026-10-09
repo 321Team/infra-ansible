@@ -1,6 +1,32 @@
 ---
+- name: Validate the single DNS rollback target before managed-host contact
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  any_errors_fatal: true
+
+  tasks:
+    - name: Require an explicit approved rollback target
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_host is defined
+          - cr_dns_rollback_host is string
+          - cr_dns_rollback_host | length > 0
+          - cr_dns_change_id is defined
+          - cr_dns_rollback_approved | default('') == cr_dns_change_id
+        fail_msg: 'NOT RUN: provide one approved DNS rollback inventory hostname.'
+
+    - name: Reject groups and patterns before collecting remote facts
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_host in groups.get('k8s_nodes', [])
+          - cr_dns_rollback_host not in groups
+          - query('ansible.builtin.inventory_hostnames', cr_dns_rollback_host) == [cr_dns_rollback_host]
+        fail_msg: 'NOT RUN: DNS rollback requires one unambiguous k8s_nodes host, not a group or pattern.'
+
 - name: CR-P1-ANS-01-01 rollback one failed node
-  hosts: k8s_nodes
+  hosts: "{{ cr_dns_rollback_host | default('__dns_rollback_target_missing__') }}"
   gather_facts: true
   become: true
   serial: 1
