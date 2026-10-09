@@ -1,9 +1,14 @@
 import datetime as dt
 import importlib.util
 import hashlib
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -55,6 +60,32 @@ def runner(name="ansible-ci-test", status="online", busy=False, labels=None):
 
 
 class QueueWatchTests(unittest.TestCase):
+    def read_child_response(self, payload):
+        # Real child-process bytes, with a Korean-Windows default simulated on
+        # every OS. Explicit UTF-8 must override this locale fallback.
+        real_run = subprocess.run
+
+        def child(_command, **kwargs):
+            if kwargs.get("text"):
+                kwargs.setdefault("encoding", "cp949")
+            return real_run(
+                [sys.executable, "-c", "import os; os.write(1, " + repr(payload) + ")"],
+                **kwargs,
+            )
+
+        with mock.patch.object(watch.shutil, "which", return_value=sys.executable), \
+                mock.patch.object(watch.subprocess, "run", side_effect=child):
+            return watch.gh_json("repos/321Team/infra-ansible/actions/runs/1")
+
+    def test_github_utf8_response_survives_korean_windows_locale(self):
+        expected = {"display_title": "회귀 검사 완료 🚀", "id": 1}
+        raw = json.dumps(expected, ensure_ascii=False).encode("utf-8")
+        self.assertEqual(self.read_child_response(raw), expected)
+
+    def test_invalid_utf8_has_stable_error_without_response_content(self):
+        with self.assertRaisesRegex(watch.WatchError, "^GITHUB_API_INVALID_UTF8$"):
+            self.read_child_response(b'{"title":"\xff"}')
+
     def classify(self, current_job, runners, threshold=5):
         return watch.classify(
             current_job,
@@ -200,8 +231,11 @@ class QueueWatchTests(unittest.TestCase):
             sidecar = Path(str(path) + ".sha256")
             expected = hashlib.sha256(raw).hexdigest()
             self.assertEqual(sidecar.read_text().strip(), f"{expected}  {path.name}")
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(sidecar.stat().st_mode & 0o777, 0o600)
+            if os.name == "posix":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(sidecar.stat().st_mode & 0o777, 0o600)
+            # Windows access is governed by ACL, not the POSIX mode request.
+            # Hash and no-overwrite checks still run on every platform.
 
             with self.assertRaisesRegex(watch.WatchError, "OUTPUT_ALREADY_EXISTS"):
                 watch.write_observation(path, observation)

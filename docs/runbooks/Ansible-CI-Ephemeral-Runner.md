@@ -3,6 +3,9 @@
 대상: `321Team/infra-ansible`의 `ansible-isolated` self-hosted Runner  
 연계: infra-ansible #61, 기존 Runner v1.3 launcher, `.github/workflows/ansible-regression.yml`
 
+회차 수행에는 [운영자 실행 카드](Ansible-CI-Operator-Card.md)를 함께 사용한다.
+인증 만료·자동 감지와 실제 공급을 구분하고, 운영자2명·알림·장기보존 인수는 별도로 기록한다.
+
 이 문서는 상시 Runner 운영 절차가 아니다. 승인된 CI Job 1건에 대해 **필요 시 1회 등록 → Job 수행 → 자동 deregister/cleanup**하는 기존 격리 모델을 표준화한다.  
 `infra-cicd`의 장기 실행 `cicd-runner01`과 혼용하지 않는다.
 
