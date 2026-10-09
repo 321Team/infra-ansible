@@ -1,0 +1,35 @@
+---
+- name: Refuse session binding on any other inventory target
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname == 'k8s-worker02'
+      - ansible_host | default('') == '10.1.93.107'
+      - ansible_user | default('') == 'svc_ansible'
+    fail_msg: 'NOT RUN: session snapshots belong only to the approved worker02 endpoint.'
+
+- name: Capture or validate the immutable worker02 session original
+  fds_dns_session:
+    action: "{{ cr_dns_session_action }}"
+    session_id: "{{ cr_dns_session_id }}"
+    source_sha: "{{ cr_dns_session_source }}"
+    expected_sha256: "{{ cr_dns_session_sha256 | default('') }}"
+    current:
+      interface: "{{ ansible_facts['default_ipv4'].interface }}"
+      connection: "{{ cr_dns_active_connection.stdout | trim }}"
+      ipv4_dns: "{{ cr_dns_connection_dns.stdout | trim }}"
+      ipv4_dns_search: "{{ cr_dns_connection_search.stdout | trim }}"
+      ipv4_ignore_auto_dns: "{{ cr_dns_connection_ignore_auto.stdout | trim }}"
+    desired:
+      dns: "{{ cr_dns_servers }}"
+      search: "{{ cr_dns_search_domains }}"
+      ignore_auto: true
+  register: cr_dns_session_binding
+
+- name: Report the session receipt for independent retention
+  ansible.builtin.debug:
+    msg:
+      session_id: "{{ cr_dns_session_id }}"
+      source_sha: "{{ cr_dns_session_source }}"
+      path: "{{ cr_dns_session_binding.path }}"
+      sha256: "{{ cr_dns_session_binding.sha256 }}"
+      snapshot_written: "{{ cr_dns_session_binding.snapshot_written }}"

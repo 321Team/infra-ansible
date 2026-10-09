@@ -1,0 +1,48 @@
+---
+- name: Guard worker02 session before managed-host facts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  any_errors_fatal: true
+  tasks:
+    - name: Reject missing or widened target and unapproved session inputs
+      ansible.builtin.assert:
+        that:
+          - "'k8s-worker02' not in groups"
+          - query('ansible.builtin.inventory_hostnames', 'k8s-worker02') == ['k8s-worker02']
+          - "'k8s-worker02' in groups.get('k8s_workers', [])"
+          - "'k8s-worker02' in groups.get('k8s_nodes', [])"
+          - hostvars['k8s-worker02'].ansible_host | default('') == '10.1.93.107'
+          - hostvars['k8s-worker02'].ansible_user | default('') == 'svc_ansible'
+          - cr_dns_session_action | default('') in ['prepare', 'apply', 'reapply', 'rollback']
+          - cr_dns_session_id | default('') is match('^w02-[0-9]{8}T[0-9]{6}-[a-f0-9]{8}$')
+          - cr_dns_session_source | default('') is match('^[a-f0-9]{40}$')
+          - cr_dns_session_approved | default('') == (cr_dns_session_id | default('__missing__')) ~ ':' ~ (cr_dns_session_action | default('__missing__'))
+          - cr_dns_change_approved | default('') == 'CR-P1-ANS-01-01'
+          - cr_dns_change_id | default('') == 'CR-P1-ANS-01-01'
+          - >-
+            cr_dns_session_action | default('') == 'prepare' or
+            cr_dns_session_sha256 | default('') is match('^[a-f0-9]{64}$')
+        fail_msg: >-
+          NOT RUN: require exactly worker02 (10.1.93.107, svc_ansible),
+          approved session/action, full source SHA and pinned backup hash.
+
+- name: Run the approved DNS session on worker02 only
+  hosts: k8s-worker02
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+  vars:
+    cr_dns_session_enabled: true
+    cr_dns_phase: "{{ 'apply' if cr_dns_session_action in ['apply', 'reapply'] else 'precheck' }}"
+  tasks:
+    - name: Prepare or apply through existing DNS role with session binding
+      ansible.builtin.include_role:
+        name: dns_resolver
+      when: cr_dns_session_action != 'rollback'
+    - name: Restore the pinned session original
+      ansible.builtin.include_role:
+        name: dns_resolver
+        tasks_from: session-rollback.yml
+      when: cr_dns_session_action == 'rollback'

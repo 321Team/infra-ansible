@@ -48,6 +48,44 @@ case "${action}" in
       -e "cr_dns_change_approved=${change_id}" \
       "${repo_root}/playbooks/cr-p1-ans-01-01-apply-control-plane.yml"
     ;;
+  worker02-session)
+    require_change_approval
+    test "$#" -ge 3 && test "$#" -le 4
+    session_action="$2"
+    session_id="$3"
+    session_hash="${4:-}"
+    case "$session_action" in prepare|apply|reapply|rollback) ;; *) exit 64 ;; esac
+    [[ "$session_id" =~ ^w02-[0-9]{8}T[0-9]{6}-[a-f0-9]{8}$ ]]
+    test "${CR_DNS_SESSION_APPROVED:-}" = "${session_id}:${session_action}"
+    if [[ "$session_action" == prepare ]]; then
+      test -z "$session_hash"
+    else
+      [[ "$session_hash" =~ ^[a-f0-9]{64}$ ]]
+    fi
+    # This entrypoint always uses a selected pinned engine and reviewed clean source.
+    test -n "$fds_engine_dir"
+    session_source="$(git -C "$repo_root" rev-parse HEAD)"
+    test "${CR_DNS_SOURCE_SHA:-}" = "$session_source"
+    git -C "$repo_root" diff --quiet HEAD --
+    session_untracked="$(git -C "$repo_root" ls-files --others --exclude-standard -- \
+      library module_utils roles playbooks scripts inventory ansible.cfg)"
+    test -z "$session_untracked"
+    session_flags=()
+    case "${CR_DNS_CHECK_ONLY:-0}" in
+      0) ;;
+      1) session_flags=(--check --diff) ;;
+      *) exit 64 ;;
+    esac
+    run_playbook "worker02-${session_id}-${session_action}-$(date +%s%N)" \
+      "${session_flags[@]}" \
+      -e "cr_dns_change_approved=${change_id}" \
+      -e "cr_dns_session_action=${session_action}" \
+      -e "cr_dns_session_id=${session_id}" \
+      -e "cr_dns_session_approved=${CR_DNS_SESSION_APPROVED}" \
+      -e "cr_dns_session_source=${session_source}" \
+      -e "cr_dns_session_sha256=${session_hash}" \
+      "${repo_root}/playbooks/cr-p1-ans-01-01-worker02-session.yml"
+    ;;
   workers)
     require_change_approval
     run_playbook "workers_check_diff" --check --diff \
@@ -104,7 +142,7 @@ case "${action}" in
     )
     ;;
   *)
-    echo "usage: $0 {precheck|control-plane|workers|verify|verify-worker02|rollback HOST|finalize}" >&2
+    echo "usage: $0 {precheck|control-plane|workers|worker02-session ACTION ID [SHA256]|verify|verify-worker02|rollback HOST|finalize}" >&2
     exit 64
     ;;
 esac

@@ -1,0 +1,178 @@
+---
+- name: Verify the default IPv4 interface is available
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['default_ipv4'].interface is defined
+      - ansible_facts['default_ipv4'].interface | length > 0
+    fail_msg: >-
+      No default IPv4 interface was detected on {{ inventory_hostname }}.
+
+- name: Read active NetworkManager connection for the default interface
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - GENERAL.CONNECTION
+      - device
+      - show
+      - "{{ ansible_facts['default_ipv4'].interface }}"
+  register: cr_dns_active_connection
+  changed_when: false
+  check_mode: false
+
+- name: Validate the active NetworkManager connection
+  ansible.builtin.assert:
+    that:
+      - cr_dns_active_connection.rc == 0
+      - cr_dns_active_connection.stdout | trim | length > 0
+      - cr_dns_active_connection.stdout | trim != '--'
+    fail_msg: >-
+      An active NetworkManager connection was not found for
+      {{ ansible_facts['default_ipv4'].interface }} on {{ inventory_hostname }}.
+
+- name: Read current NetworkManager IPv4 DNS servers
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_dns
+  changed_when: false
+  check_mode: false
+
+- name: Read current NetworkManager IPv4 search domains
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.dns-search
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_search
+  changed_when: false
+  check_mode: false
+
+- name: Read current NetworkManager automatic DNS setting
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - --get-values
+      - ipv4.ignore-auto-dns
+      - connection
+      - show
+      - "{{ cr_dns_active_connection.stdout | trim }}"
+  register: cr_dns_connection_ignore_auto
+  changed_when: false
+  check_mode: false
+
+- name: Validate the pinned backup before rollback
+  ansible.builtin.include_tasks: session-bind.yml
+
+- name: Select only the verified session original
+  ansible.builtin.set_fact:
+    cr_dns_original_state: "{{ cr_dns_session_binding.original }}"
+
+- name: Restore and verify the session values
+  when: not ansible_check_mode
+  block:
+    - name: Restore original NetworkManager resolver values
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - connection
+          - modify
+          - "{{ cr_dns_original_state.connection }}"
+          - ipv4.dns
+          - "{{ cr_dns_original_state.ipv4_dns }}"
+          - ipv4.dns-search
+          - "{{ cr_dns_original_state.ipv4_dns_search }}"
+          - ipv4.ignore-auto-dns
+          - "{{ cr_dns_original_state.ipv4_ignore_auto_dns }}"
+      changed_when: true
+
+    - name: Reapply restored NetworkManager connection
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - reapply
+          - "{{ cr_dns_original_state.interface }}"
+      changed_when: true
+
+    - name: Read restored NetworkManager IPv4 DNS servers
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.dns
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_dns
+      changed_when: false
+
+    - name: Read restored NetworkManager IPv4 search domains
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.dns-search
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_search
+      changed_when: false
+
+    - name: Read restored automatic DNS setting
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - --get-values
+          - ipv4.ignore-auto-dns
+          - connection
+          - show
+          - "{{ cr_dns_original_state.connection }}"
+      register: cr_dns_rollback_ignore_auto
+      changed_when: false
+
+    - name: Verify restored NetworkManager resolver state
+      ansible.builtin.assert:
+        that:
+          - cr_dns_rollback_dns.stdout | trim == cr_dns_original_state.ipv4_dns
+          - >-
+            cr_dns_rollback_search.stdout | trim
+            == cr_dns_original_state.ipv4_dns_search
+          - >-
+            cr_dns_rollback_ignore_auto.stdout | trim
+            == cr_dns_original_state.ipv4_ignore_auto_dns
+        fail_msg: >-
+          Resolver rollback state does not match the preserved original values.
+
+    - name: Verify external name resolution after rollback
+      ansible.builtin.command:
+        argv:
+          - getent
+          - ahostsv4
+          - "{{ cr_dns_external_name }}"
+      changed_when: false
+
+    - name: Verify Kubernetes API listener after rollback
+      ansible.builtin.wait_for:
+        host: "{{ cr_dns_expected_address }}"
+        port: 6443
+        state: started
+        connect_timeout: 2
+        timeout: 3
+
+    - name: Print rollback verdict
+      ansible.builtin.debug:
+        msg:
+          change_id: "{{ cr_dns_change_id }}"
+          host: "{{ inventory_hostname }}"
+          resolver_state: RESTORED
+          external_resolution: PASS
+          api_listener: PASS

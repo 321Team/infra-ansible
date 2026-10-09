@@ -1,0 +1,1162 @@
+{
+  "schema": "fds.worker02.dns-session.validation.v1",
+  "host": "ansible01",
+  "uid": 1000,
+  "records": [
+    {
+      "label": "shell-syntax",
+      "argv": [
+        "bash",
+        "-n",
+        "scripts/cr-p1-ans-01-01-run.sh"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:45:27.377037+09:00",
+      "end": "2026-10-09T15:45:27.379658+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-version",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "--version"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:45:27.379734+09:00",
+      "end": "2026-10-09T15:45:27.556379+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-all-unit",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:45:27.556519+09:00",
+      "end": "2026-10-09T15:46:20.005285+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-0",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-apply-control-plane.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:20.006395+09:00",
+      "end": "2026-10-09T15:46:20.337235+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-1",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-apply-workers.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:20.337384+09:00",
+      "end": "2026-10-09T15:46:20.682718+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-2",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:20.682811+09:00",
+      "end": "2026-10-09T15:46:21.045698+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-3",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:21.045956+09:00",
+      "end": "2026-10-09T15:46:21.408140+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-4",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-verify-worker02.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:21.408309+09:00",
+      "end": "2026-10-09T15:46:21.732673+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-5",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:21.732804+09:00",
+      "end": "2026-10-09T15:46:22.032533+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-6",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-worker02-session.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:22.032608+09:00",
+      "end": "2026-10-09T15:46:22.330128+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-7",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-apply.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:22.330254+09:00",
+      "end": "2026-10-09T15:46:22.636951+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-8",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:22.637041+09:00",
+      "end": "2026-10-09T15:46:22.945895+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-9",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:22.945980+09:00",
+      "end": "2026-10-09T15:46:23.239821+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-10",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:23.239904+09:00",
+      "end": "2026-10-09T15:46:23.547217+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-11",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-apply-clients.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:23.547343+09:00",
+      "end": "2026-10-09T15:46:23.819999+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-12",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-apply-source.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:23.820094+09:00",
+      "end": "2026-10-09T15:46:24.087952+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-13",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-diagnose.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:24.088047+09:00",
+      "end": "2026-10-09T15:46:24.377684+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-14",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-followup-gnp.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:24.377769+09:00",
+      "end": "2026-10-09T15:46:24.686149+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-15",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-pathcheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:24.686394+09:00",
+      "end": "2026-10-09T15:46:24.976723+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-16",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:24.976802+09:00",
+      "end": "2026-10-09T15:46:25.249387+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-17",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:25.249517+09:00",
+      "end": "2026-10-09T15:46:25.546133+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-18",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:25.546274+09:00",
+      "end": "2026-10-09T15:46:25.816007+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-19",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/harden_svc_ansible_key.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:25.816105+09:00",
+      "end": "2026-10-09T15:46:26.107275+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-20",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-apply.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:26.107405+09:00",
+      "end": "2026-10-09T15:46:26.415698+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-21",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-forward-discover.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:26.415775+09:00",
+      "end": "2026-10-09T15:46:26.722435+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-22",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:26.722572+09:00",
+      "end": "2026-10-09T15:46:27.009575+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-23",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:27.009646+09:00",
+      "end": "2026-10-09T15:46:27.318038+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-24",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:27.318135+09:00",
+      "end": "2026-10-09T15:46:27.609246+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-25",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-discover.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:27.609364+09:00",
+      "end": "2026-10-09T15:46:27.910106+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-26",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-gate0-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:27.910291+09:00",
+      "end": "2026-10-09T15:46:28.209542+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-27",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-apply-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:28.209638+09:00",
+      "end": "2026-10-09T15:46:28.511936+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-28",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:28.512011+09:00",
+      "end": "2026-10-09T15:46:28.809932+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-29",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-restart-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:28.810010+09:00",
+      "end": "2026-10-09T15:46:29.112952+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-30",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-rollback-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:29.113039+09:00",
+      "end": "2026-10-09T15:46:29.417685+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-31",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:29.417767+09:00",
+      "end": "2026-10-09T15:46:29.719716+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-32",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-lb-01-stage-a-nodes.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:29.719791+09:00",
+      "end": "2026-10-09T15:46:30.010506+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-33",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-sec-01-b2-collect-58.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:30.010602+09:00",
+      "end": "2026-10-09T15:46:30.304044+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-34",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:30.304135+09:00",
+      "end": "2026-10-09T15:46:30.596344+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-35",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/site.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:30.596479+09:00",
+      "end": "2026-10-09T15:46:30.909134+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-36",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "tests/ssh-server-readonly.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:30.909256+09:00",
+      "end": "2026-10-09T15:46:31.207087+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.16.19-syntax-37",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.16.19/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "tests/test-dns-resolver-normalization.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:31.207180+09:00",
+      "end": "2026-10-09T15:46:31.495654+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-version",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "--version"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:31.495750+09:00",
+      "end": "2026-10-09T15:46:31.761446+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-dns-tests",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/python",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_dns*.py",
+        "-v"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:46:31.761546+09:00",
+      "end": "2026-10-09T15:47:27.762268+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-0",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-apply-control-plane.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:27.763474+09:00",
+      "end": "2026-10-09T15:47:28.176177+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-1",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-apply-workers.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:28.176314+09:00",
+      "end": "2026-10-09T15:47:28.575098+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-2",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:28.575301+09:00",
+      "end": "2026-10-09T15:47:29.069557+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-3",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:29.069631+09:00",
+      "end": "2026-10-09T15:47:29.481405+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-4",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-verify-worker02.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:29.481513+09:00",
+      "end": "2026-10-09T15:47:29.889429+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-5",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:29.889507+09:00",
+      "end": "2026-10-09T15:47:30.284797+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-6",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ans-01-01-worker02-session.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:30.284880+09:00",
+      "end": "2026-10-09T15:47:30.660303+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-7",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-apply.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:30.660394+09:00",
+      "end": "2026-10-09T15:47:31.067052+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-8",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:31.067127+09:00",
+      "end": "2026-10-09T15:47:31.517390+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-9",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:31.517522+09:00",
+      "end": "2026-10-09T15:47:31.933608+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-10",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-mon-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:31.933715+09:00",
+      "end": "2026-10-09T15:47:32.375105+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-11",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-apply-clients.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:32.375244+09:00",
+      "end": "2026-10-09T15:47:32.797858+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-12",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-apply-source.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:32.797959+09:00",
+      "end": "2026-10-09T15:47:33.200431+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-13",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-diagnose.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:33.200575+09:00",
+      "end": "2026-10-09T15:47:33.584087+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-14",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-followup-gnp.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:33.584161+09:00",
+      "end": "2026-10-09T15:47:33.995181+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-15",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-pathcheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:33.995331+09:00",
+      "end": "2026-10-09T15:47:34.384610+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-16",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:34.384694+09:00",
+      "end": "2026-10-09T15:47:34.759675+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-17",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:34.759758+09:00",
+      "end": "2026-10-09T15:47:35.138414+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-18",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/cr-p1-ntp-01-01-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:35.138550+09:00",
+      "end": "2026-10-09T15:47:35.513191+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-19",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/harden_svc_ansible_key.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:35.513337+09:00",
+      "end": "2026-10-09T15:47:35.892268+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-20",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-apply.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:35.892390+09:00",
+      "end": "2026-10-09T15:47:36.299355+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-21",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-forward-discover.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:36.299506+09:00",
+      "end": "2026-10-09T15:47:36.698942+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-22",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:36.699135+09:00",
+      "end": "2026-10-09T15:47:37.093034+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-23",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-rollback.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:37.093109+09:00",
+      "end": "2026-10-09T15:47:37.505530+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-24",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-ac04-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:37.505609+09:00",
+      "end": "2026-10-09T15:47:37.896791+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-25",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-hbr-01-discover.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:37.896874+09:00",
+      "end": "2026-10-09T15:47:38.298213+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-26",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-gate0-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:38.298365+09:00",
+      "end": "2026-10-09T15:47:38.679112+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-27",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-apply-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:38.679243+09:00",
+      "end": "2026-10-09T15:47:39.070224+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-28",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:39.070352+09:00",
+      "end": "2026-10-09T15:47:39.463967+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-29",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-restart-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:39.464266+09:00",
+      "end": "2026-10-09T15:47:39.850230+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-30",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-rollback-one.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:39.850357+09:00",
+      "end": "2026-10-09T15:47:40.249649+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-31",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-k8s-01-kubelet-serving-tls-verify.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:40.249722+09:00",
+      "end": "2026-10-09T15:47:40.641988+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-32",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-lb-01-stage-a-nodes.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:40.642233+09:00",
+      "end": "2026-10-09T15:47:41.040480+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-33",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/p1-sec-01-b2-collect-58.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:41.040613+09:00",
+      "end": "2026-10-09T15:47:41.442638+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-34",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/precheck.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:41.442724+09:00",
+      "end": "2026-10-09T15:47:41.843894+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-35",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "playbooks/site.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:41.843976+09:00",
+      "end": "2026-10-09T15:47:42.246029+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-36",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "tests/ssh-server-readonly.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:42.246138+09:00",
+      "end": "2026-10-09T15:47:42.636448+09:00",
+      "rc": 0
+    },
+    {
+      "label": "2.21.3-syntax-37",
+      "argv": [
+        "/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime/venv-2.21.3/bin/ansible-playbook",
+        "-i",
+        "localhost,",
+        "--syntax-check",
+        "tests/test-dns-resolver-normalization.yml"
+      ],
+      "cwd": "/home/server01_ansible/issue9-dns-session.aiUXDG9l",
+      "start": "2026-10-09T15:47:42.636524+09:00",
+      "end": "2026-10-09T15:47:43.017696+09:00",
+      "rc": 0
+    }
+  ],
+  "result": "PASS",
+  "managed_host_operations": "NOT_RUN",
+  "fixture_connections": "LOCAL_ONLY",
+  "dns_operations": "SIMULATED",
+  "snapshot_io": "REAL_TEMPORARY_FILES_AS_UID1000",
+  "source_hashes": {
+    "docs/runbooks/Issue9-Worker02-Canary-Next.md": "e42eed5d5e2d228cfe19ba84ce21ede291f2a2829ab297cc3903887ee73ed78e",
+    "docs/runbooks/Issue9-Worker02-DNS-Session.md": "c7a0f56c803362a1d020845a78344a06acf5ded06ae89821f4374b348f1aaa9b",
+    "library/fds_dns_session.py": "cda8c8f12ba7d960db0df0fd455bae4dd652171ed64aeb31a3ef11e9a351a07d",
+    "playbooks/cr-p1-ans-01-01-worker02-session.yml": "2885e052ea9deef95c98888bed48e9bd59f0243d7faeba2e5dd4363cb769b869",
+    "roles/dns_resolver/tasks/main.yml": "2a45bc2d3738d20dfb36aef62d37a38c50de6b5b2dba8b60bab5adecc5e8cb14",
+    "roles/dns_resolver/tasks/session-bind.yml": "8b71d1688534a3252d0d78771ef58b498c7d407ea87efca99d11915430cf1905",
+    "roles/dns_resolver/tasks/session-rollback.yml": "9c9ce15d810645bc904bcb79da31b8a11fbf7a26c6470d4dd53518c05e23f4f4",
+    "scripts/cr-p1-ans-01-01-run.sh": "60b5a0a2a4815c5a9afc07885a2352158a18239cba475bd8715b3c8835f33f98",
+    "tests/test_dns_session.py": "ba758d2cecea1d591fa5ff9f28d4e8d6b5f24e69d8911bdd1061dd4d67add68d",
+    "tests/test_dns_session_flow.py": "fcf7dd935af86ecc010596448cd90a5608aaa56c343ca3994fde6bc963a63fb9",
+    "tests/test_dns_session_scope.py": "318f9eed10447741c52962bbfbb9e724843098a218ee30c86118ec44436f4375",
+    "tests/test_dns_session_wrapper.py": "3f144ae186e2981e9e7fa976098720834365fa0960fa736910480f0bb67152c9"
+  }
+}
