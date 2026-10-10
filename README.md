@@ -128,3 +128,7 @@ Check Mode를 지원하지 않는 모듈은 별도 검토하며, 실제 적용�
 | `infra-contributors` | Write | 승인된 자동화 구현과 Pull Request 제출 |
 
 증적 원본은 저장소 외부의 통제된 경로에 보관하며, 저장소에는 검토 완료된 소스와 운영 문서만 반영합니다.
+
+## Phase 1 전체 자원 안전 종료
+
+[17대 VM의 팀 종료·교육장 보관 절차](docs/PHASE1_SAFE_SHUTDOWN.md)는 별도 측정 입력과 고정 순서로 동작합니다. `tools/phase1-shutdown.py plan`은 서버에 접속하지 않고, `preflight`는 읽기 점검만 수행합니다. 실제 `execute`는 회차·digest를 명시해야 하며, Windows에서 정상 Powered Off를 확인한 뒤에만 다음 대상에 진행합니다. 관리 VM 두 대는 중앙 증적 회수 후 `tools/phase1-workstation.py finalize`에서 마지막으로 종료합니다. 예제 입력의 빈 신원값은 실행이 거부됩니다. 코드 작성/모의시험과 실제 종료·보관·복원 검증을 구분합니다.

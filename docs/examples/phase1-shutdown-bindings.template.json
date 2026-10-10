@@ -1,0 +1,179 @@
+{
+  "schema": "fds.phase1.shutdown.v1",
+  "workstation_names": {
+    "server01": "",
+    "server02": "",
+    "server03": "",
+    "server04": "",
+    "server05": "",
+    "server06": "",
+    "server07": "",
+    "server08": ""
+  },
+  "operator_checks": {
+    "window_ref": "",
+    "app_quiesce_ref": "",
+    "etcd_recovery_ref": "",
+    "db_recovery_ref": "",
+    "harbor_recovery_ref": "",
+    "full_cluster_outage_confirmed": false,
+    "ci_dispatch_paused": false
+  },
+  "resources": {
+    "cicd-runner01": {
+      "ip": "10.250.10.20",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "edge01": {
+      "ip": "10.1.93.50",
+      "physical_host": "server08",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-worker01": {
+      "ip": "10.1.93.105",
+      "physical_host": "server05",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-worker02": {
+      "ip": "10.1.93.107",
+      "physical_host": "server06",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-worker03": {
+      "ip": "10.1.93.108",
+      "physical_host": "server07",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-control03": {
+      "ip": "10.1.93.104",
+      "physical_host": "server04",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-control02": {
+      "ip": "10.1.93.103",
+      "physical_host": "server03",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-control01": {
+      "ip": "10.1.93.102",
+      "physical_host": "server02",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "db01": {
+      "ip": "10.1.93.55",
+      "physical_host": "server08",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": "",
+      "database_unit": "",
+      "psql_bin": "/usr/bin/psql"
+    },
+    "harbor01": {
+      "ip": "10.1.93.54",
+      "physical_host": "server08",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "monitor01": {
+      "ip": "10.250.10.30",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "egress-proxy01": {
+      "ip": "10.1.93.56",
+      "physical_host": "server08",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "k8s-api-lb01": {
+      "ip": "10.1.93.109",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "dns02": {
+      "ip": "10.1.93.53",
+      "physical_host": "server08",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "dns01": {
+      "ip": "10.1.93.52",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "ansible01": {
+      "ip": "10.250.10.10",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    },
+    "mgmt-gw01": {
+      "ip": "10.250.10.1",
+      "physical_host": "server01",
+      "ssh_user": "",
+      "hostname": "",
+      "machine_id": "",
+      "vmx_path": "",
+      "vmx_uuid": ""
+    }
+  }
+}

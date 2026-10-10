@@ -1,0 +1,36 @@
+---
+- name: One measured Phase 1 guest (coordinator supplies private inputs)
+  hosts: phase1_shutdown_target
+  gather_facts: false
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Require a single dedicated target and explicit inputs
+      ansible.builtin.assert:
+        that:
+          - groups['phase1_shutdown_target'] | length == 1
+          - inventory_hostname == shutdown_resource
+          - shutdown_action in ['preflight', 'inspect', 'request']
+          - ansible_user != 'root'
+          - shutdown_result_path is defined
+      no_log: true
+    - name: Check identity and readiness, or request a normal shutdown
+      fds_phase1_shutdown:
+        plan: "{{ shutdown_plan }}"
+        resource: "{{ shutdown_resource }}"
+        action: "{{ shutdown_action }}"
+        observed: "{{ shutdown_observed | default({}) }}"
+        confirm: "{{ shutdown_confirm | default('') }}"
+      become: true
+      become_method: sudo
+      register: shutdown_result
+      no_log: true
+    - name: Preserve result on controller (SSH disappearance never means Powered Off)
+      ansible.builtin.copy:
+        content: "{{ shutdown_result | to_nice_json }}"
+        dest: "{{ shutdown_result_path }}"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      check_mode: false
+      no_log: true
