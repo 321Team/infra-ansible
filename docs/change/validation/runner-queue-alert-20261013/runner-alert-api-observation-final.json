@@ -1,0 +1,15 @@
+{
+  "active_runs_read": 0,
+  "alerts": [],
+  "jobs_read": 0,
+  "notification": {
+    "status": "DRY_RUN_NO_COMMENT"
+  },
+  "observed_at_utc": "2026-10-12T19:51:57.538567+00:00",
+  "repository": "321Team/infra-ansible",
+  "runner_presence": "NOT_QUERIED",
+  "schema": "infra-ansible.queue-notice.v1",
+  "state": "NO_ALERT",
+  "supply_authorized": false,
+  "threshold_minutes": 10
+}

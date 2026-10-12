@@ -1,0 +1,80 @@
+name: Ansible queued-job notice
+on:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+    inputs:
+      notify:
+        description: 'Post changed-state notices to Issue 61 (requires enabled vars and main)'
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: ansible-queue-alert
+  cancel-in-progress: false
+jobs:
+  dry-read:
+    if: >-
+      github.repository == '321Team/infra-ansible' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && inputs.notify == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Observe without comment permission
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALERT_THRESHOLD: ${{ vars.ANSIBLE_QUEUE_ALERT_THRESHOLD_MINUTES }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B tools/ansible-ci-queue-alert.py --threshold-minutes "${ALERT_THRESHOLD}" --output "${RUNNER_TEMP}/queue-observation.json"
+      - name: Preserve observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: queue-observation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/queue-observation.json*
+          if-no-files-found: warn
+          retention-days: 14
+  notify:
+    if: >-
+      github.repository == '321Team/infra-ansible' && github.ref == 'refs/heads/main' &&
+      vars.ANSIBLE_QUEUE_ALERT_ENABLED == 'true' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && inputs.notify == true))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Observe and notify changed state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANSIBLE_QUEUE_ALERT_ENABLED: ${{ vars.ANSIBLE_QUEUE_ALERT_ENABLED }}
+          ANSIBLE_QUEUE_ALERT_RECIPIENTS: ${{ vars.ANSIBLE_QUEUE_ALERT_RECIPIENTS }}
+          ALERT_THRESHOLD: ${{ vars.ANSIBLE_QUEUE_ALERT_THRESHOLD_MINUTES }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B tools/ansible-ci-queue-alert.py --threshold-minutes "${ALERT_THRESHOLD}" --output "${RUNNER_TEMP}/queue-observation.json" --notify
+      - name: Preserve observation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: queue-observation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/queue-observation.json*
+          if-no-files-found: warn
+          retention-days: 14

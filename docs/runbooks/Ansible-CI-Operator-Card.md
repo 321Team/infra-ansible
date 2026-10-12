@@ -25,6 +25,8 @@ python -I -B tools/ansible-ci-queue-watch.py --job-id <JOB_ID> --expected-source
 - rc1: 조회/identity/출력 실패. 기존 JSON을 최신 결과로 재사용하지 않는다. API 오류를 Runner 미공급으로 바꾸지 않는다.
 - 이 도구는 1회 조회이며 상시 scheduler·Discord/메일 전송 기능이 없다. 감시 주기·threshold·담당/대체 담당·연락 경로를 회차에 기록하고 **미확정 상태를 운영화 완료로 표시하지 않는다**. 자동 공급·rerun/cancel은 하지 않는다.
 
+상시 대기 알림의 구현·설정·수신 인수는 [queued 알림 카드](Ansible-CI-Queue-Alert.md)를 따른다. 새 알림은 장기 대기까지만 발견하고 이 카드의 Runner 상태 판정을 대체하지 않는다. 기본 비활성인 코드의 병합과 실제 운영 인수를 구분한다.
+
 ## 인증 대기와 실패 분류
 
 PR75/76의 operator는 `AUTH_READY` 뒤 최대180초 대기하고, 최신 preflight90초 이내·대상 identity·중복 방지를 확인했다. 이 값은 해당 회차 실적이며 모든 새 회차의 무기한 인증/전역 정책이 아니다. 새 operator는 자신의 검토된 시간 상한을 명시한다. 만료 시 종료 결과·packet 부재를 확인하고, 새 회차 준비 없이 예전 파일을 재실행하지 않는다.
