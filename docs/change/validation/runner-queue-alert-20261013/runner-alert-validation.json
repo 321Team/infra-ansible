@@ -1,0 +1,39 @@
+{
+  "at_utc": "2026-10-12T19:51:35.648367+00:00",
+  "scope": "LOCAL_STATIC_AND_MOCK",
+  "checks": [
+    {
+      "name": "queue-watch-and-alert-tests",
+      "rc": 0,
+      "stderr_sha256": "55b104ee7c5948a66713483c75564012f263919219a771089ef455c6d8dd3c48"
+    },
+    {
+      "name": "workflow-yaml-job-permissions-and-bash",
+      "shell_blocks": 2,
+      "rc": 0
+    }
+  ],
+  "files": [
+    {
+      "path": "tools/ansible-ci-queue-alert.py",
+      "sha256": "1f600a76eb523ec5a779eb4591486184fd695a8fda3b54abc49dd78c1a4dbcc6"
+    },
+    {
+      "path": "tests/test_runner_queue_alert.py",
+      "sha256": "fedf184f6eac5e21831c20cec4c6972ef67b9900406fbbd010282da16c6b9e4b"
+    },
+    {
+      "path": ".github/workflows/ansible-queue-alert.yml",
+      "sha256": "7b43005302f81b24677dde60c0baae7045dab0b35b05a0e46994704286041f7a"
+    },
+    {
+      "path": "docs/runbooks/Ansible-CI-Queue-Alert.md",
+      "sha256": "e91cc760969ba471d94a4beb9d02aa0edbbe5d68bf9f329c6c36bb02e5dfd4a1"
+    },
+    {
+      "path": "docs/runbooks/Ansible-CI-Operator-Card.md",
+      "sha256": "6fe34169874932ad77454cc95965a07741def7d46486d65036a859c36ccc76b9"
+    }
+  ],
+  "status": "PASS"
+}

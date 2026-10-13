@@ -1,0 +1,344 @@
+{
+  "at_utc": "2026-10-13T01:00:14.911425+00:00",
+  "scope": "LOCAL_STATIC_AND_BASH_MOCK",
+  "base_head": "bd1e7876382eab9c0df322a8a4d44546d2d8fd94",
+  "status": "PASS",
+  "syntax_blocks": 2,
+  "bash_cases": [
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "10",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1440",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "0010",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "0001",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": " ",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "0",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "0000",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1441",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "9999",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "10000",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "-1",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1.5",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "x",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "$(exit 99)",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1\n2",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "１２",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "1; echo injected",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "dry-read",
+      "synthetic_threshold": "999999999999999999999999999999",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "10",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1440",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "0010",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "0001",
+      "expected_valid": true,
+      "rc": 0,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": " ",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "0",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "0000",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1441",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "9999",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "10000",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "-1",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1.5",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "x",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "$(exit 99)",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1\n2",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "１２",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "1; echo injected",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    },
+    {
+      "job": "notify",
+      "synthetic_threshold": "999999999999999999999999999999",
+      "expected_valid": false,
+      "rc": 2,
+      "status": "PASS"
+    }
+  ],
+  "security_structure_preserved": true,
+  "notification_core_unchanged": true,
+  "schedule": {
+    "cron_utc": "7,37 0-14 * * *",
+    "first_kst": "09:07",
+    "last_kst": "23:37",
+    "daily_slots": 30,
+    "night_gap_minutes": 570.0,
+    "assumed_minutes_per_job": 1,
+    "minutes_30_days": 900,
+    "minutes_14_full_days": 420,
+    "remaining_org_allowance": "NOT_VERIFIED"
+  },
+  "reused_tests": {
+    "count": 49,
+    "skipped": 0,
+    "rerun": false,
+    "source": "docs/change/validation/runner-queue-alert-20261013/runner-alert-validation.json",
+    "note": "Unchanged alert/watch tests and core; prior Windows MOCK plus independent Linux review. Not CI."
+  },
+  "unchanged_files": [
+    {
+      "path": "tools/ansible-ci-queue-alert.py",
+      "sha256": "1f600a76eb523ec5a779eb4591486184fd695a8fda3b54abc49dd78c1a4dbcc6"
+    },
+    {
+      "path": "tools/ansible-ci-queue-watch.py",
+      "sha256": "9519ee61f97ddd485dc575898cc29355af838cd822e65c748674eff21df46a87"
+    },
+    {
+      "path": "tests/test_runner_queue_alert.py",
+      "sha256": "fedf184f6eac5e21831c20cec4c6972ef67b9900406fbbd010282da16c6b9e4b"
+    },
+    {
+      "path": "tests/test_runner_queue_watch.py",
+      "sha256": "94d92cb4612f1799226c1b164fe13773e5a8876c91168c76b45be575d876a771"
+    },
+    {
+      "path": "docs/runbooks/Ansible-CI-Operator-Card.md",
+      "sha256": "6fe34169874932ad77454cc95965a07741def7d46486d65036a859c36ccc76b9"
+    }
+  ],
+  "changed_files": [
+    {
+      "path": ".github/workflows/ansible-queue-alert.yml",
+      "sha256": "fc4cf4ba2d53191f2ad69ed996383067f739650469387c1791cab09d64158a75"
+    },
+    {
+      "path": "docs/runbooks/Ansible-CI-Queue-Alert.md",
+      "sha256": "6ed89748cc083755f39429e5305caac9d4c52b1cd99c021f06dff8927470574a"
+    }
+  ],
+  "github_calls": 0,
+  "real_python_alert_calls": 0,
+  "runtime": "NOT_EXECUTED"
+}
