@@ -1,7 +1,7 @@
 name: Ansible queued-job notice
 on:
   schedule:
-    - cron: '7,17,27,37,47,57 * * * *'
+    - cron: '7,37 0-14 * * *'
   workflow_dispatch:
     inputs:
       notify:
@@ -34,6 +34,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ ! "${ALERT_THRESHOLD}" =~ ^[0-9]{1,4}$ ]] ||
+             (( 10#${ALERT_THRESHOLD} < 1 || 10#${ALERT_THRESHOLD} > 1440 )); then
+            printf '%s\n' '::error title=Queue alert configuration::ANSIBLE_QUEUE_ALERT_THRESHOLD_MINUTES must be set to an integer from 1 to 1440.'
+            exit 2
+          fi
           python3 -I -B tools/ansible-ci-queue-alert.py --threshold-minutes "${ALERT_THRESHOLD}" --output "${RUNNER_TEMP}/queue-observation.json"
       - name: Preserve observation
         if: always()
@@ -69,6 +74,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ ! "${ALERT_THRESHOLD}" =~ ^[0-9]{1,4}$ ]] ||
+             (( 10#${ALERT_THRESHOLD} < 1 || 10#${ALERT_THRESHOLD} > 1440 )); then
+            printf '%s\n' '::error title=Queue alert configuration::ANSIBLE_QUEUE_ALERT_THRESHOLD_MINUTES must be set to an integer from 1 to 1440.'
+            exit 2
+          fi
           python3 -I -B tools/ansible-ci-queue-alert.py --threshold-minutes "${ALERT_THRESHOLD}" --output "${RUNNER_TEMP}/queue-observation.json" --notify
       - name: Preserve observation
         if: always()

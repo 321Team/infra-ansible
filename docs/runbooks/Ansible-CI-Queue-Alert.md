@@ -27,11 +27,35 @@ Issues write 자체는 저장소 이슈 전체에 유효하다. 코드가 허용
 | `ANSIBLE_QUEUE_ALERT_THRESHOLD_MINUTES` | 정수1~1440. 후보10분, 아직 운영값으로 채택하지 않음 |
 | `ANSIBLE_QUEUE_ALERT_RECIPIENTS` | 담당·대체자의 GitHub login을 쉼표로 연결, 공백 없이1~5명. 팀 slug 불가. 실제 연락 담당은 최소2명을 정하고 서로 다른 사람의 수신·수행을 확인 |
 
-제안 감시 주기는10분이며 매시07/17/27/37/47/57분 UTC에 요청한다. [GitHub schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)은 지연·누락될 수 있어 정확한10분 SLA나 즉시 통지를 보장하지 않는다. 기존 수동 preflight를 없애지 않는다. threshold10분·10분 주기 후보라면 관측 시점의 지연은 대략10~20분에 scheduler 지연이 더해질 수 있다.
+### 실행 시간과 야간 대응
+
+[PR81 R1 검토](https://github.com/321Team/infra-ansible/pull/81#pullrequestreview-5497322141)에 따라 schedule은 UTC `7,37 0-14 * * *`, 즉 **매일 KST 09:07~23:37에 30분 간격, 하루30회**다. threshold 후보10분은 유지하며 실제 변수 설정은 운영자가 채택한 값을 사용한다. 30분은 조회 간격이고 threshold는 Job이 대기한 시간의 판정 기준이므로 서로 다르다.
+
+주간에 예정된 조회가 모두 실행되면 threshold10분인 Job은 대기 시작 후 대략10~40분 사이에 처음 알림 대상이 된다. 그러나 **23:37~다음 날09:07에는 예정된 조회가 없으므로 9시간30분의 감시 공백**이 있다. 마지막 조회 때 아직 threshold에 못 미친 Job은 다음 날까지 대기할 수 있어 야간에도40분 안에 발견한다고 해석하면 안 된다. [GitHub schedule](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)은 지연·누락될 수 있으므로 이 값들은 SLA나 최대 통지시간 보장이 아니다.
+
+이 구성은 24시간 자동 감시를 충족하지 않는다. 야간에 실제 Ansible 작업을 진행하는 운영자는 기존 운영자 카드의 수동 queue-watch와 승인된 연락 경로로 그 회차를 관측한다. 작업이 없는 밤에 사람의 상시 대기를 자동 지정하지 않는다. 야간 작업의 관측자·전달/수신 경로 또는 대응 가능 여부가 정해지지 않았다면 해당 공백을 미해소로 남기며 #61의 운영 인수 전체를 완료 처리하지 않는다. 기존 수동 preflight는 유지한다.
+
+### hosted 사용량과 활성화 전 확인
+
+현재 저장소는 private이며 조직의 Free plan은 standard GitHub-hosted 실행시간을 **조직 전체에서 월2,000분** 공유한다. [GitHub 포함량](https://docs.github.com/en/billing/concepts/product-billing/github-actions)과 [Job별 분 단위 올림](https://docs.github.com/en/billing/reference/actions-runner-pricing)을 기준으로 계산한다. 실제 플랜·잔여량·지출 제한은 활성화 직전에 다시 확인한다.
+
+| 기준 | 예정 Job 수 | Job당 과금1분을 가정한 사용량 |
+|---|---|---|
+| 이전24시간·10분 주기 | 하루144회 | 30일4,320분 |
+| 이번09:07~23:37·30분 주기 | 하루30회 | 30일900분 |
+| 이번 주기를10/13~10/26 양일 포함14일 운영 | 420회 | 420분 |
+
+이는 모든 예정 Job이 실행되고 각 Job이1분 이내 끝나는 계산 예시다. checkout·API·artifact 처리가1분을 넘으면 Job별 올림으로 더 소비하며 수동 실행도 별도 합산한다. 900분/420분은 예산 상한이나 현재 잔여량이 아니다. 비활성 schedule Run은 만들어져도 notify Job은 skip되므로 그 Job의 hosted 실행시간은 소비하지 않는다.
+
+활성화 전에 조직 관리자 또는 Billing 조회 권한자가 **이번 달 실제 사용량·잔여량, 다른 저장소 CI에 남길 분량, 추가 사용의 지출 제한/중단 조건**을 확인하고 조회 시각·채택 결과를 기록한다. 현재 실제 사용량은 `NOT_VERIFIED`다. 확인할 수 없거나 필요한 여유가 없으면 enabled를 켜지 않고 기존 수동 관측을 사용한다. 과금 허용·관리 PAT 생성·조직 예산 변경은 이 PR에 포함되지 않는다.
+
+### 필수 설정 누락
+
+수동 dry-read와 notify 모두 관측 도구 호출 전에 threshold가 숫자1~1440인지 검사한다(ASCII 숫자1~4자리, 앞의0은 허용). 누락·빈 값·범위 밖이면 변수 이름과 허용 범위만 포함한 명확한 Actions 오류를 남기고 rc2로 종료한다. 설정 원문은 출력하지 않고 GitHub 관측/댓글 발송 도구를 호출하지 않는다. 이 경우 관측 JSON이 없는 것은 정상 조회나 `NO_ALERT`가 아니라 **설정 오류로 관측을 시작하지 못한 것**이다. 변수를 바로잡기 전 반복 실패를 막으려면 enabled를 false로 유지한다.
 
 ## 1회 확인 및 실제 인수 순서
 
-1. 리뷰된 main SHA, 위 변수 후보의 채택, 담당·대체 담당/연락 수단, 저장소 Actions 활성 상태를 기록한다. 기본 `notify=false`로 수동 실행해 artifact와 실행 로그를 읽는다. 기존 계정에서 로컬 도구를 실행할 경우에도 `--notify` 없이 다음 한 번의 읽기만 사용한다.
+1. 리뷰된 main SHA, 위 변수 후보의 채택, 담당·대체 담당/연락 수단과 야간 작업 대응, 저장소 Actions 활성 상태, 위 Billing 잔여량·사용 예산 확인을 기록한다. 기본 `notify=false`로 수동 실행해 artifact와 실행 로그를 읽는다. 기존 계정에서 로컬 도구를 실행할 경우에도 `--notify` 없이 다음 한 번의 읽기만 사용한다.
 
    ```text
    python -I -B tools/ansible-ci-queue-alert.py --threshold-minutes <채택한_정수> --output <새_JSON_경로>
@@ -47,8 +71,10 @@ Issues write 자체는 저장소 이슈 전체에 유효하다. 코드가 허용
 ## 상태 변화·실패·중지
 
 - 같은 상태·Job/Attempt/SHA·threshold·수신자에는 반복 댓글을 남기지 않는다. 직전 #61의 `github-actions[bot]` 관리 marker를 읽고 비교한다. 시작 시 대상이 없으면 조용히 종료한다. 이전 경고가 해소되면 한 번 알린다. 사람의 marker 댓글은 dedup 근거로 쓰지 않는다.
+- 일일 댓글 상한은 없다. `READ_ERROR`와 `ATTENTION` 또는 오류 코드가 번갈아 바뀌면 조회마다 mention이 생길 수 있다. 이번 schedule은 하루30회·각 실행 POST 최대1회지만 수동 실행·지연 실행까지 포함한 달력 날짜별 알림 상한을 보장하지 않는다. 기존 경고 전이를 임의로 숨기는 새 억제 로직은 이번 변경에 추가하지 않았다. 반복 오류 때 담당자가 실패 원본을 확인하고 enabled를 false로 중지한 뒤 기존 연락 경로로 인수한다. 일일 상한은 PR81 보안 리뷰의 비차단 권고로 남긴다.
 - 읽기는 원자적 스냅샷이 아니다. Run이 목록 사이 이동한 경우 같은 identity는 중복 제거하며, Attempt/SHA 등이 바뀌면 해당 관측을 오류로 남긴다. 관측 직후 Job이 시작/완료할 수 있으므로 공급 전 fresh 확인이 필수다.
 - 활성 Run20개, 총 Job100개, 기존 댓글1000개, HTTP 응답2MiB, API 전체120초/요청10초 상한을 넘기거나 목록이 불완전하면 정상 해소로 쓰지 않는다. 새 페이지를 임의로 생략해 `NO_ALERT`로 만들지 않는다.
+- #61이 닫히거나 댓글이1000건을 넘으면 `OWNER_ISSUE_UNAVAILABLE`로 발송이 중단되고 감시 Run은 실패한다. enabled를 그대로 두면 다음 schedule도 같은 이유로 실패할 수 있다. 담당자는 enabled를 false로 중지하고 기존 연락 경로로 인수한다. 도구가 이슈를 다시 열거나 기존 증적 댓글을 삭제하여 우회하지 않는다.
 - API 읽기 실패는 `READ_ERROR`이며 가능한 경우 그 상태 변화만 통지한다. GitHub 전체 장애·권한 오류로 발송도 안 되면 감시 Run은 실패한다. 원본 artifact/로그를 확인하고 지정 운영자가 기존 연락 경로로 전달한다. GitHub/Actions가 통째로 멈춘 상황을 이 도구 자체로 외부 통보하지는 못한다.
 - 댓글 POST timeout/응답 불명확은 `UNCONFIRMED`·rc1이다. 그 실행은 POST를 자동 재시도하지 않는다. #61의 실제 marker와 감시 결과를 먼저 읽는다. 이후 schedule도 실제 기존 댓글을 다시 확인한다. 저장·GitHub 서비스 지연이 있으므로 exactly-once 보장을 주장하지 않는다.
 - token/개인키·원문 HTTP 오류는 결과에 쓰지 않는다. 새 출력 파일과 SHA sidecar만 만들며 기존 파일을 덮어쓰지 않는다. artifact 보존14일은 전달 유예이며 장기 증적 보관 인수를 대신하지 않는다.
