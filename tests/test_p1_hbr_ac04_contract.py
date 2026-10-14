@@ -39,6 +39,23 @@ class P1HbrAc04StaticContractTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "RequiredBy=docker.service"):
                 runpy.run_path(str(CONTRACT), run_name="__ac04_weakened_boot_guard__")
 
+    def test_retired_source_or_lost_retained_source_is_rejected(self):
+        original = Path.read_text
+        mutations = {
+            'retired_edge': lambda text: text.replace('hbr_ac04_sources:\n',
+                'hbr_ac04_sources:\n  - address: 10.1.93.50\n'),
+        }
+        for ip in ('10.250.10.20', '10.1.93.105', '10.1.93.107', '10.1.93.108', '10.1.93.102'):
+            mutations['lost_' + ip] = lambda text, ip=ip: text.replace('  - address: ' + ip + '\n', '')
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                def changed_source(path, *args, **kwargs):
+                    text = original(path, *args, **kwargs)
+                    return mutate(text) if path.name == 'hbr.yml' else text
+                with patch.object(Path, 'read_text', changed_source):
+                    with self.assertRaisesRegex(SystemExit, 'source set drift'):
+                        runpy.run_path(str(CONTRACT), run_name='__ac04_retirement_drift__')
+
 
 if __name__ == "__main__":
     unittest.main()
