@@ -2,7 +2,7 @@
 """Bounded queued-job notice; never supplies a Runner or infers Runner absence.
 
 Default: GitHub reads + local observation only. --notify can append one changed
-state notice to the fixed Issue #61 from the explicitly enabled main workflow.
+state notice to the fixed operations Issue #82 from the enabled main workflow.
 """
 from __future__ import annotations
 import argparse
@@ -24,7 +24,8 @@ REPO = watch.REPO
 WORKFLOW = '.github/workflows/ansible-regression.yml'
 ACTIVE_STATUSES = ('queued', 'in_progress', 'requested', 'waiting', 'pending')
 NOTICE_WORKFLOW = f'{REPO}/.github/workflows/ansible-queue-alert.yml@refs/heads/main'
-ISSUE = f'repos/{REPO}/issues/61'
+ISSUE_NUMBER = 82
+ISSUE = f'repos/{REPO}/issues/{ISSUE_NUMBER}'
 MARKER = re.compile(r'^<!-- p1-ansible-queue-alert:v1:([0-9a-f]{64}) -->\n')
 LOGIN = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?')
 
@@ -172,7 +173,7 @@ def state_hash(observation, names, threshold):
 
 def previous_notice(api):
     issue = api.call(ISSUE)
-    need(type(issue) is dict and issue.get('number') == 61 and issue.get('state') == 'open' and
+    need(type(issue) is dict and issue.get('number') == ISSUE_NUMBER and issue.get('state') == 'open' and
          'pull_request' not in issue and type(issue.get('comments')) is int and
          0 <= issue['comments'] <= 1000, 'OWNER_ISSUE_UNAVAILABLE')
     for n in range(max(1,math.ceil(issue['comments']/100)),0,-1):
@@ -223,7 +224,7 @@ def notify(api, observation, *, env, threshold):
     need(type(result) is dict and positive(result.get('id')) and result.get('body')==body and
          type(result.get('user')) is dict and result['user'].get('login')=='github-actions[bot]' and
          result['user'].get('type')=='Bot' and
-         result.get('html_url')==f"https://github.com/{REPO}/issues/61#issuecomment-{result['id']}",
+         result.get('html_url')==f"https://github.com/{REPO}/issues/{ISSUE_NUMBER}#issuecomment-{result['id']}",
          'COMMENT_WRITE_UNCONFIRMED')
     return {'status':'COMMENT_POSTED','comment_url':result['html_url'],'state_sha256':digest,
             'human_receipt':'NOT_CONFIRMED'}

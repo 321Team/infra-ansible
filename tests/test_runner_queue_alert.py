@@ -46,12 +46,12 @@ class API:
             return {'total_count':len(rows),'workflow_runs':copy.deepcopy(rows)}
         if '/attempts/' in path:return {'total_count':len(self.jobs),'jobs':copy.deepcopy(self.jobs)}
         if path.endswith('/commits/main'):return {'sha':self.main_sha}
-        if path==m.ISSUE:return {'number':61,'state':'open','comments':len(self.comments)}
+        if path==m.ISSUE:return {'number':82,'state':'open','comments':len(self.comments)}
         if '/comments?' in path:return copy.deepcopy(self.comments)
         if body is not None:
             assert path==m.ISSUE+'/comments'
             return {'id':80,'body':body['body'],'user':{'login':'github-actions[bot]','type':'Bot'},
-                    'html_url':f'https://github.com/{m.REPO}/issues/61#issuecomment-80'}
+                    'html_url':f'https://github.com/{m.REPO}/issues/82#issuecomment-80'}
         raise AssertionError(path)
 
 
@@ -151,7 +151,8 @@ class NotificationTests(unittest.TestCase):
         api=API();result=m.notify(api,observation(),env=ENV,threshold=10)
         writes=[(p,b) for p,b in api.calls if b]
         self.assertEqual(len(writes),1)
-        self.assertEqual(writes[0][0],m.ISSUE+'/comments')
+        self.assertEqual(writes[0][0],'repos/321Team/infra-ansible/issues/82/comments')
+        self.assertEqual(result['comment_url'],'https://github.com/321Team/infra-ansible/issues/82#issuecomment-80')
         self.assertIn('@operator @reviewer',writes[0][1]['body'])
         self.assertEqual(result['human_receipt'],'NOT_CONFIRMED')
 
@@ -164,6 +165,44 @@ class NotificationTests(unittest.TestCase):
     def test_initial_no_alert_is_silent(self):
         api=API();result=m.notify(api,observation(API(runs=[])),env=ENV,threshold=10)
         self.assertEqual(result['status'],'NO_ALERT_NO_COMMENT')
+        self.assertIn(('repos/321Team/infra-ansible/issues/82',None),api.calls)
+        self.assertFalse(any(b for _,b in api.calls))
+
+    def test_closed_implementation_issue_is_not_read_or_used_for_dedup(self):
+        api=API();original=api.call
+        def old_closed(path,*,body=None):
+            if '/issues/61' in path:
+                self.fail('Retired implementation issue must not affect operations')
+            return original(path,body=body)
+        api.call=old_closed
+        result=m.notify(api,observation(),env=ENV,threshold=10)
+        self.assertEqual(result['status'],'COMMENT_POSTED')
+
+    def test_wrong_closed_or_pull_request_target_never_posts_even_when_no_alert(self):
+        for change in ({'number':61},{'state':'closed'},{'pull_request':{}}):
+            for obs in (observation(),observation(API(runs=[]))):
+                with self.subTest(change=change,state=obs['state']):
+                    api=API();original=api.call
+                    def unavailable(path,*,body=None):
+                        result=original(path,body=body)
+                        if path==m.ISSUE:result.update(change)
+                        return result
+                    api.call=unavailable
+                    with self.assertRaisesRegex(m.AlertError,'OWNER_ISSUE_UNAVAILABLE'):
+                        m.notify(api,obs,env=ENV,threshold=10)
+                    self.assertFalse(any(b for _,b in api.calls))
+
+    def test_old_issue_write_response_is_unconfirmed_without_retry(self):
+        api=API();original=api.call
+        def old_url(path,*,body=None):
+            result=original(path,body=body)
+            if body is not None:
+                result['html_url']='https://github.com/321Team/infra-ansible/issues/61#issuecomment-80'
+            return result
+        api.call=old_url
+        with self.assertRaisesRegex(m.AlertError,'COMMENT_WRITE_UNCONFIRMED'):
+            m.notify(api,observation(),env=ENV,threshold=10)
+        self.assertEqual(sum(b is not None for _,b in api.calls),1)
 
     def test_recovery_is_reported_once_without_claiming_job_success(self):
         api=API(comments=[comment('b'*64)])
@@ -194,7 +233,7 @@ class NotificationTests(unittest.TestCase):
         for total in (1,1001):
             api=API();original=api.call
             def incomplete(path,*,body=None):
-                if path==m.ISSUE:return {'number':61,'state':'open','comments':total}
+                if path==m.ISSUE:return {'number':82,'state':'open','comments':total}
                 return original(path,body=body)
             api.call=incomplete
             with self.assertRaises(m.AlertError):m.notify(api,observation(),env=ENV,threshold=10)
@@ -231,6 +270,19 @@ class NotificationTests(unittest.TestCase):
 
 
 class ApiAndCliTests(unittest.TestCase):
+    def test_retired_issue_and_unrelated_mutations_rejected_before_subprocess(self):
+        for path,body in (
+            ('repos/321Team/infra-ansible/issues/61/comments',{'body':'x'}),
+            ('repos/321Team/infra-ansible/issues/82',{'state':'closed'}),
+            ('repos/321Team/infra-ansible/issues/82/comments',{'body':'x','state':'closed'}),
+        ):
+            with self.subTest(path=path,body=body), \
+                 mock.patch.object(m.shutil,'which',return_value='gh'), \
+                 mock.patch.object(m.subprocess,'run') as child:
+                with self.assertRaisesRegex(m.AlertError,'WRITE_SCOPE_REJECTED'):
+                    m.GitHub().call(path,body=body)
+                child.assert_not_called()
+
     def test_no_arbitrary_write_endpoint(self):
         with mock.patch.object(m.shutil,'which',return_value='gh'):
             with self.assertRaisesRegex(m.AlertError,'WRITE_SCOPE_REJECTED'):

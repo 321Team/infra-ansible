@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       notify:
-        description: 'Post changed-state notices to Issue 61 (requires enabled vars and main)'
+        description: 'Post changed-state notices to Issue 82 (requires enabled vars and main)'
         type: boolean
         default: false
 permissions: {}

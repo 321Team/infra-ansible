@@ -39,4 +39,4 @@ PR75/76의 operator는 `AUTH_READY` 뒤 최대180초 대기하고, 최신 prefli
 
 재사용할 기존 회차: [PR75 증적188](https://github.com/321Team/fds-project-evidence/pull/188), [PR76 증적192](https://github.com/321Team/fds-project-evidence/pull/192). #192 merge `04befee9b36f1f7477989dbfd347a110db34f4ac`, Job113706062449, 검사 source `0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea`. 이 Job은 완료됐으므로 교육/증적 수집을 이유로 재공급하지 않는다.
 
-운영자2명 인수는 사람별로 정상 계정 접속/인증 가능 여부, preflight·STOP 판단, 승인된 실제 회차의 공급·실패·회수 수행 또는 기존 유효 수행 참조를 기록한다. 이름 지정이나 이 문서 열람만으로 수행 가능을 확정하지 않는다. 현재 별도 2인 인수와 장기보존·상시 알림 운영 인수는 대기다.
+운영자2명 인수는 사람별로 정상 계정 접속/인증 가능 여부, preflight·STOP 판단, 승인된 실제 회차의 공급·실패·회수 수행 또는 기존 유효 수행 참조를 기록한다. 이름 지정이나 이 문서 열람만으로 수행 가능을 확정하지 않는다. 2026-10-14 [최종 요구 대조](https://github.com/321Team/infra-ansible/issues/61#issuecomment-6162176817)에 기존 수행·수신·보존 처분을 연결했다. 지속 알림 운영은 [#82](https://github.com/321Team/infra-ansible/issues/82), 대상 전환·중단·종결은 [알림 런북](Ansible-CI-Queue-Alert.md)의 전환 절차를 따른다. 기존 회차를 반복 실습하지 않는다.
