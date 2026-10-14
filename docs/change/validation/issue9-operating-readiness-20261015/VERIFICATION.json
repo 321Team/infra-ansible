@@ -1,0 +1,169 @@
+{
+  "status": "READ_RECEIPTS_AND_SOURCE_VERIFIED",
+  "base_main": "ac013f61df2502534f36a2ca77686f17fd4e5669",
+  "file_bindings": [
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "ansible.cfg",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "scripts/cr-p1-ans-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "scripts/cr-p1-mon-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "scripts/cr-p1-ntp-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "scripts/p1-k8s-01-gate0-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "scripts/lib/ansible-engine.sh",
+      "state": "ABSENT"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "inventory/hosts.yml",
+      "state": "REGULAR"
+    },
+    {
+      "head": "e1c4458cf95dacca76870d7b9b012f8615f6974a",
+      "path": "inventory/group_vars/all.yml",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "ansible.cfg",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "scripts/cr-p1-ans-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "scripts/cr-p1-mon-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "scripts/cr-p1-ntp-01-01-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "scripts/p1-k8s-01-gate0-run.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "scripts/lib/ansible-engine.sh",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "inventory/hosts.yml",
+      "state": "REGULAR"
+    },
+    {
+      "head": "0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea",
+      "path": "inventory/group_vars/all.yml",
+      "state": "REGULAR"
+    }
+  ],
+  "version_sequence": [
+    [
+      "candidate",
+      "ansible [core 2.21.3]"
+    ],
+    [
+      "candidate",
+      "ansible-playbook [core 2.21.3]"
+    ],
+    [
+      "candidate",
+      "ansible-inventory [core 2.21.3]"
+    ],
+    [
+      "candidate",
+      "ansible-config [core 2.21.3]"
+    ],
+    [
+      "explicit-recovery",
+      "ansible [core 2.16.19]"
+    ],
+    [
+      "explicit-recovery",
+      "ansible-playbook [core 2.16.19]"
+    ],
+    [
+      "explicit-recovery",
+      "ansible-inventory [core 2.16.19]"
+    ],
+    [
+      "explicit-recovery",
+      "ansible-config [core 2.16.19]"
+    ],
+    [
+      "unset-fixed-path",
+      "ansible [core 2.16.19]"
+    ],
+    [
+      "unset-fixed-path",
+      "ansible-playbook [core 2.16.19]"
+    ],
+    [
+      "unset-fixed-path",
+      "ansible-inventory [core 2.16.19]"
+    ],
+    [
+      "unset-fixed-path",
+      "ansible-config [core 2.16.19]"
+    ]
+  ],
+  "operating_to_main": [
+    "library/fds_dns_session.py",
+    "library/fds_phase1_shutdown.py",
+    "module_utils/fds_shutdown_core.py",
+    "module_utils/fds_shutdown_guest.py",
+    "playbooks/cr-p1-ans-01-01-rollback.yml",
+    "playbooks/cr-p1-ans-01-01-verify-worker02.yml",
+    "playbooks/cr-p1-ans-01-01-worker02-session.yml",
+    "playbooks/p1-sec-01-b2-collect-58.yml",
+    "playbooks/phase1-safe-shutdown.yml",
+    "roles/dns_resolver/tasks/main.yml",
+    "roles/dns_resolver/tasks/session-bind.yml",
+    "roles/dns_resolver/tasks/session-rollback.yml",
+    "scripts/cr-p1-ans-01-01-run.sh",
+    "scripts/cr-p1-mon-01-01-run.sh",
+    "scripts/cr-p1-ntp-01-01-run.sh",
+    "scripts/lib/ansible-engine.sh",
+    "scripts/p1-k8s-01-gate0-run.sh"
+  ],
+  "canary_to_main": [
+    "library/fds_phase1_shutdown.py",
+    "module_utils/fds_shutdown_core.py",
+    "module_utils/fds_shutdown_guest.py",
+    "playbooks/phase1-safe-shutdown.yml"
+  ],
+  "limitations": [
+    "--version only",
+    "no wrapper action or playbook",
+    "no production engine transition",
+    "fixed PATH fallback only",
+    "version/hash not full package provenance",
+    "no source/role/AC acceptance"
+  ]
+}

@@ -1,0 +1,38 @@
+"""Observe the already installed, hash-pinned helper using --version only."""
+import datetime,hashlib,json,os,pathlib,pwd,socket,subprocess
+assert socket.gethostname()=='ansible01' and pwd.getpwuid(os.geteuid()).pw_name=='server01_ansible'
+root=pathlib.Path('/home/server01_ansible/worker02-session-plan-3hetha3t/source')
+helper=root/'scripts/lib/ansible-engine.sh'
+expected='aedf6cd8d2fa656784e5f93e4d507582efb39755655d2e2ad0696e6353f316dd'
+assert helper==helper.resolve() and hashlib.sha256(helper.read_bytes()).hexdigest()==expected
+env={'HOME':'/home/server01_ansible','PATH':'/usr/bin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','GIT_OPTIONAL_LOCKS':'0','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'}
+for cmd in [['/usr/bin/git','rev-parse','HEAD'],['/usr/bin/git','status','--porcelain','--untracked-files=no']]:
+ p=subprocess.run(cmd,cwd=root,env=env,capture_output=True,timeout=10);assert p.returncode==0
+ if cmd[1]=='rev-parse':assert p.stdout.strip()==b'0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea'
+ else:assert not p.stdout
+base='/home/server01_ansible/ansible-candidate.8oCqVUwx/result/runtime'
+script='''set -eu
+source "$1"
+phase() {
+  printf 'PHASE=%s\\n' "$1"
+  fds_engine_init
+  for cli in ansible ansible-playbook ansible-inventory ansible-config; do
+    printf 'CLI=%s\\n' "$cli"
+    fds_engine_exec "$cli" --version
+  done
+}
+export FDS_ANSIBLE_ENGINE_DIR="$2/venv-2.21.3/bin"
+export FDS_ANSIBLE_ENGINE_VERSION=2.21.3
+phase candidate
+export FDS_ANSIBLE_ENGINE_DIR="$2/venv-2.16.19/bin"
+export FDS_ANSIBLE_ENGINE_VERSION=2.16.19
+phase explicit-recovery
+unset FDS_ANSIBLE_ENGINE_DIR FDS_ANSIBLE_ENGINE_VERSION
+phase unset-fixed-path
+'''
+argv=['/usr/bin/bash','--noprofile','--norc','-c',script,'probe',str(helper),base]
+started=datetime.datetime.now(datetime.timezone.utc).isoformat()
+p=subprocess.run(argv,cwd=root,env=env,capture_output=True,timeout=60)
+unchanged=hashlib.sha256(helper.read_bytes()).hexdigest()==expected
+out={'scope':'NATIVE_HELPER_VERSION_ONLY; no wrapper action/playbook/target SSH/default switch','at_utc':started,'ended_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'host':socket.gethostname(),'uid':os.geteuid(),'source_head':'0d58598d8a3ce77ccd7eaa9e1dfba820b0a436ea','helper_sha256':expected,'argv':argv,'cwd':str(root),'rc':p.returncode,'stdout':p.stdout.decode(),'stderr':p.stderr.decode(),'helper_hash_unchanged':unchanged}
+print(json.dumps(out));raise SystemExit(0 if p.returncode==0 and unchanged else 2)
