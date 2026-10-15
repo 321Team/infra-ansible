@@ -3,6 +3,8 @@
 작성일: 2026-09-24 KST. 책임 티켓: [infra-ansible #9](https://github.com/321Team/infra-ansible/issues/9).
 단계: **PREPARATION / 운영 전환 PENDING**. 현재 승인 대상 엔진은 기존 #9의 2.16.19 → 2.21.3이며, 최신 버전 선정 작업으로 범위를 넓히지 않는다.
 
+2026-10-15 후속: 10/13 worker02 실제 회차·Runner 인수는 완료됐으며, 현재 운영 checkout과 후보 경로·native helper 선택/복귀 진단 및 남은 역할별 인수는 [운영 전환 준비 현황](Issue9-Operating-Transition-Readiness.md)에 연결한다. 아래 과거 NOT_RUN·미선정 표기는 작성 당시 이력이다. 운영 기본 엔진 전환은 아직 완료되지 않았다.
+
 2026-10-09 후속: 아래 9/24 조사 시점은 이력으로 보존한다. 일반 CI 종결·별도 시험 checkout·기존 worker02 성공과 현재 남은 단일 대상/복구 원본 조건은 [worker02 다음 canary 준비](Issue9-Worker02-Canary-Next.md)에 연결했다. 운영 전환 완료나 새 Runtime GO는 아니다.
 
 ## 1. 이번 결과와 재사용 범위

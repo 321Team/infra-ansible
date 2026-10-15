@@ -1,0 +1,42 @@
+"""One-shot stdin collector; local command/version/file metadata only, no playbook."""
+import datetime,hashlib,json,os,pathlib,pwd,socket,stat,subprocess
+assert socket.gethostname().split('.')[0]=='ansible01'
+assert pwd.getpwuid(os.geteuid()).pw_name=='server01_ansible' and os.geteuid()==1000
+HOME=pathlib.Path('/home/server01_ansible')
+OPERATING=HOME/'p1-ans-01'
+CANARY=HOME/'worker02-session-plan-3hetha3t/source'
+ENGINE=HOME/'ansible-candidate.8oCqVUwx/result/runtime'
+FILES=['ansible.cfg','scripts/cr-p1-ans-01-01-run.sh','scripts/cr-p1-mon-01-01-run.sh','scripts/cr-p1-ntp-01-01-run.sh','scripts/p1-k8s-01-gate0-run.sh','scripts/lib/ansible-engine.sh','inventory/hosts.yml','inventory/group_vars/all.yml']
+env={'HOME':str(HOME),'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','GIT_OPTIONAL_LOCKS':'0','GIT_CONFIG_NOSYSTEM':'1','GIT_CONFIG_GLOBAL':'/dev/null'}
+out={'at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'host':socket.gethostname(),'account':pwd.getpwuid(os.geteuid()).pw_name,'boot_id':pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'commands':[],'checkouts':[],'engines':[],'scope':'read only; no playbook, installation, wrapper dispatch, engine transition, credential read or managed-host connection'}
+def run(argv,cwd):
+ p=subprocess.run(argv,cwd=cwd,env=env,stdin=subprocess.DEVNULL,capture_output=True,timeout=20)
+ r={'argv':argv,'cwd':str(cwd),'rc':p.returncode,'stdout':p.stdout.decode('utf-8',errors='replace'),'stderr':p.stderr.decode('utf-8',errors='replace')}
+ out['commands'].append(r)
+ if p.returncode:raise RuntimeError('READ_COMMAND_FAILED')
+ return r['stdout']
+def metadata(path):
+ if not path.exists():return {'path':str(path),'state':'ABSENT'}
+ s=path.lstat()
+ if path!=path.resolve() or not stat.S_ISREG(s.st_mode):raise RuntimeError('UNEXPECTED_FILE_TYPE')
+ if s.st_size>1024*1024:raise RuntimeError('FILE_TOO_LARGE')
+ b=path.read_bytes()
+ return {'path':str(path),'state':'REGULAR','size':len(b),'sha256':hashlib.sha256(b).hexdigest(),'uid':s.st_uid,'gid':s.st_gid,'mode':oct(s.st_mode&0o7777)}
+try:
+ for root in [OPERATING,CANARY]:
+  assert root==root.resolve() and root.is_dir()
+  head=run(['/usr/bin/git','rev-parse','HEAD'],root).strip()
+  dirty=run(['/usr/bin/git','status','--porcelain','--untracked-files=no'],root)
+  untracked=run(['/usr/bin/git','ls-files','--others','--exclude-standard','--','scripts','library','module_utils','roles','playbooks','inventory','ansible.cfg'],root)
+  out['checkouts'].append({'path':str(root),'head':head,'tracked_status':dirty,'execution_path_untracked':untracked,'files':[metadata(root/f) for f in FILES]})
+ for name,bindir in [('rpm',pathlib.Path('/usr/bin')),('candidate-2.21.3',ENGINE/'venv-2.21.3/bin'),('recovery-2.16.19',ENGINE/'venv-2.16.19/bin')]:
+  row={'name':name,'bin':str(bindir),'clis':[]};out['engines'].append(row)
+  for cli in ['ansible','ansible-playbook','ansible-inventory','ansible-config']:
+   exe=bindir/cli
+   if not exe.is_file() or not os.access(exe,os.X_OK):raise RuntimeError('CLI_MISSING')
+   text=run([str(exe),'--version'],OPERATING)
+   row['clis'].append({'cli':cli,'realpath':str(exe.resolve()),'first_line':text.splitlines()[0],'sha256':hashlib.sha256(exe.read_bytes()).hexdigest()})
+ out['status']='READ_COMPLETE_REVIEW_REQUIRED'
+except Exception as e:out.update(status='STOP',reason=str(e),error_type=type(e).__name__)
+out['ended_at_utc']=datetime.datetime.now(datetime.timezone.utc).isoformat()
+print(json.dumps(out,ensure_ascii=False));raise SystemExit(0 if out['status']=='READ_COMPLETE_REVIEW_REQUIRED' else 2)
