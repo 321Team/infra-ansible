@@ -9,6 +9,21 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'scripts/cr-p1-ntp-01-01-run.sh'
+
+
+def stage_wrapper(fixture_repo):
+    script = fixture_repo / 'scripts' / SCRIPT.name
+    script.parent.mkdir()
+    script.write_bytes(SCRIPT.read_bytes())
+    script.chmod(0o700)
+    library = script.parent / 'lib'
+    library.mkdir()
+    # The real wrapper sources this sibling before dispatching any action.
+    (library / 'ansible-engine.sh').write_bytes(
+        (ROOT / 'scripts/lib/ansible-engine.sh').read_bytes())
+    return script
+
+
 FAKE = '''#!{python}
 import json, os, pathlib, sys
 name = pathlib.Path(sys.argv[0]).name
@@ -58,10 +73,7 @@ def main():
         fixture_repo = case / 'repo'
         fixture_tools = fixture_repo / 'tools'
         fixture_tools.mkdir(parents=True)
-        fixture_script = fixture_repo / 'scripts' / SCRIPT.name
-        fixture_script.parent.mkdir()
-        fixture_script.write_bytes(SCRIPT.read_bytes())
-        fixture_script.chmod(0o700)
+        fixture_script = stage_wrapper(fixture_repo)
         # Isolate only the OS home locator. The copied helper's secure path,
         # flock, FD handoff, and CLI re-entry behavior remain unchanged.
         helper = (ROOT / 'tools/ntp-workflow-lock.py').read_text()
@@ -78,7 +90,8 @@ def main():
         key = case / 'fixture-key'
         key.write_text('fixture only; not an SSH key\n')
         calls_path = case / 'calls.json'
-        env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'CR_', 'FIXTURE_'))}
+        env = {k: v for k, v in os.environ.items()
+               if not k.startswith(('ANSIBLE_', 'CR_', 'FIXTURE_', 'FDS_ANSIBLE_ENGINE_'))}
         env.update(PATH=str(binaries) + os.pathsep + os.environ['PATH'],
                    FIXTURE_REPO=str(fixture_repo), FIXTURE_CALLS=str(calls_path),
                    FIXTURE_FAIL_AT=str(fail_at), ANSIBLE_PRIVATE_KEY_FILE=str(key),

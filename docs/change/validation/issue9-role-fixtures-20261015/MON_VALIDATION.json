@@ -1,0 +1,27 @@
+{
+  "started_at_utc": "2026-10-15T03:08:51.572812+00:00",
+  "ended_at_utc": "2026-10-15T03:08:55.142387+00:00",
+  "command": [
+    "C:\\Users\\soldesk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+    "-I",
+    "-B",
+    "-X",
+    "utf8",
+    "C:\\Users\\soldesk\\.codex\\.chatgpt-projects\\g-p-6a85069945708191b56059da202e4461\\phase1-work-20261015\\ansible-engine-readiness\\tests\\test_egress_recovery_harness.py"
+  ],
+  "rc": 0,
+  "scope": "Windows Git Bash; real shell/helper + fake inventory; no Ansible or hosts",
+  "passed": 7,
+  "skipped": 0,
+  "initial_expectation_correction": "First run 6/7: test expected inventory rc77, but pipefail correctly returns last nonzero grep rc1. Corrected the test assertion only.",
+  "files": {
+    "tests/run-egress-recovery.py": "3f78eb5a3af5e4fd203c01b6b5eb89ddee2df7d97884bd882fdb1282109d2bbe",
+    "tests/test_egress_recovery_harness.py": "a94a270e71e125589df6f3ee088f3a7deb21f3299bc11d879d510b1bc1f92948"
+  },
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "ba24c6fd99f242bc9e1cb90edd0c059247fdf4c2fe6cb51f7bc343f5f0b2caf3",
+  "diff_check": "PASS",
+  "full_linux_egress_suite": "NOT_RUN",
+  "ntp_candidate_flow": "NOT_RUN",
+  "github_ci": "NOT_RUN"
+}
