@@ -26,7 +26,11 @@ hbr_ac04_docker_service: docker.service
 
 # HBR Lead final decision:
 # fds-project-baseline#13 comment 5925930576 (2026-10-01 KST).
-# .50 and .102 are temporary exceptions, not baseline allowlist expansion.
+# .50 retirement: edge k3s dependency ended, robot$fds-ci ID 1 deleted
+# 2026-10-14 22:53:24 KST; direct postchecks recorded in baseline #13.
+# This is the candidate desired set, not proof of Runtime removal. See
+# docs/runbooks/P1-HBR-01-AC04-edge-retirement.md for the manager-coupled transition.
+# .102 remains a temporary management exception, not baseline expansion.
 hbr_ac04_sources:
   - address: 10.250.10.20
     classification: BASELINE_ALLOW
@@ -40,12 +44,6 @@ hbr_ac04_sources:
   - address: 10.1.93.108
     classification: BASELINE_ALLOW
     owner: k8s-worker03
-  - address: 10.1.93.50
-    classification: TEMP_EXCEPTION
-    owner: edge01
-    expiry_condition: >-
-      Remove after edge01 migration completes and robot$fds-ci cleanup is
-      complete; record removal in P1-HBR-01 and re-run same-L2 negative test.
   - address: 10.1.93.102
     classification: TEMP_MANAGEMENT_EXCEPTION
     owner: k8s-control01

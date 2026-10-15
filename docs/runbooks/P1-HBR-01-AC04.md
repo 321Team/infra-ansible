@@ -1,6 +1,14 @@
 # P1-HBR-01 AC-04 Harbor 443 Source Allowlist Remediation
 
-## 1. Current decision
+> 2026-10-14 source retirement update: the repository desired set now excludes
+> edge01 `.50` and retains control01 `.102`. Use
+> [the manager-coupled retirement procedure](P1-HBR-01-AC04-edge-retirement.md)
+> for an already-installed six-source guard. The installation/rollback steps
+> and historical status below are retained for their original scope; they are
+> not a live six-to-five update or a current AC status report. In particular,
+> do not run first-install apply/rollback to retire `.50`.
+
+## 1. Original installation decision (historical)
 
 AC-04 remains `FAIL_BLOCKER` until Runtime evidence and HBR Lead acceptance are complete.
 
@@ -29,7 +37,7 @@ Selected backend:
 
 Docker/firewalld-managed tables and chains are not modified.
 
-## 2. Approved source contract
+## 2. Original six-source contract (historical)
 
 HBR Lead decision in baseline #13:
 
@@ -227,7 +235,8 @@ Required marker:
 
 Verify checks:
 
-- exact six-member IPv4 set;
+- exact IPv4 set from the selected source revision (six in the original
+  installation; five in the retirement candidate; do not mix revisions);
 - forward hook priority -1;
 - approved IPv4 allow rule;
 - unapproved IPv4 drop rule;
@@ -372,8 +381,10 @@ for the new exact HEAD; PRECHECK/Apply/Runtime are separate gates.
 
 Do not restart the guard alone. Docker requires it through
 `RequiredBy=docker.service`, so a guard restart can restart Docker, interrupt
-Harbor and recreate DNAT rules. Source-set changes must follow an approved,
-reviewed rollback and reapply in a non-conflicting window. Guard stop still
+Harbor and recreate DNAT rules. The `.50` retirement follows the linked narrow
+transition procedure, which does not stop the guard or run first-install
+rollback. Other source-set changes require their own reviewed plan in a
+non-conflicting window. Guard stop in the original installation rollback still
 requires dependency detach, daemon-reload and Docker-active checks in section 10.
 Do not bypass these steps with a standalone stop or restart.
 
