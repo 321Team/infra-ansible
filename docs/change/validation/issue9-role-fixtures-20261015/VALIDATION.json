@@ -1,0 +1,53 @@
+{
+  "recorded_at_utc": "2026-10-15T03:15:27.631854+00:00",
+  "base_main": "bd5a6bc219e5d471a4bfbce799cdb73b5f4b1976",
+  "mon_mock": {
+    "passed": 7,
+    "skipped": 0,
+    "scope": "Windows Git Bash; real shell/helper + fake inventory; no Ansible or hosts",
+    "original_record": "MON_VALIDATION.json"
+  },
+  "ntp_mock": {
+    "passed": 4,
+    "skipped": 0,
+    "started_at_utc": "2026-10-15T03:15:26.990094+00:00",
+    "argv": [
+      "C:\\Users\\soldesk\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+      "-I",
+      "-B",
+      "-X",
+      "utf8",
+      "-c",
+      "import sys,runpy;sys.path.insert(0,'C:\\\\Users\\\\soldesk\\\\.codex\\\\.chatgpt-projects\\\\g-p-6a85069945708191b56059da202e4461\\\\deliverables\\\\p1-ansible-role-evidence-20261015\\\\local-deps');runpy.run_path(\"tests/test_ntp_harness_inputs.py\",run_name=\"__main__\")"
+    ],
+    "rc": 0,
+    "scope": "Generate real fixture YAML, stop before Ansible, render production timestamp with Jinja2; copy actual wrapper/helper",
+    "initial_test_authoring_correction": "Initial extractor looked for copy.content; production timestamp is in set_fact. Corrected extractor; no production-code change."
+  },
+  "dependencies": {
+    "Python": "3.12",
+    "PyYAML": "6.0.2",
+    "Jinja2": "3.1.6",
+    "MarkupSafe": "3.0.3",
+    "location": "local task dependencies only"
+  },
+  "static": {
+    "python_ast": 7,
+    "execution_card_bash_syntax": "PASS",
+    "diff_check": "PASS"
+  },
+  "source_sha256": {
+    "tests/run-egress-recovery.py": "3f78eb5a3af5e4fd203c01b6b5eb89ddee2df7d97884bd882fdb1282109d2bbe",
+    "tests/test_egress_recovery_harness.py": "a94a270e71e125589df6f3ee088f3a7deb21f3299bc11d879d510b1bc1f92948",
+    "tests/test_ntp_harness_inputs.py": "1e1c157cc1c434c7402436d7bb764383a087fdf93b2aa2d3c1d4a81e3ae4747c",
+    "tests/ntp_source/test_wrapper.py": "bbc39614dde42f34514251c73d22903f25e748f9f0eae94763dddcd1dfce487f",
+    "tests/ntp_source/test_ntp_source.py": "54cb5fed162b306e6533261e1d1fb4c0b8d5fe5a141eb8111addf335e1fdf927",
+    "tests/ntp_source/test_migration.py": "eff0f5f92ebb4456657c523ecf1c2ff977739b5b99cf5afac0ebb3921f0e08dd",
+    "tests/ntp_source/test_rollout_serial.py": "cc46778f7b0b8aaf3b74a020dfda05a77e727cc443db4a7be2f7c43d354c7e9b"
+  },
+  "linux_ansible_full_suite": "NOT_RUN",
+  "github_ci": "PENDING_NEW_PR",
+  "runtime_apply": "NOT_RUN",
+  "operating_engine_transition": "NOT_RUN",
+  "independent_review": "PENDING"
+}

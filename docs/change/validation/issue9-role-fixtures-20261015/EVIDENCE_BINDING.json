@@ -1,0 +1,298 @@
+{
+  "checked_at_kst": "2026-10-15T12:08:52.606181+09:00",
+  "MON": {
+    "original_archive_sha256": "194e0fc6c79dc81800fe9d2495340639c7e7ff8043153251dd82218af98adfbd",
+    "results": [
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz!evidence/result/ansible-revalidation-evidence.tar.gz",
+        "path": "evidence/egress-2.16.19/RESULTS.json",
+        "sha256": "98d42f8ffed6de52319f3390bd02343e59e939d131205a84e12edf4231138a85",
+        "source_commit": "d5147ebff0febbb8ab2afca28fe64d68301e033c",
+        "cases": 45,
+        "status": "PASS"
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz!evidence/result/ansible-revalidation-evidence.tar.gz",
+        "path": "evidence/egress-2.21.3/RESULTS.json",
+        "sha256": "98d42f8ffed6de52319f3390bd02343e59e939d131205a84e12edf4231138a85",
+        "source_commit": "d5147ebff0febbb8ab2afca28fe64d68301e033c",
+        "cases": 45,
+        "status": "PASS"
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz",
+        "path": "evidence/result/evidence/egress-2.16.19/RESULTS.json",
+        "sha256": "98d42f8ffed6de52319f3390bd02343e59e939d131205a84e12edf4231138a85",
+        "source_commit": "d5147ebff0febbb8ab2afca28fe64d68301e033c",
+        "cases": 45,
+        "status": "PASS"
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz",
+        "path": "evidence/result/evidence/egress-2.21.3/RESULTS.json",
+        "sha256": "98d42f8ffed6de52319f3390bd02343e59e939d131205a84e12edf4231138a85",
+        "source_commit": "d5147ebff0febbb8ab2afca28fe64d68301e033c",
+        "cases": 45,
+        "status": "PASS"
+      }
+    ],
+    "egress_manifests": [
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz!evidence/result/ansible-revalidation-evidence.tar.gz",
+        "manifest": "evidence/egress-2.16.19/SHA256SUMS",
+        "verified": 78
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz!evidence/result/ansible-revalidation-evidence.tar.gz",
+        "manifest": "evidence/egress-2.21.3/SHA256SUMS",
+        "verified": 78
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz",
+        "manifest": "evidence/result/evidence/egress-2.16.19/SHA256SUMS",
+        "verified": 78
+      },
+      {
+        "archive": "ansible-podman-evidence.tar.gz!evidence/original/ansible-podman-evidence.tar.gz",
+        "manifest": "evidence/result/evidence/egress-2.21.3/SHA256SUMS",
+        "verified": 78
+      }
+    ],
+    "old_source": "d5147ebff0febbb8ab2afca28fe64d68301e033c",
+    "current_source": "bd5a6bc219e5d471a4bfbce799cdb73b5f4b1976",
+    "new_suite_execution": false
+  },
+  "NTP": {
+    "old_summary_sha256": "46330bdfbbb5c0e4b2a73788cdd76bb915a8fe09b0ed23df6f9bd594ced51516",
+    "raw_archive_sha256": "ec2c0c0ae6d3747e17681e9393a64989c24006b784824269e211703e07539ae3",
+    "source_binding": "Uncommitted PR28 follow-up code, exact source SHA256 below; not a committed-head review",
+    "old_passed": 301,
+    "old_total": 301,
+    "compared_files": [
+      {
+        "path": "library/fds_ntp_probe.py",
+        "old_sha256": "fc63ce1c71e13ba3e0ef6cc730c7cc44c6fb3a53aba8145d7ff9e035106fa74c",
+        "current_sha256": "0a04f3a1e4632e9abf7a5e43a997a1efe3c3f539a4e52a90b72cc899d6cdba81",
+        "same": false
+      },
+      {
+        "path": "library/fds_ntp_migration.py",
+        "old_sha256": "2e1ea06aebf856f42b950242e1cc913b4eda30173ebf19f0dd157f0181d24983",
+        "current_sha256": "2e1ea06aebf856f42b950242e1cc913b4eda30173ebf19f0dd157f0181d24983",
+        "same": true
+      },
+      {
+        "path": "module_utils/fds_ntp_policy.py",
+        "old_sha256": "47ce10e94ea91eaa120d253ee99374502e3427cb83617f372f1a3e0f092e194a",
+        "current_sha256": "47ce10e94ea91eaa120d253ee99374502e3427cb83617f372f1a3e0f092e194a",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/verify.yml",
+        "old_sha256": "1179ede0c2931df4a822ddffd84aec19c41791d5e6f1a4f21908b2b0ae03734d",
+        "current_sha256": "1179ede0c2931df4a822ddffd84aec19c41791d5e6f1a4f21908b2b0ae03734d",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_restore_pair.yml",
+        "old_sha256": "2c94c60bab8938752502a8664891ca380d9c2e7297d27f01af80fe49c7e86b6f",
+        "current_sha256": "2c94c60bab8938752502a8664891ca380d9c2e7297d27f01af80fe49c7e86b6f",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_restore_dropin.yml",
+        "old_sha256": "b4ab9ceaf107ae69560e42aec60bf9e21e39af25887ae0ac5a5bb1592a01ca25",
+        "current_sha256": "b4ab9ceaf107ae69560e42aec60bf9e21e39af25887ae0ac5a5bb1592a01ca25",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_legacy.yml",
+        "old_sha256": "78f500b6e9cff3b8d8a5f83620bc491f90cff9b32b1c1e48bee8420897f190d6",
+        "current_sha256": "aee347da2be0e5140f507d434dd7006f6aebb4a403377266c5acf73e2a879ccb",
+        "same": false
+      },
+      {
+        "path": "roles/ntp_source/tasks/_read_original.yml",
+        "old_sha256": "ff8d6af52075a8cd52ec68d8cec19c2f3171d18a71dc3895cb6a55d6ac3e9ae7",
+        "current_sha256": "ff8d6af52075a8cd52ec68d8cec19c2f3171d18a71dc3895cb6a55d6ac3e9ae7",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_migration.yml",
+        "old_sha256": "a08b93d3480c7b87a7af6840049594586384af60fc1a87deba57a538ae385d2d",
+        "current_sha256": "a08b93d3480c7b87a7af6840049594586384af60fc1a87deba57a538ae385d2d",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_check_state_dir.yml",
+        "old_sha256": "6a70397c84f247f45c83c5d11ffb8083b6602c25b80a2ad01077f8335a10886a",
+        "current_sha256": "6a70397c84f247f45c83c5d11ffb8083b6602c25b80a2ad01077f8335a10886a",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/_validate_state.yml",
+        "old_sha256": "ee2f5573c08f3cbadef66e683701f852d564b8c007f187a294576805e1355377",
+        "current_sha256": "ee2f5573c08f3cbadef66e683701f852d564b8c007f187a294576805e1355377",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/tasks/main.yml",
+        "old_sha256": "472555824ede130fed517589c2b4c66dc2c9e5b38b5343aed115db6430a3fe83",
+        "current_sha256": "472555824ede130fed517589c2b4c66dc2c9e5b38b5343aed115db6430a3fe83",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/templates/chrony-client-source.conf.j2",
+        "old_sha256": "ed9a4607165996262bbea8e1ee11010c5e58eebab22bd608cec55c5be5c8d0e5",
+        "current_sha256": "ed9a4607165996262bbea8e1ee11010c5e58eebab22bd608cec55c5be5c8d0e5",
+        "same": true
+      },
+      {
+        "path": "roles/ntp_source/templates/chrony-source-allow.conf.j2",
+        "old_sha256": "36789f4be6e967e90c1f6ff263478183f5fccfae3141706e52735b640b40c035",
+        "current_sha256": "36789f4be6e967e90c1f6ff263478183f5fccfae3141706e52735b640b40c035",
+        "same": true
+      },
+      {
+        "path": "tools/ntp-rollout.py",
+        "old_sha256": "419d52206dae52e8fc6db596661c7a1f198f67fc0fd249986b0c4495b2de8598",
+        "current_sha256": "419d52206dae52e8fc6db596661c7a1f198f67fc0fd249986b0c4495b2de8598",
+        "same": true
+      },
+      {
+        "path": "tools/ntp-workflow-lock.py",
+        "old_sha256": "91b7e14272c8bc470ba4d403d1d32aad889aeca8dd14760230da16955b10d218",
+        "current_sha256": "91b7e14272c8bc470ba4d403d1d32aad889aeca8dd14760230da16955b10d218",
+        "same": true
+      },
+      {
+        "path": "scripts/cr-p1-ntp-01-01-run.sh",
+        "old_sha256": "c95929999f0fea727844dd779b985b5dadeec42853b6b82539becfff4a58b3ba",
+        "current_sha256": "3b89f74e31b000be343e7e512bf12369708b7ab334cd54a7ae1d0c0dcce20171",
+        "same": false
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-verify.yml",
+        "old_sha256": "43f8893fad55b6f0772cebd6388828b32c0c9a33b39a8e4030aa500296d408c8",
+        "current_sha256": "43f8893fad55b6f0772cebd6388828b32c0c9a33b39a8e4030aa500296d408c8",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-rollback.yml",
+        "old_sha256": "627275f2119b2d55c419f7e254cfb62639389b8af357b5e28734dbfec04079a6",
+        "current_sha256": "627275f2119b2d55c419f7e254cfb62639389b8af357b5e28734dbfec04079a6",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-apply-clients.yml",
+        "old_sha256": "352cf440c54c67e8335c2b4fad11427a1f8ad49002748ecb65727cd3103f5876",
+        "current_sha256": "352cf440c54c67e8335c2b4fad11427a1f8ad49002748ecb65727cd3103f5876",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-precheck.yml",
+        "old_sha256": "be351f4eaddead684be1b240a6b1ab69e708b272ff1f9de5399021342ae9c7ee",
+        "current_sha256": "be351f4eaddead684be1b240a6b1ab69e708b272ff1f9de5399021342ae9c7ee",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-apply-source.yml",
+        "old_sha256": "f48efae1f82cde10c3cf827e10db5ffd5850ecb2685b5ee87a83c40ad8e2c1d4",
+        "current_sha256": "f48efae1f82cde10c3cf827e10db5ffd5850ecb2685b5ee87a83c40ad8e2c1d4",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-pathcheck.yml",
+        "old_sha256": "e1b95bcc1051269da6f18312fd155505a36838aefaf7f6e4f8479511c8a4dcba",
+        "current_sha256": "e1b95bcc1051269da6f18312fd155505a36838aefaf7f6e4f8479511c8a4dcba",
+        "same": true
+      },
+      {
+        "path": "playbooks/cr-p1-ntp-01-01-diagnose.yml",
+        "old_sha256": "396438702db2bbe7f32b4c025d67213a4455778ea2613277cf1781e6612e4089",
+        "current_sha256": "396438702db2bbe7f32b4c025d67213a4455778ea2613277cf1781e6612e4089",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_probe.py",
+        "old_sha256": "8b91bc92c16d3988d8a7f7338148b481dc7b8d1a7a6391422760e321c442a9b1",
+        "current_sha256": "a64f64817f6853268146bcde83cf0b4a597db5e514f45224b96d8aaaa3632947",
+        "same": false
+      },
+      {
+        "path": "tests/ntp_source/README-migration.md",
+        "old_sha256": "86d4d4ebadba13f55e8953948bad88ed2e212296f687a1c91acde51bc983354c",
+        "current_sha256": "86d4d4ebadba13f55e8953948bad88ed2e212296f687a1c91acde51bc983354c",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_module_transport.py",
+        "old_sha256": "6b3f0353d2a7e9949c06fcd649712b41efb7070e9bbc29d98c128b2c773f9f16",
+        "current_sha256": "6b3f0353d2a7e9949c06fcd649712b41efb7070e9bbc29d98c128b2c773f9f16",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_rollout.py",
+        "old_sha256": "af86a3bc72d0c07dabeac6a0a62cd80097f08e7ea39f4a302a4e5c665492f986",
+        "current_sha256": "af86a3bc72d0c07dabeac6a0a62cd80097f08e7ea39f4a302a4e5c665492f986",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/fixture_action.py",
+        "old_sha256": "100f5b91abebad1c863b8c99d604539693e671f843b605eb75c566592b917aee",
+        "current_sha256": "100f5b91abebad1c863b8c99d604539693e671f843b605eb75c566592b917aee",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_migration.py",
+        "old_sha256": "f5642d00cbe3598098cb5ce56e9d808767b67a0d46bf2ebaa684fd5e4bf91e0a",
+        "current_sha256": "f5642d00cbe3598098cb5ce56e9d808767b67a0d46bf2ebaa684fd5e4bf91e0a",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/policy_test_support.py",
+        "old_sha256": "9208dfc61b67bcb58fde523ee10aa51ad6da1ec9fbdd72d678287a26e307600e",
+        "current_sha256": "9208dfc61b67bcb58fde523ee10aa51ad6da1ec9fbdd72d678287a26e307600e",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_egress_contract.py",
+        "old_sha256": "9e77b015bee25e17878fe8aa652e4fecc168d017480accea05f63ef1149a8cce",
+        "current_sha256": "9e77b015bee25e17878fe8aa652e4fecc168d017480accea05f63ef1149a8cce",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_wrapper.py",
+        "old_sha256": "0e5b9b7426db6b04017a2e3c332f7900d4f6cc2a2878fd0ce3caf329090639b5",
+        "current_sha256": "0e5b9b7426db6b04017a2e3c332f7900d4f6cc2a2878fd0ce3caf329090639b5",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_ntp_source.py",
+        "old_sha256": "0e229008fa3e62b4ab2f5427b024ab99b200a46f0387d9773ec0d34c25e17799",
+        "current_sha256": "0e229008fa3e62b4ab2f5427b024ab99b200a46f0387d9773ec0d34c25e17799",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/fixture_connection.py",
+        "old_sha256": "9690a2c95453ebdcd0b5cbc2ef222b7562b4665ccc2fdfd72ea4091b03bc7950",
+        "current_sha256": "9690a2c95453ebdcd0b5cbc2ef222b7562b4665ccc2fdfd72ea4091b03bc7950",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/test_rollout_serial.py",
+        "old_sha256": "6a07fbc5c19448c88eeec1b30146ef3f266bed23d5f8bf70bad51b218f8da650",
+        "current_sha256": "6a07fbc5c19448c88eeec1b30146ef3f266bed23d5f8bf70bad51b218f8da650",
+        "same": true
+      },
+      {
+        "path": "tests/ntp_source/fixtures/observed-chrony.conf",
+        "old_sha256": "147346c1b876b87dfad3bd436c62bc137c36723137ed5b647cf376a9f54e66aa",
+        "current_sha256": "147346c1b876b87dfad3bd436c62bc137c36723137ed5b647cf376a9f54e66aa",
+        "same": true
+      }
+    ],
+    "candidate_2_21_3_flow": "NOT_VERIFIED in inspected records; no new Linux run"
+  },
+  "current_main": "bd5a6bc219e5d471a4bfbce799cdb73b5f4b1976"
+}

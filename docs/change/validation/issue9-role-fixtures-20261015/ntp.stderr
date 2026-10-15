@@ -1,0 +1,9 @@
+test_generated_facts_render_current_baseline_expression (__main__.NTPHarnessInputs.test_generated_facts_render_current_baseline_expression) ... ok
+test_old_injected_fact_does_not_satisfy_current_expression (__main__.NTPHarnessInputs.test_old_injected_fact_does_not_satisfy_current_expression) ... ok
+test_repeat_changes_current_fact_namespace (__main__.NTPHarnessInputs.test_repeat_changes_current_fact_namespace) ... ok
+test_staged_wrapper_includes_real_sibling_helper (__main__.NTPHarnessInputs.test_staged_wrapper_includes_real_sibling_helper) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.364s
+
+OK

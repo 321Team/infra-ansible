@@ -457,7 +457,7 @@ def run_flow_case(case, output, chronyd, executable):
                          cr_ntp_phase='apply', cr_ntp_change_approved=VARS['cr_ntp_change_id'],
                          fixture_root=str(f.root), fixture_scenario=scenario,
                          ansible_python_interpreter=shutil.which('python3'),
-                         ansible_date_time={'iso8601': '2026-09-18T00:00:00Z'})
+                         ansible_facts={'date_time': {'iso8601': '2026-09-18T00:00:00Z'}})
         if scenario.get('source'):
             variables['cr_ntp_source_host'] = 'localhost'
         play = [dict(hosts='localhost', connection='local', gather_facts=False,

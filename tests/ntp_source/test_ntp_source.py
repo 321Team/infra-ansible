@@ -99,7 +99,7 @@ def run_case(case, output, executable):
                      cr_ntp_require_no_change=spec.get('no_change', False),
                      fixture_root=str(directory), fixture_scenario=spec,
                      ansible_python_interpreter=shutil.which('python3'),
-                     ansible_date_time={'iso8601': '2026-09-18T00:00:00Z'})
+                     ansible_facts={'date_time': {'iso8601': '2026-09-18T00:00:00Z'}})
     if spec.get('source'):
         variables['cr_ntp_source_host'] = 'localhost'
     template_name = 'chrony-source-allow.conf.j2' if spec.get('source') else 'chrony-client-source.conf.j2'
@@ -133,7 +133,7 @@ def run_case(case, output, executable):
     first_rc = completed.returncode
     first_baseline = snapshot(baseline)
     if first_rc == 0 and spec.get('repeat'):
-        play[0]['vars']['ansible_date_time']['iso8601'] = '2026-09-18T00:01:00Z'
+        play[0]['vars']['ansible_facts']['date_time']['iso8601'] = '2026-09-18T00:01:00Z'
         play_path.write_text(yaml.safe_dump(play, sort_keys=False))
         second = subprocess.run(command, env=env, cwd=directory, capture_output=True,
                                 text=True, timeout=90)

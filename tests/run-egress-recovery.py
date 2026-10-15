@@ -10,10 +10,27 @@ from pathlib import Path
 import subprocess
 import sys
 
-import yaml
+def fixture_environment(binary, out):
+    env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'],
+               ANSIBLE_CONFIG=str(out / 'ansible.cfg'), ANSIBLE_NOCOLOR='1')
+    # The fixture's --ansible-bin selects its engine. Do not inherit a caller's
+    # operational opt-in and silently run recap inventory with another engine.
+    for key in ('FDS_ANSIBLE_ENGINE_DIR', 'FDS_ANSIBLE_ENGINE_VERSION'):
+        env.pop(key, None)
+    return env
+
+
+def recap_command(repo, path, fn):
+    # Extract only the pure recap function; sourcing the operational wrapper
+    # would run host/account/key checks and dispatch an action.
+    return ['bash', '-c', 'set -Eeuo pipefail\nrepo_root="$1"\n'
+            'source "$repo_root/scripts/lib/ansible-engine.sh"\n'
+            'fds_engine_init\n' + fn + '\nassert_idempotent "$2"',
+            'fixture', repo, path]
 
 
 def main():
+    import yaml
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument('--ansible-bin', type=Path, required=True)
@@ -23,8 +40,7 @@ def main():
     if out.exists() or out.is_relative_to(repo):
         parser.error('Use a new output directory outside the checkout')
     out.mkdir(parents=True)
-    env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'],
-               ANSIBLE_CONFIG=str(out / 'ansible.cfg'), ANSIBLE_NOCOLOR='1')
+    env = fixture_environment(binary, out)
     (out / 'ansible.cfg').write_text('[defaults]\nroles_path=' + str(repo / 'roles') + '\n')
     apply = yaml.safe_load((repo / 'roles/egress_proxy/tasks/main.yml').read_text())
     rollback = yaml.safe_load((repo / 'playbooks/cr-p1-mon-01-01-rollback.yml').read_text())[-1]
@@ -78,8 +94,7 @@ def main():
                               ('localhost-only', local, 1), ('wrong-target', good.replace('egress-proxy01', 'k8s-worker01'), 1),
                               ('extra-target', good + good.replace('egress-proxy01', 'k8s-worker01'), 1)]:
         path = out / (name + '.recap'); path.write_text(content)
-        run(name, ['bash', '-c', 'set -Eeuo pipefail\nrepo_root="$1"\n' + fn +
-                   '\nassert_idempotent "$2"', 'fixture', repo, path], rc)
+        run(name, recap_command(repo, path, fn), rc)
 
     ready = play('localhost-cli-preflight', [{'name': 'Require working localhost task execution',
                   'ansible.builtin.assert': {'that': [True]}}], {})

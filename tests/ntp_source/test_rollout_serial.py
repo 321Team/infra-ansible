@@ -57,7 +57,7 @@ def main():
         inventory = {'all': {'vars': dict(VARS, cr_ntp_migrate_main=True,
                                            cr_ntp_source_upstreams=SOURCE_UPSTREAMS,
                                            cr_ntp_change_approved=VARS['cr_ntp_change_id'],
-                                           ansible_date_time={'iso8601': '2026-09-18T00:00:00Z'}),
+                                           ansible_facts={'date_time': {'iso8601': '2026-09-18T00:00:00Z'}}),
                              'children': {'k8s_nodes': {'children': {
                                  'k8s_controlplane': {'hosts': {h: hostvars[h] for h in HOSTS[:2]}},
                                  'k8s_workers': {'hosts': {h: hostvars[h] for h in HOSTS[2:]}}
