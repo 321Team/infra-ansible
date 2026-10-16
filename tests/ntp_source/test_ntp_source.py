@@ -120,7 +120,14 @@ def run_case(case, output, executable):
     play_path = directory / 'case.yml'
     play_path.write_text(yaml.safe_dump(play, sort_keys=False))
     config = directory / 'ansible.cfg'
-    config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n')
+    # Explicit per-fixture paths: ~root ignores HOME in local module transport.
+    local_tmp = directory / '.ansible-local'
+    remote_tmp = directory / '.ansible-remote'
+    local_tmp.mkdir(mode=0o700)
+    remote_tmp.mkdir(mode=0o700)
+    config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n'
+                      + 'local_tmp=' + str(local_tmp) + '\n'
+                      + 'remote_tmp=' + str(remote_tmp) + '\n')
     env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'PYTHON'))}
     env.update(ANSIBLE_CONFIG=str(config), ANSIBLE_NOCOLOR='1')
     command = [executable, '-i', 'localhost,', str(play_path)]

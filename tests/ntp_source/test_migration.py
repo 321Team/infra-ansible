@@ -465,7 +465,14 @@ def run_flow_case(case, output, chronyd, executable):
         play_path = f.root / 'case.yml'
         play_path.write_text(yaml.safe_dump(play, sort_keys=False))
         config = f.root / 'ansible.cfg'
-        config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n')
+        # Explicit per-fixture paths: ~root ignores HOME in local module transport.
+        local_tmp = f.root / '.ansible-local'
+        remote_tmp = f.root / '.ansible-remote'
+        local_tmp.mkdir(mode=0o700)
+        remote_tmp.mkdir(mode=0o700)
+        config.write_text('[defaults]\nretry_files_enabled=False\nhost_key_checking=True\n'
+                          + 'local_tmp=' + str(local_tmp) + '\n'
+                          + 'remote_tmp=' + str(remote_tmp) + '\n')
         env = {k: v for k, v in os.environ.items() if not k.startswith(('ANSIBLE_', 'PYTHON'))}
         env.update(ANSIBLE_CONFIG=str(config), ANSIBLE_NOCOLOR='1', LANG='C.UTF-8', LC_ALL='C.UTF-8',
                    ANSIBLE_LIBRARY=str(library), ANSIBLE_ACTION_PLUGINS=str(plugins),
