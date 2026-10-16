@@ -49,7 +49,14 @@ def main():
                  vars={'ansible_python_interpreter': shutil.which('python3')}, tasks=tasks)]
     (directory / 'case.yml').write_text(yaml.safe_dump(play, sort_keys=False))
     config = directory / 'ansible.cfg'
-    config.write_text('[defaults]\nretry_files_enabled=False\n')
+    # Explicit per-fixture paths: ~root ignores HOME in local module transport.
+    local_tmp = directory / '.ansible-local'
+    remote_tmp = directory / '.ansible-remote'
+    local_tmp.mkdir(mode=0o700)
+    remote_tmp.mkdir(mode=0o700)
+    config.write_text('[defaults]\nretry_files_enabled=False\n'
+                      + 'local_tmp=' + str(local_tmp) + '\n'
+                      + 'remote_tmp=' + str(remote_tmp) + '\n')
     env = {key: value for key, value in os.environ.items() if not key.startswith(('ANSIBLE_', 'PYTHON'))}
     env.update(ANSIBLE_CONFIG=str(config), ANSIBLE_LIBRARY=str(directory / 'library'),
                ANSIBLE_MODULE_UTILS=str(directory / 'module_utils'), ANSIBLE_NOCOLOR='1',
