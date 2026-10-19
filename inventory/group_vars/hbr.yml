@@ -52,5 +52,14 @@ hbr_ac04_sources:
       HBR candidate push/scan/manual management work is complete; record
       removal in P1-HBR-01 and re-run same-L2 negative test.
 
+# P2 ROSA cold-pull source (fds-project-baseline#13, separate Runtime approval
+# request 6258868341 / review 6261120111). Not a P1 baseline source and not
+# part of approved_v4. Empty here, so the rendered guard stays byte-identical
+# to the reviewed P1 guard (SHA256 6bef425b... after the .50 retirement).
+# Only an approved window supplies inventory/overlays/hbr-p2-rosa-coldpull.yml
+# with -e; removal renders again without it. See
+# docs/runbooks/P1-HBR-01-AC04-p2-rosa-coldpull.md.
+hbr_ac04_p2_sources: []
+
 hbr_ac04_denied_same_l2_source: 10.1.93.26
 hbr_ac04_mgmt_negative_source: 10.250.10.10

@@ -56,6 +56,26 @@ class P1HbrAc04StaticContractTest(unittest.TestCase):
                     with self.assertRaisesRegex(SystemExit, 'source set drift'):
                         runpy.run_path(str(CONTRACT), run_name='__ac04_retirement_drift__')
 
+    def test_p2_overlay_cannot_be_broadened_or_enabled_by_default(self):
+        original = Path.read_text
+        mutations = {
+            'broad_overlay': ('hbr-p2-rosa-coldpull.yml', lambda t: t.replace('10.20.10.0/24', '10.20.0.0/16'),
+                              'P2 overlay drift'),
+            'longer_expiry': ('hbr-p2-rosa-coldpull.yml', lambda t: t.replace('2026-10-23T23:59', '2026-11-18T23:59'),
+                              'P2 overlay drift'),
+            'default_on': ('hbr.yml', lambda t: t.replace('hbr_ac04_p2_sources: []',
+                                                          'hbr_ac04_p2_sources:\n  - cidr: 10.20.10.0/24'),
+                           'default to empty'),
+        }
+        for label, (name, mutate, message) in mutations.items():
+            with self.subTest(label=label):
+                def changed(path, *args, **kwargs):
+                    text = original(path, *args, **kwargs)
+                    return mutate(text) if path.name == name else text
+                with patch.object(Path, 'read_text', changed):
+                    with self.assertRaisesRegex(SystemExit, message):
+                        runpy.run_path(str(CONTRACT), run_name='__ac04_p2_overlay_drift__')
+
 
 if __name__ == "__main__":
     unittest.main()

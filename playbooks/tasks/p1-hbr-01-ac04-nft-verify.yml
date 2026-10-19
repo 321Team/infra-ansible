@@ -30,6 +30,20 @@
   register: hbr_ac04_nft_set_live
   changed_when: false
 
+- name: Read P2 ROSA cold-pull set (only when the approved overlay is supplied)
+  ansible.builtin.command:
+    argv:
+      - nft
+      - -n
+      - list
+      - set
+      - "{{ hbr_ac04_nft_family }}"
+      - "{{ hbr_ac04_nft_table }}"
+      - p2_rosa_v4
+  register: hbr_ac04_nft_p2_set_live
+  changed_when: false
+  when: hbr_ac04_p2_sources | length > 0
+
 - name: Read managed forward guard chain
   ansible.builtin.command:
     argv:
@@ -49,6 +63,16 @@
       {{
         hbr_ac04_nft_set_live.stdout
         | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}')
+        | unique
+        | list
+      }}
+
+- name: Extract P2 ROSA cold-pull set
+  ansible.builtin.set_fact:
+    hbr_ac04_nft_p2_cidrs: >-
+      {{
+        (hbr_ac04_nft_p2_set_live.stdout | default(''))
+        | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}')
         | unique
         | list
       }}
@@ -140,12 +164,25 @@
         ct original proto-dst {{ hbr_ac04_port }}
         counter drop
         comment "P1-HBR-01-AC04 deny IPv6 published 443"
+    # P2 ROSA cold-pull accept, placed right after the P1 accept and before the
+    # unapproved IPv4 drop. Present only when the approved overlay is supplied.
+    hbr_ac04_nft_p2_rule: >-
+      iifname "{{ hbr_ac04_interface }}"
+      ct status 0x20
+      ct original ip daddr {{ hbr_ac04_host_ip }}
+      ct protocol 6
+      ct original proto-dst {{ hbr_ac04_port }}
+      ip saddr @p2_rosa_v4
+      counter accept
+      comment "P2-ROSA-COLDPULL approved worker subnet"
 
 - name: Normalize reviewed rule contract
   ansible.builtin.set_fact:
     hbr_ac04_nft_expected_rules_normalized: >-
       {{
-        hbr_ac04_nft_expected_rules
+        (hbr_ac04_nft_expected_rules[:1]
+         + ([hbr_ac04_nft_p2_rule] if hbr_ac04_p2_sources | length > 0 else [])
+         + hbr_ac04_nft_expected_rules[1:])
         | map('regex_replace', '\s+', ' ')
         | map('trim')
         | list
@@ -156,7 +193,7 @@
     that:
       - hbr_ac04_nft_check.rc == 0
       - hbr_ac04_nft_version in hbr_ac04_nft_supported_versions
-      - hbr_ac04_nft_table_set_count | int == 1
+      - hbr_ac04_nft_table_set_count | int == (2 if hbr_ac04_p2_sources | length > 0 else 1)
       - hbr_ac04_nft_table_chain_count | int == 1
       - hbr_ac04_nft_table_live.stdout is search('set approved_v4')
       - hbr_ac04_nft_table_live.stdout is search('chain ' ~ hbr_ac04_nft_chain)
@@ -168,10 +205,26 @@
       - >-
         hbr_ac04_nft_chain_meta_lines[0]
         == (hbr_ac04_nft_expected_meta | regex_replace('\s+', ' ') | trim)
-      - hbr_ac04_nft_rule_lines_normalized | length == 3
+      - hbr_ac04_nft_rule_lines_normalized | length == (4 if hbr_ac04_p2_sources | length > 0 else 3)
       - >-
         hbr_ac04_nft_rule_lines_normalized
         == hbr_ac04_nft_expected_rules_normalized
+      # P2 overlay scope is fixed: one ROSA worker subnet, nothing broader.
+      - hbr_ac04_p2_sources | length <= 1
+      - >-
+        hbr_ac04_p2_sources | map(attribute='cidr') | reject('equalto', '10.20.10.0/24')
+        | list | length == 0
+      - >-
+        hbr_ac04_p2_sources | map(attribute='classification')
+        | reject('equalto', 'P2_TEMP_ROSA_COLDPULL') | list | length == 0
+      - >-
+        (hbr_ac04_p2_sources | length > 0)
+        == (hbr_ac04_nft_table_live.stdout is search('set p2_rosa_v4'))
+      - >-
+        hbr_ac04_p2_sources | length == 0
+        or (hbr_ac04_nft_p2_set_live.stdout is search('flags interval')
+            and hbr_ac04_nft_p2_cidrs | sort
+                == (hbr_ac04_p2_sources | map(attribute='cidr') | list | sort))
     fail_msg: >-
       Managed nft guard does not exactly match the reviewed table/chain/set
       contract. Extra objects or rules, rule reordering, expression drift, or
