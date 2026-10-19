@@ -67,12 +67,14 @@
         | list
       }}
 
+# Every IPv4 token (CIDR, bare host, both ends of a range) is extracted so that an
+# extra element can never drop out of the exact comparison below (PR88 review 5568099255 B1).
 - name: Extract P2 ROSA cold-pull set
   ansible.builtin.set_fact:
     hbr_ac04_nft_p2_cidrs: >-
       {{
         (hbr_ac04_nft_p2_set_live.stdout | default(''))
-        | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}')
+        | regex_findall('(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:/[0-9]{1,2})?')
         | unique
         | list
       }}

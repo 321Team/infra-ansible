@@ -169,6 +169,15 @@ class P2Verifier(unittest.TestCase):
         rules = P1_RULES[:1] + [P2_RULE] + P1_RULES[1:]
         self.assertTrue(run_verifier(load_values(overlay=True), live(rules, [P1_SET, p2_set('10.20.0.0/16')])))
 
+    def test_extra_host_or_range_in_live_p2_set_is_a_stop(self):
+        # review B1: a bare IPv4 or a range next to the approved /24 must not drop out of the comparison
+        rules = P1_RULES[:1] + [P2_RULE] + P1_RULES[1:]
+        for elements in ('10.20.10.0/24, 10.20.11.7', '10.20.10.0/24, 10.20.11.0-10.20.11.255'):
+            with self.subTest(elements=elements):
+                failed = run_verifier(load_values(overlay=True), live(rules, [P1_SET, p2_set(elements)]))
+                self.assertTrue(failed)
+                self.assertTrue(any('hbr_ac04_nft_p2_cidrs' in x for x in failed))
+
     def test_broadened_overlay_is_a_stop(self):
         values = load_values(overlay=True)
         for change in ({'cidr': '10.20.0.0/16'}, {'classification': 'BASELINE_ALLOW'}):

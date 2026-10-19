@@ -195,7 +195,8 @@ require("hbr_ac04_nft_rule_lines_normalized | length == (4 if hbr_ac04_p2_source
 require("hbr_ac04_nft_table_set_count | int == (2 if hbr_ac04_p2_sources | length > 0 else 1)" in nft_verify,
         "live nft verifier must reject extra managed sets")
 for token in ("reject('equalto', '10.20.10.0/24')", "P2_TEMP_ROSA_COLDPULL", "flags interval",
-              "hbr_ac04_nft_p2_cidrs", "set p2_rosa_v4", "P2-ROSA-COLDPULL approved worker subnet"):
+              "hbr_ac04_nft_p2_cidrs", "set p2_rosa_v4", "P2-ROSA-COLDPULL approved worker subnet",
+              "[0-9]{1,3}(?:/[0-9]{1,2})?')"):
     require(token in nft_verify, f"live nft verifier missing P2 check: {token}")
 require("hbr_ac04_nft_table_chain_count | int == 1" in nft_verify,
         "live nft verifier must reject extra managed chains")

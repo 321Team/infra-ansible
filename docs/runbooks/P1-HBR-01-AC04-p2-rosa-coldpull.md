@@ -13,7 +13,9 @@ AC 인수가 아니다. 연결: [fds-project-baseline#13 요청 6258868341](http
 | 추가 | `inet p1_hbr_ac04`에 interval set `p2_rosa_v4` = `10.20.10.0/24`(ROSA worker `private_a`) 1개, `forward_guard`의 P1 accept 다음·미승인 IPv4 drop 앞에 accept 1줄 |
 | 범위 | 기존 규칙과 같음: `iifname "ens160"`, DNAT된 연결 중 원래 목적지 `10.1.93.54:443`/tcp만 |
 | 유지 | P1 `approved_v4` 5개(`10.250.10.20`, `10.1.93.105/.107/.108`, 임시 관리 예외 `10.1.93.102`), 미승인 IPv4 drop, IPv6 drop, hook/priority -1, Docker·firewalld 소유 규칙 |
-| 제외 | NAT EIP, VPC 전체 `10.20.0.0/16`, 포괄 허용, host INPUT/firewalld 한 줄 추가, Harbor→ROSA 신규 연결, Relay/VPN/AWS route·SG(fds-project-baseline#35·#37 소관) |
+| 제외 | NAT EIP, VPC 전체 `10.20.0.0/16`, 포괄 허용, host INPUT/firewalld 한 줄 추가, Harbor→ROSA 신규 연결, Relay/VPN/AWS route·SG(fds-project-baseline#35·#37 소관), harbor01 호스트 반환 경로 |
+
+- harbor01 호스트 반환 경로(`10.20.0.0/16 via 10.1.93.51`, runtime·NM 영구 아님)는 [S1 6074999671](https://github.com/321Team/fds-project-baseline/issues/37#issuecomment-6074999671) 3번대로 **fds-project-baseline#13 소관**이다. #37은 값과 시험 조건만 제공한다. 이 guard 변경과는 별도 단계로 창 B 카드와 #13 승인에서 다룬다(이 PR 범위 밖).
 
 - accept는 **worker가 시작한 Harbor 443 연결**을 허용한다. 역방향(Harbor→ROSA) 신규 개시는 이 규칙으로 열리지 않는다. 최초 pull은 worker의 신규 TCP 연결이므로 established 전용으로 제한하지 않는다.
 - 같은 chain에 두는 이유: nftables에서 다른 table·chain의 accept는 이 chain의 drop을 무효로 하지 않는다.
