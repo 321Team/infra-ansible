@@ -1,0 +1,14 @@
+---
+# P2 ROSA cold-pull overlay for the P1-HBR-01 AC-04 guard. NOT loaded by default.
+# Supply with -e only inside a window approved in fds-project-baseline#13
+# (separate Runtime approval; request 6258868341, review 6261120111).
+# Scope: ROSA worker subnet private_a -> Harbor 10.1.93.54:443 (DNAT) only.
+# Harbor -> ROSA new connections are not opened by this rule (forward_guard only
+# matches connections whose original destination is 10.1.93.54:443).
+# hard_expiry_kst is an independent upper bound: remove the rule by then even if
+# ROSA deletion is delayed. Expiry is not removal; render again without this file.
+hbr_ac04_p2_sources:
+  - cidr: 10.20.10.0/24
+    classification: P2_TEMP_ROSA_COLDPULL
+    owner: rosa-worker-private_a
+    hard_expiry_kst: "2026-10-23T23:59:00+09:00"

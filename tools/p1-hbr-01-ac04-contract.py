@@ -3,6 +3,8 @@
 from pathlib import Path
 import re
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[1]
 
 EXPECTED_SOURCES = {
@@ -30,6 +32,7 @@ rollback = read("playbooks/p1-hbr-01-ac04-rollback.yml")
 nft_verify = read("playbooks/tasks/p1-hbr-01-ac04-nft-verify.yml")
 nft_fixture_test = read("tests/test_p1_hbr_ac04_nft_fixture.py")
 nft_fixture = read("tests/fixtures/p1_hbr_ac04/nftables-v1.1.5-list.txt")
+p2_overlay = read("inventory/overlays/hbr-p2-rosa-coldpull.yml")
 
 require("hbr_ac04_backend: nftables-guard" in vars_text, "backend is not nftables-guard")
 require("hbr_ac04_nft_family: inet" in vars_text, "nft family drift")
@@ -60,6 +63,26 @@ for token in (
     require(token in nft, f"nft guard contract missing: {token}")
 
 require(nft.count('comment "P1-HBR-01-AC04') == 3, "nft guard must have exactly 3 managed rules")
+
+# P2 ROSA cold-pull overlay (fds-project-baseline#13): off by default, one subnet only,
+# its own set and one accept placed before the unapproved IPv4 drop.
+require(re.search(r"^hbr_ac04_p2_sources: \[\]$", vars_text, re.M) is not None,
+        "P2 sources must default to empty in group_vars")
+require(nft.count('comment "P2-ROSA-COLDPULL') == 1, "nft guard must have exactly 1 P2 rule")
+require(nft.count("{% if hbr_ac04_p2_sources %}") == 2, "P2 set and rule must both be conditional")
+p2_rule = nft.index('comment "P2-ROSA-COLDPULL')
+require(nft.index('comment "P1-HBR-01-AC04 approved IPv4"') < p2_rule
+        < nft.index('comment "P1-HBR-01-AC04 deny unapproved IPv4"'),
+        "P2 accept must sit between the P1 accept and the unapproved IPv4 drop")
+require("ip saddr @p2_rosa_v4" in nft and "flags interval" in nft, "P2 set contract missing")
+overlay = yaml.safe_load(p2_overlay)
+require(set(overlay) == {"hbr_ac04_p2_sources"}, "P2 overlay must only set hbr_ac04_p2_sources")
+require(overlay["hbr_ac04_p2_sources"] == [{
+    "cidr": "10.20.10.0/24",
+    "classification": "P2_TEMP_ROSA_COLDPULL",
+    "owner": "rosa-worker-private_a",
+    "hard_expiry_kst": "2026-10-23T23:59:00+09:00",
+}], "P2 overlay drift (approved scope is 10.20.10.0/24 until 2026-10-23 23:59 KST)")
 require("DOCKER-USER" not in nft and "DOCKER-FORWARD" not in nft,
         "nft template must not touch Docker-managed chains")
 require("table inet firewalld" not in nft, "nft template must not touch firewalld managed table")
@@ -167,10 +190,14 @@ for token in (
 ):
     require(token in nft_verify, f"exact live nft verifier missing: {token}")
 
-require("hbr_ac04_nft_rule_lines_normalized | length == 3" in nft_verify,
-        "live nft verifier must require exactly three rules")
-require("hbr_ac04_nft_table_set_count | int == 1" in nft_verify,
+require("hbr_ac04_nft_rule_lines_normalized | length == (4 if hbr_ac04_p2_sources | length > 0 else 3)" in nft_verify,
+        "live nft verifier must require exactly three rules (four with the P2 overlay)")
+require("hbr_ac04_nft_table_set_count | int == (2 if hbr_ac04_p2_sources | length > 0 else 1)" in nft_verify,
         "live nft verifier must reject extra managed sets")
+for token in ("reject('equalto', '10.20.10.0/24')", "P2_TEMP_ROSA_COLDPULL", "flags interval",
+              "hbr_ac04_nft_p2_cidrs", "set p2_rosa_v4", "P2-ROSA-COLDPULL approved worker subnet",
+              "[0-9]{1,3}(?:/[0-9]{1,2})?')"):
+    require(token in nft_verify, f"live nft verifier missing P2 check: {token}")
 require("hbr_ac04_nft_table_chain_count | int == 1" in nft_verify,
         "live nft verifier must reject extra managed chains")
 require("== hbr_ac04_nft_expected_rules_normalized" in nft_verify,
@@ -215,7 +242,6 @@ for text, label in ((precheck, "precheck"), (apply, "apply"), (verify, "verify")
     require("hbr_ac04_chain" not in text, f"stale DOCKER-USER chain variable remains in {label}")
 
 # Bind failure recovery and integrity gates to task structure, not comments.
-import yaml
 for source, key in ((apply, 'rescue'), (rollback, 'block')):
     task_list = yaml.safe_load(source)[-1]['tasks']
     recovery = next(t[key] for t in task_list if key in t)

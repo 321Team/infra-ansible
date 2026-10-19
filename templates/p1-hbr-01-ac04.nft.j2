@@ -11,12 +11,28 @@ table {{ hbr_ac04_nft_family }} {{ hbr_ac04_nft_table }} {
 {% endfor %}
         }
     }
+{% if hbr_ac04_p2_sources %}
+
+    set p2_rosa_v4 {
+        type ipv4_addr
+        flags interval
+        elements = {
+{% for item in hbr_ac04_p2_sources %}
+            {{ item.cidr }}{% if not loop.last %},{% endif %}
+{% endfor %}
+        }
+    }
+{% endif %}
 
     chain {{ hbr_ac04_nft_chain }} {
         type filter hook forward priority {{ hbr_ac04_nft_priority }}; policy accept;
 
         iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             ip saddr @approved_v4             counter accept             comment "P1-HBR-01-AC04 approved IPv4"
 
+{% if hbr_ac04_p2_sources %}
+        iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             ip saddr @p2_rosa_v4             counter accept             comment "P2-ROSA-COLDPULL approved worker subnet"
+
+{% endif %}
         iifname "{{ hbr_ac04_interface }}" meta nfproto ipv4             ct status dnat             ct original ip daddr {{ hbr_ac04_host_ip }}             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny unapproved IPv4"
 
         iifname "{{ hbr_ac04_interface }}" meta nfproto ipv6             ct status dnat             ct original protocol tcp             ct original proto-dst {{ hbr_ac04_port }}             counter drop             comment "P1-HBR-01-AC04 deny IPv6 published 443"
